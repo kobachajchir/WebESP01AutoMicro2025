@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useWebSocket } from "../contexts/WebSocketContext";
 import { useMockFirmware } from "../hooks/useMockFirmware";
 import ToggleButton from "../components/toggleButton";
+import Modal from "../components/modal";
 
 type WifiMode = "AP" | "STATION";
 
@@ -10,6 +11,7 @@ const Home: React.FC = () => {
   const { send, subscribe, connected } = useWebSocket();
   const [mode, setMode] = useState<WifiMode | null>(null);
   const [changesMade, setChangesMade] = useState(false);
+  const [fixedIPStation, setFixedIPStation] = useState(false);
 
   // --- AP state ---
   const [apSsid, setApSsid] = useState("");
@@ -22,6 +24,9 @@ const Home: React.FC = () => {
   const [stationIP, setStationIP] = useState("");
 
   const [seePass, setSeePass] = useState(false);
+
+  const [openInfoModal, setOpenInfoModal] = useState(false);
+  const [openSettingsModal, setOpenSettingsModal] = useState(false);
 
   // Refs para "linkear" inputs (STATION)
   const stationSsidRef = useRef<HTMLInputElement>(null);
@@ -134,11 +139,13 @@ const Home: React.FC = () => {
   // Enviar credenciales según modo
   function sendCredentials() {
     if (mode === "AP") {
-      send("set-ap-credentials", { ssid: apSsid, password: apPass });
+      send("set-ap-credentials", { ssid: apSsid, password: apPass, ip: apIP });
     } else {
       send("set-station-credentials", {
         ssid: stationSsid,
         password: stationPass,
+        fixedIp: fixedIPStation,
+        ip: stationIP,
       });
     }
     setChangesMade(false);
@@ -146,6 +153,7 @@ const Home: React.FC = () => {
       mode,
       ssid: mode === "AP" ? apSsid : stationSsid,
       password: mode === "AP" ? apPass : stationPass,
+      ip: apIP
     });
   }
 
@@ -197,7 +205,10 @@ const Home: React.FC = () => {
   return (
     <div className="flex flex-col h-full w-full items-center justify-center p-4 space-y-6 bg-gray-300 relative">
       <div className="flex flex-row space-x-2 absolute top-6 right-8">
-        <button className="flex items-center justify-center p-2 rounded-full bg- text-white hover:bg-gray-700 transition-colors">
+        <button
+          className="flex items-center justify-center p-2 rounded-full bg- text-white hover:bg-gray-700 transition-colors"
+          onClick={() => setOpenSettingsModal(true)}
+        >
           <svg
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
@@ -218,7 +229,10 @@ const Home: React.FC = () => {
             />
           </svg>
         </button>
-        <button className="flex items-center justify-center p-2 rounded-full bg- text-white hover:bg-gray-700 transition-colors">
+        <button
+          className="flex items-center justify-center p-2 rounded-full bg- text-white hover:bg-gray-700 transition-colors"
+          onClick={() => setOpenInfoModal(true)}
+        >
           <svg
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
@@ -419,27 +433,39 @@ const Home: React.FC = () => {
               >
                 IP fija?
               </label>
-              <div className="flex flex-col w-full justify-center relative">
-                <ToggleButton />
-              </div>
-              <input
-                ref={stationIpRef}
-                type="text"
-                name="station-ip"
-                id="station-ip"
-                className="bg-gray-50 border border-gray-300 text-gray-900 rounded-lg
+              <div className="flex flex-row w-full justify-center items-center space-x-6 relative">
+                <ToggleButton
+                  onActivate={() => setFixedIPStation(true)}
+                  onDeactivate={() => {
+                    setFixedIPStation(false);
+                    if (stationIpRef.current) {
+                      stationIpRef.current.value = initialStationInfo.ip;
+                      setStationIP(initialStationInfo.ip);
+                      setChangesMade(true);
+                    }
+                  }}
+                  classNames="ml-4"
+                />
+                <input
+                  ref={stationIpRef}
+                  type="text"
+                  name="station-ip"
+                  id="station-ip"
+                  className="bg-gray-50 border border-gray-300 text-gray-900 rounded-lg
                      focus:ring-primary-600 focus:border-primary-600 block w-full p-2.5
                      dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400
                      dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                defaultValue={initialStationInfo.ip}
-                onChange={(e) => {
-                  if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(e.target.value)) {
-                    return;
-                  }
-                  setStationIP(e.target.value);
-                  setChangesMade(true);
-                }}
-              />
+                  defaultValue={initialStationInfo.ip}
+                  readOnly={!fixedIPStation}
+                  onChange={(e) => {
+                    if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(e.target.value)) {
+                      return;
+                    }
+                    setStationIP(e.target.value);
+                    setChangesMade(true);
+                  }}
+                />
+              </div>
             </div>
 
             {/* Password (editable, linkeado por ref) */}
@@ -569,6 +595,50 @@ const Home: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+      {openInfoModal && (
+        <Modal isOpen={openInfoModal} onClose={() => setOpenInfoModal(false)}>
+          <h2 className="text-2xl font-bold mb-4 text-black">
+            Información del Modo Wi-Fi
+          </h2>
+          <p className="mb-4 text-black">
+            El modo AP permite que el dispositivo cree su propia red Wi-Fi a la
+            que puedes conectarte directamente. El modo STATION permite que el
+            dispositivo se conecte a una red Wi-Fi existente.
+          </p>
+          <p className="mb-4 text-black">
+            En el modo STATION, puedes seleccionar una red disponible y
+            configurar sus credenciales. Si seleccionas una red, el SSID se
+            rellenará automáticamente y la contraseña quedará vacía para que la
+            ingreses.
+          </p>
+        </Modal>
+      )}
+      {openSettingsModal && (
+        <Modal
+          isOpen={openSettingsModal}
+          onClose={() => setOpenSettingsModal(false)}
+        >
+          <h2 className="text-2xl font-bold mb-4 text-black">Configuracion</h2>
+          <div className="flex flex-row space-x-4 text-black w-full items-center justify-center my-4">
+            <p className="text-lg">Reiniciar ESP01</p>
+            <button
+              className="bg-blue-600 text-white px-4 py-1 rounded-md hover:bg-blue-700 transition"
+              onClick={() => console.log("Reiniciar ESP01")}
+            >
+              Ejecutar
+            </button>
+          </div>
+          <div className="flex flex-row space-x-4 text-black w-full items-center justify-center my-4">
+            <p className="text-lg">Resetear configuracion</p>
+            <button
+              className="bg-blue-600 text-white px-4 py-1 rounded-md hover:bg-blue-700 transition"
+              onClick={() => console.log("Resetear configuracion")}
+            >
+              Ejecutar
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   );
