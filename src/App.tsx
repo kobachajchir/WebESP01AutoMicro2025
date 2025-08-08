@@ -6,6 +6,7 @@ import Home from "./pages/Home";
 import Login from "./pages/Login";
 import "./App.css";
 import { useWebSocket } from "./contexts/WebSocketContext";
+import WifiSection from "./pages/WifiSection";
 
 const App: React.FC = () => {
   const { user } = useUser();
@@ -52,6 +53,12 @@ const App: React.FC = () => {
           <Route
             path="/home"
             element={!user ? <Home /> : <Navigate to="/login" replace />} //Sacar negacion de user
+          />
+
+          {/* Wifi: Solo accesible si hay user */}
+          <Route
+            path="/wifi"
+            element={!user ? <WifiSection /> : <Navigate to="/login" replace />} //Sacar negacion de user
           />
         </Routes>
       </BrowserRouter>
