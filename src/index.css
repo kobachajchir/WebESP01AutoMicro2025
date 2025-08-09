@@ -28,35 +28,56 @@ body{
   color: rgba(255, 255, 255, 0.87);
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
+/* === BOTONES BASE === */
+.refresh-btn {
+    background: #14b8a6;
+    background: linear-gradient(to right, #14b8a6, #06b6d4, #0891b2);
 }
-a:hover {
-  color: #535bf2;
+.refresh-btn:hover {
+    background: white !important;
+    background-image: none !important;
+}
+.estado-btn {
+    background: #06b6d4;
+    background: linear-gradient(to bottom right, #06b6d4, #6366f1);
+}
+.estado-btn:hover {
+    background: white !important;
+    background-image: none !important;
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+.control-btn {
+    background: #6366f1;
+    background: linear-gradient(to bottom right, #6366f1, #d946ef);
+}
+.control-btn:hover {
+    background: white !important;
 }
 
-button {
-  border-radius: 8px;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  cursor: pointer;
-  transition: border-color 0.25s;
+.wifi-btn {
+    background: #d946ef;
+    background: linear-gradient(to bottom right, #d946ef, #14b8a6);
 }
-button:hover {
-  border-color: #646cff;
+.wifi-btn {
+    background: linear-gradient(to bottom right, #d946ef, #14b8a6);
 }
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+.wifi-btn:hover {
+    background: white !important;
+    background-image: none !important;
+}
+
+.text-slate-hovered:hover {
+    color: rgb(15 23 42) !important;
+}
+
+/* === ANIMACIONES === */
+@keyframes gradient-move {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
+}
+@keyframes border-move {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
 }
 
 @media (prefers-color-scheme: light) {

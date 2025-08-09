@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 
 function ToggleButton({ onActivate, onDeactivate, classNames = "" }: {
   onActivate?: () => void;

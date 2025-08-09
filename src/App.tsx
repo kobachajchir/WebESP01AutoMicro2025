@@ -15,14 +15,23 @@ const App: React.FC = () => {
   // Mientras no estemos conectados al WS, mostramos un mensaje de espera
   if (!connected) {
     return (
-      <div className="flex h-screen items-center justify-center flex-col gap-2.5">
+      <div
+        className="flex flex-col h-screen w-full items-center justify-center gap-3 p-6 relative
+                      bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-slate-100
+                      selection:bg-cyan-500/30"
+      >
         <div
-          className="inline-block animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]
-          size-24 mb-0 text-white"
           role="status"
+          className="inline-block size-24 rounded-full border-4 border-current border-r-transparent
+                    animate-spin motion-reduce:animate-none text-cyan-400"
+        />
+        <h1
+          className="text-2xl md:text-3xl font-extrabold uppercase tracking-tight
+                      bg-clip-text text-transparent bg-gradient-to-r from-cyan-300 via-indigo-400 to-fuchsia-400
+                      bg-[length:200%_100%] motion-safe:animate-[gradient-move_6s_linear_infinite] drop-shadow-sm"
         >
-        </div>
-        <span className="text-white text-2xl">Conectando al servidor de la ESP01...</span>
+          Conectando al servidor de la ESP01...
+        </h1>
       </div>
     );
   }
