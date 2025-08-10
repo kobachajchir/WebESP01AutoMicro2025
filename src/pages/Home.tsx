@@ -78,13 +78,14 @@ const Home: React.FC = () => {
       </div>
 
       {/* Accesos */}
-      <div className="flex flex-row h-1/3 w-11/12 max-w-6xl items-stretch justify-between gap-6">
+      <div className="flex flex-row h-1/2 w-11/12 max-w-6xl items-center justify-between gap-6">
         {/* 1) Estado — cyan → indigo */}
         <button
-          className="estado-btn group relative w-1/4 h-full rounded-2xl
+          className="estado-btn group relative w-1/4 h-3/5 rounded-2xl
                transition-all duration-300 hover:-translate-y-1 hover:text-slate-900
                hover:shadow-[inset_0_0_0_2px_theme('colors.cyan.400')]
-               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40
+               "
           onClick={() => navigate("/statics")}
           aria-label="Ir a Estado"
         >
@@ -112,7 +113,7 @@ const Home: React.FC = () => {
 
         {/* 2) Control — indigo → fuchsia */}
         <button
-          className="control-btn group relative w-1/4 h-full rounded-2xl
+          className="control-btn group relative w-1/4 h-3/5 rounded-2xl
                transition-all duration-300 hover:-translate-y-1 hover:text-slate-900
                hover:shadow-[inset_0_0_0_2px_theme('colors.indigo.400')]
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40"
@@ -140,7 +141,7 @@ const Home: React.FC = () => {
 
         {/* 3) Wi-Fi — fuchsia → teal */}
         <button
-          className="wifi-btn group relative w-1/4 h-full rounded-2xl
+          className="wifi-btn group relative w-1/4 h-3/5 rounded-2xl
                transition-all duration-300 hover:-translate-y-1 hover:text-slate-900
                hover:shadow-[inset_0_0_0_2px_theme('colors.fuchsia.400')]
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400/40
