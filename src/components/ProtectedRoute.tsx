@@ -1,5 +1,6 @@
 import { Navigate } from "react-router-dom";
 import { useUser } from "../contexts/UserContext";
+import NavigateVT from "./NavigateVT";
 
 export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -17,5 +18,5 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({
     );
   }
 
-  return user ? <>{children}</> : <Navigate to="/login" replace />;
+  return user ? <>{children}</> : <NavigateVT to="/login" replace />;
 };

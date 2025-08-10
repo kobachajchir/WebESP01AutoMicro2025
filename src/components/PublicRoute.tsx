@@ -1,7 +1,11 @@
-import { Navigate } from "react-router-dom";
+// PublicRoute.tsx
+import React from "react";
+import NavigateVT from "./NavigateVT"; // ajustá la ruta según dónde lo guardaste
 import { useUser } from "../contexts/UserContext";
 
-export const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const PublicRoute: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const { user, loading } = useUser();
 
   if (loading) {
@@ -15,5 +19,5 @@ export const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   }
 
-  return !user ? <>{children}</> : <Navigate to="/home" replace />;
+  return !user ? <>{children}</> : <NavigateVT to="/home" replace />;
 };

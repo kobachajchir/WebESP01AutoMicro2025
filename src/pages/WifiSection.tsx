@@ -43,7 +43,7 @@ export default function WifiSection() {
   const [valid, setValid] = useState(false);
 
   // Mockea que la placa está en STATION
-  useMockFirmware("STATION", 300);
+  useMockFirmware("STATION", 1500);
 
   // Datos simulados para STATION (valores iniciales del dispositivo)
   const initialStationInfo = {
@@ -206,7 +206,7 @@ export default function WifiSection() {
         <button
           aria-label="Ir a Home"
           className="toolbar-btn group flex items-center justify-center py-2 px-3 rounded-2xl transition-all duration-300 hover:shadow-[inset_0_0_0_2px_theme('colors.cyan.400')] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
-          onClick={() => navigate("/home")}
+          onClick={() => navigate("/home", { viewTransition: true })}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -371,9 +371,9 @@ export default function WifiSection() {
           </button>
         </div>
       ) : (
-        <div className="h-full w-3/4 flex flex-col lg:flex-row lg:w-full gap-4">
+        <div className="h-full w-3/4 flex flex-col lg:flex-row lg:w-full gap-4 items-center justify-center">
           {/* Card STATION */}
-          <div className="flex flex-col w-full bg-white/5 rounded-2xl ring-1 ring-white/10 shadow-sm backdrop-blur justify-start items-center p-6">
+          <div className="flex flex-col w-full h-3/4 bg-white/5 rounded-2xl ring-1 ring-white/10 shadow-sm backdrop-blur justify-center items-center p-6">
             <h1 className="text-3xl md:text-4xl font-extrabold uppercase tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-r from-cyan-300 via-indigo-400 to-fuchsia-400 bg-[length:200%_100%] motion-safe:animate-[gradient-move_6s_linear_infinite] drop-shadow-sm">
               Modo STATION
             </h1>
@@ -420,17 +420,21 @@ export default function WifiSection() {
                       setChangesMade(true);
                     }
                   }}
-                  classNames="ml-1"
                 />
                 <input
                   ref={stationIpRef}
                   type="text"
                   name="station-ip"
                   id="station-ip"
-                  className="flex-1 rounded-xl bg-white/10 text-slate-100 placeholder-slate-400 ring-1 ring-white/10 p-2.5
+                  className={`flex-1 rounded-xl bg-white/10 text-slate-100 placeholder-slate-400 ring-1 ring-white/10 p-2.5
                              focus:outline-none focus:ring-2 focus:ring-cyan-400/40 transition duration-300
-                             disabled:opacity-50"
-                  defaultValue={initialStationInfo.ip}
+                             disabled:opacity-50 ${
+                               fixedIPStation ? "" : "input-disabled"
+                             }`}
+                  defaultValue={
+                    fixedIPStation ? initialStationInfo.ip : "Asignada por DHCP"
+                  }
+                  value={fixedIPStation ? stationIP : "Asignada por DHCP"}
                   readOnly={!fixedIPStation}
                   onChange={(e) => {
                     if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(e.target.value)) {
@@ -492,8 +496,8 @@ export default function WifiSection() {
               <button
                 className="btn-danger group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold text-white
                            transition-all duration-300 hover:text-slate-900
-                           hover:shadow-[inset_0_0_0_2px_theme('colors.red.400')]
-                           disabled:opacity-50 disabled:cursor-not-allowed"
+                           hover:shadow-[inset_0_0_0_2px_theme('colors.white')]
+                           disabled:opacity-50 disabled:cursor-not-allowed hover:bg-red-400"
                 onClick={resetCredentials}
                 disabled={!changesMade}
               >
@@ -501,8 +505,10 @@ export default function WifiSection() {
               </button>
               <button
                 className="btn-success group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold text-white
-                           transition-all duration-300 hover:text-slate-900
-                           hover:shadow-[inset_0_0_0_2px_theme('colors.emerald.400')]
+                           transition-all duration-300
+                           hover:shadow-[inset_0_0_0_2px_theme('colors.white')]
+                           hover:bg-emerald-400
+                           hover:text-slate-900
                            disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={sendCredentials}
                 disabled={!valid || !changesMade}
@@ -513,7 +519,7 @@ export default function WifiSection() {
           </div>
 
           {/* Card Redes disponibles */}
-          <div className="flex flex-col w-full bg-white/5 rounded-2xl ring-1 ring-white/10 shadow-sm backdrop-blur justify-start items-center p-6">
+          <div className="flex flex-col w-full h-3/4 bg-white/5 rounded-2xl ring-1 ring-white/10 shadow-sm backdrop-blur justify-center items-center p-6">
             <div className="flex flex-row items-center justify-between gap-2 mb-6 w-full max-w-xl">
               <div className="flex flex-row items-center gap-2">
                 <svg
@@ -571,7 +577,11 @@ export default function WifiSection() {
       )}
 
       {openInfoModal && (
-        <Modal isOpen={openInfoModal} onClose={() => setOpenInfoModal(false)}>
+        <Modal
+          isOpen={openInfoModal}
+          onClose={() => setOpenInfoModal(false)}
+          closeOnOverlayClick={false}
+        >
           <h2 className="text-2xl font-bold mb-4 text-black">
             Información del Modo Wi-Fi
           </h2>
@@ -593,6 +603,7 @@ export default function WifiSection() {
         <Modal
           isOpen={openSettingsModal}
           onClose={() => setOpenSettingsModal(false)}
+          closeOnOverlayClick={false}
         >
           <h2 className="text-2xl font-bold mb-4 text-black">Configuración</h2>
 

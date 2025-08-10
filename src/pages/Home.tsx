@@ -1,11 +1,16 @@
 // src/pages/Home.tsx
-import React from "react";
+import React, { useEffect } from "react";
 import { useWebSocket } from "../contexts/WebSocketContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useViewTransitionState } from "react-router-dom";
 
 const Home: React.FC = () => {
   const { connected } = useWebSocket();
   const navigate = useNavigate();
+
+  const toControl = useViewTransitionState("/control");
+  useEffect(() => {
+    if (toControl) console.log("VT → /control activa");
+  }, [toControl]);
 
   return (
     <div
@@ -78,15 +83,15 @@ const Home: React.FC = () => {
       </div>
 
       {/* Accesos */}
-      <div className="flex flex-row h-1/2 w-11/12 max-w-6xl items-center justify-between gap-6">
+      <div className="flex flex-col md:flex-row h-3/4 md:h-1/2 w-full md:w-11/12 max-w-6xl items-center justify-between gap-6">
         {/* 1) Estado — cyan → indigo */}
         <button
-          className="estado-btn group relative w-1/4 h-3/5 rounded-2xl
+          className="estado-btn group relative w-3/4 md:w-1/3 h-3/5 rounded-2xl
                transition-all duration-300 hover:-translate-y-1 hover:text-slate-900
                hover:shadow-[inset_0_0_0_2px_theme('colors.cyan.400')]
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40
                "
-          onClick={() => navigate("/statics")}
+          onClick={() => navigate("/statics", {viewTransition: true})}
           aria-label="Ir a Estado"
         >
           <div
@@ -113,11 +118,14 @@ const Home: React.FC = () => {
 
         {/* 2) Control — indigo → fuchsia */}
         <button
-          className="control-btn group relative w-1/4 h-3/5 rounded-2xl
+          className="control-btn group relative w-3/4 md:w-1/3 h-3/5 rounded-2xl
                transition-all duration-300 hover:-translate-y-1 hover:text-slate-900
                hover:shadow-[inset_0_0_0_2px_theme('colors.indigo.400')]
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40"
-          onClick={() => navigate("/control")}
+          onClick={(e) => {
+            e.preventDefault(); 
+            navigate("/control", {viewTransition: true})
+          }}
           aria-label="Ir a Control"
         >
           <div
@@ -141,12 +149,12 @@ const Home: React.FC = () => {
 
         {/* 3) Wi-Fi — fuchsia → teal */}
         <button
-          className="wifi-btn group relative w-1/4 h-3/5 rounded-2xl
+          className="wifi-btn group relative w-3/4 md:w-1/3 h-3/5 rounded-2xl
                transition-all duration-300 hover:-translate-y-1 hover:text-slate-900
                hover:shadow-[inset_0_0_0_2px_theme('colors.fuchsia.400')]
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400/40
                text-slate-hovered"
-          onClick={() => navigate("/wifi")}
+          onClick={() => navigate("/wifi", {viewTransition: true})}
           aria-label="Ir a Wi-Fi"
         >
           <div

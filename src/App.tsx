@@ -1,6 +1,6 @@
 // src/App.tsx
 import { useEffect } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, RouterProvider, createBrowserRouter } from "react-router-dom";
 import { useUser } from "./contexts/UserContext";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
@@ -11,10 +11,52 @@ import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { PublicRoute } from "./components/PublicRoute";
 import AppFooter from "./components/AppFooter";
+import NavigateVT from "./components/NavigateVT";
+import RedirectRoot from "./components/RedirectRoot";
+import RootLayout from "./components/RootLayout";
+import ControlSection from "./pages/ControlSection";
 
 const App: React.FC = () => {
   const { user, setUser } = useUser();
   const { connected } = useWebSocket();
+
+  const router = createBrowserRouter([
+    {
+      path: "/",
+      element: <RootLayout />,
+      errorElement: <NotFound />, // ⬅️ cualquier ruta no matcheada cae acá
+      children: [
+        { index: true, element: <RedirectRoot /> }, // equivale a path="/"
+        {
+          path: "login",
+          element: (
+            <PublicRoute>
+              <Login />
+            </PublicRoute>
+          ),
+        },
+        {
+          path: "home",
+          element: (
+            <ProtectedRoute>
+              <Home />
+            </ProtectedRoute>
+          ),
+        },
+        {
+          path: "wifi",
+          element: (
+            <ProtectedRoute>
+              <WifiSection />
+            </ProtectedRoute>
+          ),
+        },
+        // { path: "statics", element: <ProtectedRoute><StaticsSection /></ProtectedRoute> },
+        { path: "control", element: <ProtectedRoute><ControlSection /></ProtectedRoute> },
+        { path: "notFound", element: <NotFound /> }, // opcional
+      ],
+    },
+  ]);
 
   // Mientras no estemos conectados al WS, mostramos un mensaje de espera
   if (!connected) {
@@ -41,6 +83,19 @@ const App: React.FC = () => {
   }
 
   useEffect(() => {
+    if (!("startViewTransition" in document)) {
+      console.warn("View Transitions no soportado en este navegador");
+    }else{
+      console.log("View Transitions soportado en este navegador");
+    }
+  
+    return () => {
+     
+    }
+  }, [])
+  
+
+  useEffect(() => {
     console.log("Usuario autenticado:", user);
     /*if(user){
       setUser(null);
@@ -50,68 +105,7 @@ const App: React.FC = () => {
   return (
     <div className="flex flex-col h-full w-full relative">
       {/* Aquí puedes agregar un Header si es necesario */}
-      <BrowserRouter>
-        <Routes>
-          <Route
-            path="/"
-            element={
-              user ? (
-                <Navigate to="/home" replace />
-              ) : (
-                <Navigate to="/login" replace />
-              )
-            }
-          />
-
-          <Route
-            path="/login"
-            element={
-              <PublicRoute>
-                <Login />
-              </PublicRoute>
-            }
-          />
-
-          <Route
-            path="/home"
-            element={
-              <ProtectedRoute>
-                <Home />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/wifi"
-            element={
-              <ProtectedRoute>
-                <WifiSection />
-              </ProtectedRoute>
-            }
-          />
-
-          {`<Route
-            path="/statics"
-            element={
-              <ProtectedRoute>
-                <StaticsSection />
-              </ProtectedRoute>
-            }
-          />`}
-
-          {`<Route
-            path="/control"
-            element={
-              <ProtectedRoute>
-                <ControlSection />
-              </ProtectedRoute>
-            }
-          />`}
-
-          <Route path="/notFound" element={<NotFound />} />
-          <Route path="*" element={<Navigate to="/notFound" replace />} />
-        </Routes>
-      </BrowserRouter>
+      <RouterProvider router={router} />
       {/*Footer can be added here if needed*/}
       <AppFooter />
     </div>
