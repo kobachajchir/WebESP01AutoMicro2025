@@ -228,7 +228,7 @@ export default function WifiSection() {
             xmlns="http://www.w3.org/2000/svg"
             fill="currentColor"
             viewBox="0 0 24 24"
-            className="size-6 transition-transform duration-300 group-hover:rotate-12"
+            className="size-6 transition-transform duration-300 group-hover:scale-110"
           >
             <path
               fillRule="evenodd"

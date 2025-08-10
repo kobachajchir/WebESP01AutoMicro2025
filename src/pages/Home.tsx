@@ -90,7 +90,7 @@ const Home: React.FC = () => {
         >
           <div
             className="flex flex-col justify-center items-center h-full w-full rounded-2xl
-                 bg-transparent text-slate-100 transition-all duration-300 group-hover:text-slate-900"
+                 bg-transparent text-slate-100 transition-all duration-300 group-hover:text-slate-900 text-hover-indigo"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -104,7 +104,9 @@ const Home: React.FC = () => {
                 clipRule="evenodd"
               />
             </svg>
-            <p className="mt-2 text-2xl md:text-3xl font-semibold">Estado</p>
+            <p className="-mt-2 text-2xl md:text-2xl font-extrabold uppercase">
+              Estado
+            </p>
           </div>
         </button>
 
@@ -119,21 +121,20 @@ const Home: React.FC = () => {
         >
           <div
             className="flex flex-col justify-center items-center h-full w-full rounded-2xl
-                 bg-transparent text-slate-100 transition-all duration-300 group-hover:text-slate-900"
+                 bg-transparent text-slate-100 transition-all duration-300 group-hover:text-slate-900 text-hover-indigo fill-white hover:fill-indigo-500"
           >
             <svg
+              width="800px"
+              height="800px"
+              viewBox="0 0 20 20"
               xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              className="size-24 md:size-32 transition-transform duration-300 group-hover:scale-110"
+              className="size-24 md:size-32 transition-transform duration-300 "
             >
-              <path
-                fillRule="evenodd"
-                d="M10.5 3.798v5.02a3 3 0 0 1-.879 2.121l-2.377 2.377a9.845 9.845 0 0 1 5.091 1.013 8.315 8.315 0 0 0 5.713.636l.285-.071-3.954-3.955a3 3 0 0 1-.879-2.121v-5.02a23.614 23.614 0 0 0-3 0Zm4.5.138a.75.75 0 0 0 .093-1.495A24.837 24.837 0 0 0 12 2.25a25.048 25.048 0 0 0-3.093.191A.75.75 0 0 0 9 3.936v4.882a1.5 1.5 0 0 1-.44 1.06l-6.293 6.294c-1.62 1.621-.903 4.475 1.471 4.88 2.686.46 5.447.698 8.262.698 2.816 0 5.576-.239 8.262-.697 2.373-.406 3.092-3.26 1.47-4.881L15.44 9.879A1.5 1.5 0 0 1 15 8.818V3.936Z"
-                clipRule="evenodd"
-              />
+              <path d="M19.444 9.361c-.882-4.926-2.854-6.379-3.903-6.379-1.637 0-2.057 1.217-5.541 1.258-3.484-.041-3.904-1.258-5.541-1.258-1.049 0-3.022 1.453-3.904 6.379-.503 2.812-1.049 7.01.252 7.514 1.619.627 2.168-.941 3.946-2.266C6.558 13.266 7.424 12.95 10 12.95s3.442.316 5.247 1.659c1.778 1.324 2.327 2.893 3.946 2.266 1.301-.504.755-4.701.251-7.514zM6 10a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm7 0a1 1 0 1 1 0-2 1 1 0 1 1 0 2zm2-2a1 1 0 1 1 0-2 1 1 0 1 1 0 2z" />
             </svg>
-            <p className="mt-2 text-2xl md:text-3xl font-semibold">Control</p>
+            <p className="-mt-2 text-2xl md:text-2xl font-extrabold uppercase">
+              Control
+            </p>
           </div>
         </button>
 
@@ -149,7 +150,7 @@ const Home: React.FC = () => {
         >
           <div
             className="flex flex-col justify-center items-center h-full w-full rounded-2xl
-                 bg-transparent text-slate-100 transition-all duration-300 group-hover:text-slate-900"
+                 bg-transparent text-slate-100 transition-all duration-300 group-hover:text-slate-900 text-hover-indigo"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -163,7 +164,9 @@ const Home: React.FC = () => {
                 clipRule="evenodd"
               />
             </svg>
-            <p className="mt-2 text-2xl md:text-3xl font-semibold ">Wifi</p>
+            <p className="-mt-2 text-2xl md:text-2xl font-extrabold uppercase">
+              Wifi
+            </p>
           </div>
         </button>
       </div>
