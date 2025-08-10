@@ -1,5 +1,5 @@
 // src/App.tsx
-import React, { use, useEffect } from "react";
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useUser } from "./contexts/UserContext";
 import Home from "./pages/Home";
@@ -10,9 +10,10 @@ import WifiSection from "./pages/WifiSection";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { PublicRoute } from "./components/PublicRoute";
+import AppFooter from "./components/AppFooter";
 
 const App: React.FC = () => {
-  const { user } = useUser();
+  const { user, setUser } = useUser();
   const { connected } = useWebSocket();
 
   // Mientras no estemos conectados al WS, mostramos un mensaje de espera
@@ -41,10 +42,14 @@ const App: React.FC = () => {
 
   useEffect(() => {
     console.log("Usuario autenticado:", user);
+    /*if(user){
+      setUser(null);
+    }*/
   }, [user]);
 
   return (
-    <>
+    <div className="flex flex-col h-full w-full relative">
+      {/* Aquí puedes agregar un Header si es necesario */}
       <BrowserRouter>
         <Routes>
           <Route
@@ -107,7 +112,9 @@ const App: React.FC = () => {
           <Route path="*" element={<Navigate to="/notFound" replace />} />
         </Routes>
       </BrowserRouter>
-    </>
+      {/*Footer can be added here if needed*/}
+      <AppFooter />
+    </div>
   );
 };
 

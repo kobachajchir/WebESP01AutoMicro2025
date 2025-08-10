@@ -43,6 +43,11 @@ body{
   background: linear-gradient(to bottom right, #06b6d4, #6366f1);
 }
 
+.footer-btn:hover{
+  color: #06b6d4;
+  color: linear-gradient(to bottom right, #06b6d4, #6366f1);
+}
+
 .close-btn:hover{
     background: #6366f1;
     background: linear-gradient(to bottom right, #ef4444, #d32c02);

@@ -22,6 +22,7 @@ interface UserContextType {
   login: (username: string, password: string) => Promise<boolean>;
   /** Limpia el user y avisa al servidor */
   logout: () => void;
+  setUser: (user: User | null) => void;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -177,7 +178,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   }, [send, disconnect, connected]);
 
   return (
-    <UserContext.Provider value={{ user, loading, login, logout }}>
+    <UserContext.Provider value={{ user, loading, login, logout ,setUser}}>
       {children}
     </UserContext.Provider>
   );
