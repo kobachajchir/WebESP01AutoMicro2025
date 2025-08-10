@@ -88,9 +88,19 @@ const App: React.FC = () => {
     }else{
       console.log("View Transitions soportado en este navegador");
     }
-  
+    // Ajusta el root para que ocupe todo el alto visible del navegador y previene el scroll
+    const setFullHeight = () => {
+      const vh = window.innerHeight * 0.01;
+      document.getElementById("root")?.style.setProperty("--vh", `${vh}px`);
+      document.getElementById("root")?.style.setProperty("height", `calc(var(--vh, 1vh) * 100)`);
+      document.body.style.height = `calc(var(--vh, 1vh) * 100)`;
+      document.body.style.overflow = "scroll";
+    };
+    setFullHeight();
     return () => {
-     
+      window.removeEventListener("resize", setFullHeight);
+      document.body.style.overflow = "";
+      document.body.style.height = "";
     }
   }, [])
   
@@ -106,8 +116,9 @@ const App: React.FC = () => {
     <div className="flex flex-col h-full w-full relative">
       {/* Aquí puedes agregar un Header si es necesario */}
       <RouterProvider router={router} />
-      {/*Footer can be added here if needed*/}
+      <div className="mt-auto">
       <AppFooter />
+      </div>
     </div>
   );
 };
