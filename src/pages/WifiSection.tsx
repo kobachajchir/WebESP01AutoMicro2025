@@ -202,13 +202,10 @@ export default function WifiSection() {
   return (
     <div className="flex flex-col h-full w-full items-center justify-start p-6 space-y-6 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-slate-100 relative selection:bg-cyan-500/30">
       {/* Acciones superiores */}
-      <div className="flex flex-row gap-2 absolute top-6 right-6">
+      <div className="flex flex-row gap-2 items-end justify-end w-full">
         <button
           aria-label="Ir a Home"
-          className="group relative inline-flex items-center justify-center rounded-xl px-3 py-2 font-medium
-                     text-white transition-all duration-300 hover:text-slate-900
-                     hover:shadow-[inset_0_0_0_1px_theme('colors.slate.400')]
-                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40"
+          className="toolbar-btn group flex items-center justify-center py-2 px-3 rounded-2xl transition-all duration-300 hover:shadow-[inset_0_0_0_2px_theme('colors.cyan.400')] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
           onClick={() => navigate("/home")}
         >
           <svg
@@ -217,17 +214,14 @@ export default function WifiSection() {
             viewBox="0 0 24 24"
             className="size-6 transition-transform duration-300 group-hover:scale-110"
           >
-            <path d="M11.47 3.84a.75.75 0 0 1 1.06 0l8.25 8.25a.75.75 0 1 1-1.06 1.06L12 5.56 4.28 13.15a.75.75 0 0 1-1.06-1.06l8.25-8.25Z" />
-            <path d="M12 6.31 5.53 12.78a.75.75 0 0 0-.22.53V20.5A2.25 2.25 0 0 0 7.56 22.75h2.69a.75.75 0 0 0 .75-.75v-5.25a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 .75.75V22a.75.75 0 0 0 .75.75h2.69A2.25 2.25 0 0 0 20.69 20.5v-7.19a.75.75 0 0 0-.22-.53L12 6.31Z" />
+            <path d="M11.47 3.841a.75.75 0 0 1 1.06 0l8.69 8.69a.75.75 0 1 0 1.06-1.061l-8.689-8.69a2.25 2.25 0 0 0-3.182 0l-8.69 8.69a.75.75 0 1 0 1.061 1.06l8.69-8.689Z" />
+            <path d="m12 5.432 8.159 8.159c.03.03.06.058.091.086v6.198c0 1.035-.84 1.875-1.875 1.875H15a.75.75 0 0 1-.75-.75v-4.5a.75.75 0 0 0-.75-.75h-3a.75.75 0 0 0-.75.75V21a.75.75 0 0 1-.75.75H5.625a1.875 1.875 0 0 1-1.875-1.875v-6.198a2.29 2.29 0 0 0 .091-.086L12 5.432Z" />
           </svg>
         </button>
 
         <button
           aria-label="Configuración"
-          className="group relative inline-flex items-center justify-center rounded-xl px-3 py-2 font-medium
-                     text-white transition-all duration-300 hover:text-slate-900
-                     hover:shadow-[inset_0_0_0_1px_theme('colors.slate.400')]
-                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40"
+          className="toolbar-btn group flex items-center justify-center py-2 px-3 rounded-2xl transition-all duration-300 hover:shadow-[inset_0_0_0_2px_theme('colors.cyan.400')] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
           onClick={() => setOpenSettingsModal(true)}
         >
           <svg
@@ -236,17 +230,17 @@ export default function WifiSection() {
             viewBox="0 0 24 24"
             className="size-6 transition-transform duration-300 group-hover:rotate-12"
           >
-            <path d="M11.2 2.75a1 1 0 0 0-.99.84l-.2 1.2a2 2 0 0 1-1.08 1.46l-.2.11a2 2 0 0 1-1.68.07l-1.1-.41a1 1 0 0 0-1.2.43l-1.18 2.06a1 1 0 0 0 .23 1.27l.92.76a2 2 0 0 1 .75 1.59v.23a2 2 0 0 1-.75 1.59l-.92.76a1 1 0 0 0-.23 1.27l1.18 2.06a1 1 0 0 0 1.2.43l1.1-.41a2 2 0 0 1 1.68.07l.2.11a2 2 0 0 1 1.08 1.46l.2 1.2a1 1 0 0 0 .99.84h1.6a1 1 0 0 0 .99-.84l.2-1.2a2 2 0 0 1 1.08-1.46l.2-.11a2 2 0 0 1 1.68-.07l1.1.41a1 1 0 0 0 1.2-.43l1.18-2.06a1 1 0 0 0-.23-1.27l-.92-.76a2 2 0 0 1-.75-1.59v-.23a2 2 0 0 1 .75-1.59l.92-.76a1 1 0 0 0 .23-1.27L20.3 6c-.24-.42-.76-.6-1.2-.43l-1.1.41a2 2 0 0 1-1.68-.07l-.2-.11a2 2 0 0 1-1.08-1.46l-.2-1.2a1 1 0 0 0-.99-.84h-1.6Z" />
-            <circle cx="12" cy="12" r="3" />
+            <path
+              fillRule="evenodd"
+              d="M11.078 2.25c-.917 0-1.699.663-1.85 1.567L9.05 4.889c-.02.12-.115.26-.297.348a7.493 7.493 0 0 0-.986.57c-.166.115-.334.126-.45.083L6.3 5.508a1.875 1.875 0 0 0-2.282.819l-.922 1.597a1.875 1.875 0 0 0 .432 2.385l.84.692c.095.078.17.229.154.43a7.598 7.598 0 0 0 0 1.139c.015.2-.059.352-.153.43l-.841.692a1.875 1.875 0 0 0-.432 2.385l.922 1.597a1.875 1.875 0 0 0 2.282.818l1.019-.382c.115-.043.283-.031.45.082.312.214.641.405.985.57.182.088.277.228.297.35l.178 1.071c.151.904.933 1.567 1.85 1.567h1.844c.916 0 1.699-.663 1.85-1.567l.178-1.072c.02-.12.114-.26.297-.349.344-.165.673-.356.985-.57.167-.114.335-.125.45-.082l1.02.382a1.875 1.875 0 0 0 2.28-.819l.923-1.597a1.875 1.875 0 0 0-.432-2.385l-.84-.692c-.095-.078-.17-.229-.154-.43a7.614 7.614 0 0 0 0-1.139c-.016-.2.059-.352.153-.43l.84-.692c.708-.582.891-1.59.433-2.385l-.922-1.597a1.875 1.875 0 0 0-2.282-.818l-1.02.382c-.114.043-.282.031-.449-.083a7.49 7.49 0 0 0-.985-.57c-.183-.087-.277-.227-.297-.348l-.179-1.072a1.875 1.875 0 0 0-1.85-1.567h-1.843ZM12 15.75a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5Z"
+              clipRule="evenodd"
+            />
           </svg>
         </button>
 
         <button
           aria-label="Información"
-          className="group relative inline-flex items-center justify-center rounded-xl px-3 py-2 font-medium
-                     text-white transition-all duration-300 hover:text-slate-900
-                     hover:shadow-[inset_0_0_0_1px_theme('colors.slate.400')]
-                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40"
+          className="toolbar-btn group flex items-center justify-center py-2 px-3 rounded-2xl transition-all duration-300 hover:shadow-[inset_0_0_0_2px_theme('colors.cyan.400')] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
           onClick={() => setOpenInfoModal(true)}
         >
           <svg
@@ -255,7 +249,11 @@ export default function WifiSection() {
             viewBox="0 0 24 24"
             className="size-6 transition-transform duration-300 group-hover:scale-110"
           >
-            <path d="M12 2.25a9.75 9.75 0 1 0 0 19.5 9.75 9.75 0 0 0 0-19.5Zm0 5.25a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm1.25 9.25h-2.5a.75.75 0 0 1 0-1.5h.5v-3.5h-.5a.75.75 0 0 1 0-1.5h1.75a.75.75 0 0 1 .75.75v4.25h.5a.75.75 0 0 1 0 1.5Z" />
+            <path
+              fillRule="evenodd"
+              d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm8.706-1.442c1.146-.573 2.437.463 2.126 1.706l-.709 2.836.042-.02a.75.75 0 0 1 .67 1.34l-.04.022c-1.147.573-2.438-.463-2.127-1.706l.71-2.836-.042.02a.75.75 0 1 1-.671-1.34l.041-.022ZM12 9a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z"
+              clipRule="evenodd"
+            />
           </svg>
         </button>
       </div>
@@ -373,7 +371,7 @@ export default function WifiSection() {
           </button>
         </div>
       ) : (
-        <div className="h-full w-full flex flex-col md:flex-row gap-4">
+        <div className="h-full w-3/4 flex flex-col lg:flex-row lg:w-full gap-4">
           {/* Card STATION */}
           <div className="flex flex-col w-full bg-white/5 rounded-2xl ring-1 ring-white/10 shadow-sm backdrop-blur justify-start items-center p-6">
             <h1 className="text-3xl md:text-4xl font-extrabold uppercase tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-r from-cyan-300 via-indigo-400 to-fuchsia-400 bg-[length:200%_100%] motion-safe:animate-[gradient-move_6s_linear_infinite] drop-shadow-sm">
@@ -604,23 +602,23 @@ export default function WifiSection() {
               className="btn-indigo group relative inline-flex items-center gap-2 rounded-xl px-3 py-2 font-medium text-white
                          transition-all duration-300 hover:text-slate-900
                          hover:shadow-[inset_0_0_0_1px_theme('colors.indigo.400')]
-                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40"
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40 estado-btn px-5"
               onClick={() => console.log("Reiniciar ESP01")}
             >
-              Ejecutar
+              Enviar
             </button>
           </div>
 
           <div className="flex flex-row gap-4 text-black w-full items-center justify-center my-4">
             <p className="text-lg">Resetear configuración</p>
             <button
-              className="btn-danger group relative inline-flex items-center gap-2 rounded-xl px-3 py-2 font-medium text-white
+              className="btn-danger group relative inline-flex items-center gap-2 rounded-xl py-2 font-medium text-white
                          transition-all duration-300 hover:text-slate-900
                          hover:shadow-[inset_0_0_0_1px_theme('colors.red.400')]
-                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40"
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40 estado-btn px-5"
               onClick={() => console.log("Resetear configuracion")}
             >
-              Ejecutar
+              Enviar
             </button>
           </div>
         </Modal>

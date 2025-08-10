@@ -1,5 +1,5 @@
 // src/App.tsx
-import React from "react";
+import React, { use, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useUser } from "./contexts/UserContext";
 import Home from "./pages/Home";
@@ -7,6 +7,9 @@ import Login from "./pages/Login";
 import "./App.css";
 import { useWebSocket } from "./contexts/WebSocketContext";
 import WifiSection from "./pages/WifiSection";
+import NotFound from "./pages/NotFound";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+import { PublicRoute } from "./components/PublicRoute";
 
 const App: React.FC = () => {
   const { user } = useUser();
@@ -36,11 +39,14 @@ const App: React.FC = () => {
     );
   }
 
+  useEffect(() => {
+    console.log("Usuario autenticado:", user);
+  }, [user]);
+
   return (
     <>
       <BrowserRouter>
         <Routes>
-          {/* Ruta raíz: si hay user → /home, sino → /login */}
           <Route
             path="/"
             element={
@@ -52,23 +58,53 @@ const App: React.FC = () => {
             }
           />
 
-          {/* Login: solo accesible si NO hay user */}
           <Route
             path="/login"
-            element={user ? <Login /> : <Navigate to="/home" replace />} //Negar user
+            element={
+              <PublicRoute>
+                <Login />
+              </PublicRoute>
+            }
           />
 
-          {/* Home: solo accesible si hay user */}
           <Route
             path="/home"
-            element={!user ? <Home /> : <Navigate to="/login" replace />} //Sacar negacion de user
+            element={
+              <ProtectedRoute>
+                <Home />
+              </ProtectedRoute>
+            }
           />
 
-          {/* Wifi: Solo accesible si hay user */}
           <Route
             path="/wifi"
-            element={!user ? <WifiSection /> : <Navigate to="/login" replace />} //Sacar negacion de user
+            element={
+              <ProtectedRoute>
+                <WifiSection />
+              </ProtectedRoute>
+            }
           />
+
+          {`<Route
+            path="/statics"
+            element={
+              <ProtectedRoute>
+                <StaticsSection />
+              </ProtectedRoute>
+            }
+          />`}
+
+          {`<Route
+            path="/control"
+            element={
+              <ProtectedRoute>
+                <ControlSection />
+              </ProtectedRoute>
+            }
+          />`}
+
+          <Route path="/notFound" element={<NotFound />} />
+          <Route path="*" element={<Navigate to="/notFound" replace />} />
         </Routes>
       </BrowserRouter>
     </>

@@ -37,6 +37,17 @@ body{
     background: white !important;
     background-image: none !important;
 }
+
+.toolbar-btn:hover{
+  background: #06b6d4;
+  background: linear-gradient(to bottom right, #06b6d4, #6366f1);
+}
+
+.close-btn:hover{
+    background: #6366f1;
+    background: linear-gradient(to bottom right, #ef4444, #d32c02);
+}
+
 .estado-btn {
     background: #06b6d4;
     background: linear-gradient(to bottom right, #06b6d4, #6366f1);
