@@ -21,6 +21,10 @@ interface ToggleButtonProps {
   className?: string;
   /** Accesibilidad: etiqueta del switch si no hay label visible */
   ariaLabel?: string;
+  labels?: boolean; // Si se quieren mostrar etiquetas de "On" y "Off"
+  labelOn?: string; // Texto para el estado "On"
+  labelOff?: string; // Texto para el estado "Off"
+  labelClassName?: string; // Clase extra para las etiquetas
 }
 
 /** Toggle con estilo de la app (slate/cyan), accesible y animado */
@@ -34,6 +38,10 @@ export default function ToggleButton({
   size = "md",
   className = "",
   ariaLabel = "Alternar",
+  labels = false, // Si se quieren mostrar etiquetas de "On" y "Off"
+  labelOn = "On",
+  labelOff = "Off",
+  labelClassName = "",
 }: ToggleButtonProps) {
   const isControlled = checked !== undefined;
   const [internal, setInternal] = useState(defaultChecked);
@@ -93,41 +101,61 @@ export default function ToggleButton({
   }, [size]);
 
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={isOn}
-      aria-label={ariaLabel}
-      aria-disabled={disabled || undefined}
-      disabled={disabled}
-      onClick={toggle}
-      onKeyDown={onKeyDown}
-      className={[
-        "inline-flex items-center rounded-full p-0.5",
-        "transition-colors duration-300 ease-out",
-        "ring-1 ring-white/10",
-        cfg.track,
-        isOn
-          ? "bg-cyan-600/90 hover:bg-cyan-600"
-          : "bg-slate-700/70 hover:bg-slate-700",
-        disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
-        // enfoque accesible en nuestra app
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950",
-        className,
-      ].join(" ")}
-      data-state={isOn ? "on" : "off"}
-    >
-      <span
+    <div className="flex flex-row gap-2 items-center">
+      {labels && (
+        <span
+          className={`text-sm font-medium ${
+            !isOn ? "text-cyan-400" : "text-slate-400"
+          } ${labelClassName}`}
+        >
+          {labelOff}
+        </span>
+      )}
+      <button
+        type="button"
+        role="switch"
+        aria-checked={isOn}
+        aria-label={ariaLabel}
+        aria-disabled={disabled || undefined}
+        disabled={disabled}
+        onClick={toggle}
+        onKeyDown={onKeyDown}
         className={[
-          "rounded-full shadow-md",
-          // animación de movimiento y leve escala/blur para “punch”
-          "motion-safe:transition-all motion-safe:duration-300",
+          "inline-flex items-center rounded-full p-0.5",
+          "transition-colors duration-300 ease-out",
+          "ring-1 ring-white/10",
+          cfg.track,
           isOn
-            ? `${cfg.thumb} ${cfg.thumbOn} bg-white`
-            : `${cfg.thumb} ${cfg.thumbOff} bg-slate-200`,
+            ? "bg-cyan-600/90 hover:bg-cyan-600"
+            : "bg-slate-700/70 hover:bg-slate-700",
+          disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
+          // enfoque accesible en nuestra app
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950",
+          className,
         ].join(" ")}
-        // micro-anim extra opcional con data-state (si querés tunear en CSS global)
-      />
-    </button>
+        data-state={isOn ? "on" : "off"}
+      >
+        <span
+          className={[
+            "rounded-full shadow-md",
+            // animación de movimiento y leve escala/blur para “punch”
+            "motion-safe:transition-all motion-safe:duration-300",
+            isOn
+              ? `${cfg.thumb} ${cfg.thumbOn} bg-white`
+              : `${cfg.thumb} ${cfg.thumbOff} bg-slate-200`,
+          ].join(" ")}
+          // micro-anim extra opcional con data-state (si querés tunear en CSS global)
+        />
+      </button>
+      {labels && (
+        <span
+          className={`text-sm font-medium ${
+            isOn ? "text-cyan-400" : "text-slate-400"
+          } ${labelClassName}`}
+        >
+          {labelOn}
+        </span>
+      )}
+    </div>
   );
 }
