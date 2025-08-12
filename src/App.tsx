@@ -11,7 +11,6 @@ import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { PublicRoute } from "./components/PublicRoute";
 import AppFooter from "./components/AppFooter";
-import NavigateVT from "./components/NavigateVT";
 import RedirectRoot from "./components/RedirectRoot";
 import RootLayout from "./components/RootLayout";
 import ControlSection from "./pages/ControlSection";
@@ -117,7 +116,7 @@ const App: React.FC = () => {
       {/* Aquí puedes agregar un Header si es necesario */}
       <RouterProvider router={router} />
       <div className="mt-auto">
-      <AppFooter />
+      {/*<AppFooter />*/}
       </div>
     </div>
   );

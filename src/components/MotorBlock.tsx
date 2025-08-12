@@ -1,9 +1,11 @@
-// src/components/MotorBlock.tsx
+import { useEffect } from "react";
+
 export type BlockKind = "ramp" | "hold" | "pivot" | "arc" | "stop";
 
 interface Props {
   kind: BlockKind;
-  selected?: boolean; // Cambiado: ahora es boolean para indicar si está seleccionado
+  selected?: boolean;
+  pairSelected?: boolean; // <- booleano
   disabled?: boolean;
   onClick?: () => void;
 }
@@ -19,6 +21,7 @@ const labelES: Record<BlockKind, string> = {
 export default function MotorBlock({
   kind,
   selected = false,
+  pairSelected = false,
   disabled,
   onClick,
 }: Props) {
@@ -32,11 +35,18 @@ export default function MotorBlock({
 
   const active = selected
     ? "border-cyan-400 border-4"
+    : pairSelected && kind === "pivot"
+    ? "outline outline-4 outline-amber-400 outline-offset-2 ring-2 ring-amber-400/50"
     : "";
 
   const disabledCls = disabled
     ? "opacity-50 cursor-not-allowed"
     : "cursor-pointer";
+
+  useEffect(() => {
+    // Sólo para debug visual si querés ver que re-renderiza cuando cambia
+    // console.log("pairSelected (tile pivot):", pairSelected);
+  }, [pairSelected]);
 
   return (
     <button
@@ -46,20 +56,17 @@ export default function MotorBlock({
       aria-pressed={selected}
       aria-label={labelES[kind]}
     >
-      {/* Ícono */}
       <div className="mb-3 flex items-center justify-center">
         {kind === "ramp" && (
           <svg viewBox="0 0 24 24" className="h-10 w-10" fill="currentColor">
             <path d="M4 18h16L4 6v12Z" />
           </svg>
         )}
-
         {kind === "hold" && (
           <svg viewBox="0 0 24 24" className="h-10 w-10" fill="currentColor">
             <rect x="4" y="8" width="16" height="8" rx="2" />
           </svg>
         )}
-
         {kind === "pivot" && (
           <svg
             viewBox="0 0 24 24"
@@ -71,7 +78,6 @@ export default function MotorBlock({
             <circle cx="12" cy="12" r="7" />
           </svg>
         )}
-
         {kind === "arc" && (
           <svg
             viewBox="0 0 24 24"
@@ -83,7 +89,6 @@ export default function MotorBlock({
             <path d="M4 16c6-10 10-10 16 0" strokeLinecap="round" />
           </svg>
         )}
-
         {kind === "stop" && (
           <svg viewBox="0 0 24 24" className="h-10 w-10" fill="currentColor">
             <rect x="7" y="7" width="10" height="10" rx="2" />
@@ -91,7 +96,6 @@ export default function MotorBlock({
         )}
       </div>
 
-      {/* Etiqueta */}
       <div className="text-sm font-semibold tracking-wide">{labelES[kind]}</div>
     </button>
   );
