@@ -1,6 +1,13 @@
 // src/components/TimelineRow.tsx
+import { useState } from "react";
 import type { Block, TrackKey } from "../types/MotorTypes";
 import type { BlockKind } from "./MotorBlock";
+
+type MinimalBlockProps = {
+  fromPct?: number;
+  toPct?: number;
+  speed?: number;
+};
 
 interface TimelineRowProps {
   title: string;
@@ -14,59 +21,86 @@ interface TimelineRowProps {
   onSelect: (id: string | null) => void;
   /** IDs a resaltar (ej: par de pivot en el otro track) */
   highlightIds?: string[];
+  /** Props por bloque para dibujar formas (from/to/speed). Opcional. */
+  blockProps?: Record<string, MinimalBlockProps>;
 }
 
+const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+const clampPct = (v: number, min = 0, max = 100) =>
+  Math.max(min, Math.min(max, v));
+const MIN_SCALE = 0.3; // altura mínima como fracción para que no desaparezcan
+
 // Formas por tipo
-function getBlockStyles(block: Block) {
+function getBlockStyles(
+  block: Block,
+  p?: MinimalBlockProps
+): React.CSSProperties {
   switch (block.kind) {
     case "ramp": {
-      const rampSteepness = Math.min(
-        Math.max(block.durationMs / 2000, 0.2),
-        0.8
-      );
-      const rampEndPoint = 20 + rampSteepness * 60; // 20%..80%
+      // Altura: usamos el mayor entre from/to para que respete escala general
+      const from = clampPct(p?.fromPct ?? 60);
+      const to = clampPct(p?.toPct ?? 80);
+      const scale = Math.max(from, to) / 100;
+      const topLeft = 100 - from; // y=0 arriba
+      const topRight = 100 - to;
+
       return {
-        clipPath: `polygon(0% 100%, ${rampEndPoint}% 0%, 100% 100%)`,
-        borderRadius: "0.75rem 0.75rem 0 0", // radios solo arriba
-        height: "100%", // <<< importante
+        clipPath: `polygon(0% ${topLeft}%, 100% ${topRight}%, 100% 100%, 0% 100%)`,
+        borderRadius: "0",
+        height: `${clamp01(Math.max(scale, MIN_SCALE)) * 100}%`,
+        // sin marginTop: el contenedor ya alinea al piso
       } as React.CSSProperties;
     }
+
     case "arc": {
-      const arcIntensity = block.speed ? Math.min(block.speed / 100, 1) : 0.7;
+      const sp = p?.speed ?? (block as any).speed ?? 70;
+      const scale = clamp01(Math.max(sp / 100, 0.05));
+      const arcIntensity = Math.min(sp / 100, 1);
       const borderRadiusValue = `${50 + arcIntensity * 50}% ${
         50 + arcIntensity * 50
-      }% 20% 20%`;
+      }% 0% 0%`;
       return {
         borderRadius: borderRadiusValue,
         clipPath: "none",
-        height: "100%", // <<< importante
+        height: `${scale * 100}%`,
       } as React.CSSProperties;
     }
+
     case "hold": {
-      const constantHeight = block.speed
-        ? Math.max(block.speed / 100, 0.3)
-        : 0.8;
+      const sp = p?.speed ?? (block as any).speed ?? 80;
+      const scale = clamp01(Math.max(sp / 100, 0.05));
       return {
         clipPath: "none",
-        borderRadius: "0.75rem 0.75rem 0 0", // radios solo arriba
-        height: `${constantHeight * 100}%`,
-        marginTop: `${(1 - constantHeight) * 100}%`,
+        height: `${scale * 100}%`,
+        // IMPORTANTE: NO usar marginTop para que no se desplace
       } as React.CSSProperties;
     }
+
+    case "pivot": {
+      // Visual simple rectangular, escalada por velocidad (idéntico a hold)
+      const sp = p?.speed ?? (block as any).speed ?? 60;
+      const scale = clamp01(Math.max(sp / 100, 0.05));
+      return {
+        clipPath: "none",
+        height: `${scale * 100}%`,
+      } as React.CSSProperties;
+    }
+
     case "stop": {
+        const sp = p?.speed ?? (block as any).speed ?? 60;
       return {
         clipPath: "none",
-        borderRadius: "0.25rem",
-        height: "8px",
-        marginTop: "calc(100% - 8px)",
-        opacity: 0.3,
+        height: clamp01(Math.max(sp / 100, 0.05)),
+        // sin marginTop para no afectar al progress de abajo
+        opacity: 1,
       } as React.CSSProperties;
     }
+
     default:
       return {
         clipPath: "none",
-        borderRadius: "0.75rem 0.75rem 0 0", // radios solo arriba
-        height: "100%", // <<< importante
+        borderRadius: "0.75rem 0.75rem 0 0",
+        height: "100%",
       } as React.CSSProperties;
   }
 }
@@ -82,9 +116,18 @@ function TimelineRow({
   selectedId,
   onSelect,
   highlightIds = [],
+  blockProps = {},
 }: TimelineRowProps) {
+
   return (
-    <div className="w-full overflow-x-auto items-center flex flex-row gap-4 mb-2">
+    <div
+      className={`w-full overflow-x-auto items-center flex flex-col lg:flex-row gap-2 mb-2 py-2.5 mx-0 px-2 inset-ring-0 ${
+        selectedId &&
+        blocks.some((b) => b.id === selectedId) &&
+        track === track &&
+        "bg-slate-400/10 py-2.5 rounded-xl"
+      }`}
+    >
       <div className="items-center flex flex-col gap-1">
         {track === "left" ? (
           <svg
@@ -117,29 +160,32 @@ function TimelineRow({
             />
             <path
               className="fill-white"
-              d="M83.77,88.48c-1.11,0-1.82.34-2.13,1.01-.31.67-.46,2.24-.46,4.7,0,3.72.23,6.62.7,8.7.15.59.37,1.04.66,1.36s.85.72,1.67,1.19c1.76.97,2.64,2.24,2.64,3.82,0,1.93-1.22,3.3-3.67,4.11-2.45.81-6.58,1.21-12.41,1.21-10.84,0-16.26-2.05-16.26-6.15,0-.7.16-1.27.48-1.69.32-.42,1.05-1.02,2.2-1.78,1.29-.85,2.16-1.85,2.61-3.01.45-1.16.77-3.16.94-6,.15-2.08.22-9.54.22-22.37,0-4.07-.21-6.84-.62-8.31-.41-1.46-1.29-2.53-2.64-3.21-1.29-.62-2.15-1.18-2.59-1.69-.44-.51-.66-1.18-.66-2,0-1.08.42-2.03,1.25-2.83.83-.8,2-1.4,3.49-1.78,1.26-.32,2.99-.48,5.19-.48.97,0,3.38.15,7.25.44.73.06,1.89.09,3.47.09,2.64,0,6.15-.18,10.55-.53,2.78-.21,4.73-.31,5.85-.31,6.27,0,11.46,1.51,15.56,4.53,3.69,2.72,5.54,6.5,5.54,11.34,0,2.7-.64,5.15-1.93,7.36-1.29,2.21-3.06,3.88-5.32,4.99-.94.47-1.41,1.03-1.41,1.67,0,.85.72,1.54,2.15,2.07,3.08,1.11,5.33,2.8,6.77,5.05s2.46,5.71,3.08,10.37c.26,1.93.64,3.19,1.14,3.76.5.57,1.65,1.12,3.47,1.65.56.18,1.03.55,1.41,1.12.38.57.57,1.21.57,1.91,0,.91-.35,1.82-1.05,2.75-.7.92-1.61,1.65-2.72,2.18-2.46,1.14-5.83,1.71-10.11,1.71-5.71,0-9.8-1.51-12.26-4.53-1.11-1.35-2.06-3.05-2.83-5.1-.78-2.05-1.69-5.24-2.75-9.58-.67-2.78-1.53-4.75-2.57-5.89-1.04-1.14-2.53-1.76-4.46-1.85ZM81.22,66.07l-.48,10.24v.4c0,1.05.15,1.76.46,2.11.31.35.93.53,1.87.53,2.58,0,4.45-.67,5.62-2,1.17-1.33,1.76-3.46,1.76-6.39,0-5.65-2.01-8.48-6.02-8.48-1.14,0-1.95.26-2.42.79s-.73,1.46-.79,2.81Z"
+              d="M83.77,88.48c-1.11,0-1.82.34-2.13,1.01-.31.67-.46,2.24-.46,4.7,0,3.72.23,6.62.7,8.7.15.59.37,1.04.66,1.36s.85.72,1.67,1.19c1.76.97,2.64,2.24,2.64,3.82,0,1.93-1.22,3.3-3.67,4.11-2.45.81-6.58,1.21-12.41,1.21-10.84,0-16.26-2.05-16.26-6.15,0-.7.16-1.27.48-1.69.32-.42,1.05-1.02,2.2-1.78,1.29-.85,2.16-1.85,2.61-3.01.45-1.16.77-3.16.94-6,.15-2.08.22-9.54.22-22.37,0-4.07-.21-6.84-.62-8.31-.41-1.46-1.29-2.53-2.64-3.21-1.29-.62-2.15-1.18-2.59-1.69-.44-.51-.66-1.18-.66-2,0-1.08.42-2.03,1.25-2.83.83-.8,2-1.4,3.49-1.78,1.26-.32,2.99-.48,5.19-.48.97,0,3.38.15,7.25.44.73.06,1.89.09,3.47.09,2.64,0,6.15-.18,10.55-.53,2.78-.21,4.73-.31,5.85-.31,6.27,0,11.46,1.51,15.56,4.53,3.69,2.72,5.54,6.5,5.54,11.34,0,2.7-.64,5.15-1.93,7.36-1.29,2.21-3.06,3.88-5.32,4.99-.94.47-1.41,1.03-1.41,1.67,0,.85.72,1.54,2.15,2.07,3.08,1.11,5.33,2.8,6.77,5.05s2.46,5.71,3.08,10.37c.26,1.93.64,3.19,1.14,3.76.5.57,1.65,1.12,3.47,1.65.56.18,1.03.55,1.41,1.12.38.57.57,1.21.57,1.91,0,.91-.35,1.82-1.05,2.75-.7.92-1.61,1.65-2.72,2.18-2.46,1.14-5.83,1.71-10.11,1.71Z"
             />
           </svg>
         ) : null}
-
-        <span className="w-28 text-center text-lg text-slate-200 uppercase font-semibold">
+        <span className="w-full text-center text-lg text-slate-200 uppercase font-semibold">
           {title}
         </span>
       </div>
 
-      <div className="relative w-full h-28 flex items-end gap-2">
+      <div className="relative w-full h-28 flex items-end gap-1.5">
+        {/* Marcadores absolutos 100% / 0% a la izquierda */}
+        <div className="pointer-events-none absolute -left-6 top-6 text-[10px] text-slate-400">
+          100%
+        </div>
+        <div className="pointer-events-none absolute w-full top-8 text-slate-500/10 border-1"></div>
+        <div className="pointer-events-none absolute -left-6 bottom-0 text-[10px] text-slate-400">
+          0%
+        </div>
         {blocks.map((b, i) => {
           const w = `${(Math.max(0, b.durationMs) / totalMs) * 100}%`;
           const isActive = i === activeIndex;
           const isPast = i < activeIndex;
           const isSelected = selectedId === b.id;
           const isHighlighted = highlightIds.includes(b.id);
-
-          const fill = isPast
-            ? 1
-            : isActive
-            ? Math.max(0, Math.min(1, activeProgress))
-            : 0;
+          const fill = isPast ? 1 : isActive ? clamp01(activeProgress) : 0;
+          const p = blockProps[b.id];
 
           return (
             <div
@@ -156,10 +202,13 @@ function TimelineRow({
               </div>
 
               {/* Bloque */}
-              <div className="relative h-16 flex items-end">
-                <button
-                  onClick={() => onSelect(isSelected ? null : b.id)}
-                  className={`w-full h-full ${
+              <button
+                className="relative h-16 flex items-end hover:cursor-pointer"
+                onClick={() => onSelect(isSelected ? null : b.id)}
+                aria-pressed={isSelected}
+              >
+                <div
+                  className={`w-full flex items-center justify-center ${
                     kindColor[b.kind]
                   } ring-1 ring-white/10 shadow-sm
                               transition-all duration-300 hover:-translate-y-1
@@ -168,28 +217,56 @@ function TimelineRow({
                               ${isSelected ? "bg-white !text-slate-900" : ""}
                               ${
                                 isHighlighted
-                                  ? "outline outline-4 outline-amber-400 outline-offset-2 ring-2 ring-amber-400/50"
+                                  ? "outline outline-2 outline-white -outline-offset-2 inset-ring-2 ring-white/50"
                                   : ""
                               }`}
-                  style={getBlockStyles(b)}
+                  style={getBlockStyles(b, p)}
                   title={`${b.kind} (${b.durationMs} ms)`}
-                  aria-pressed={isSelected}
                 >
+                  {b.kind == "pivot" ? b.direction == 1 ? (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      className="size-4"
+                    >
+                      {" "}
+                      <path
+                        fillRule="evenodd"
+                        d="M9.53 2.47a.75.75 0 0 1 0 1.06L4.81 8.25H15a6.75 6.75 0 0 1 0 13.5h-3a.75.75 0 0 1 0-1.5h3a5.25 5.25 0 1 0 0-10.5H4.81l4.72 4.72a.75.75 0 1 1-1.06 1.06l-6-6a.75.75 0 0 1 0-1.06l6-6a.75.75 0 0 1 1.06 0Z"
+                        clipRule="evenodd"
+                      />{" "}
+                    </svg>
+                  ) : (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      className="size-4"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M14.47 2.47a.75.75 0 0 1 1.06 0l6 6a.75.75 0 0 1 0 1.06l-6 6a.75.75 0 1 1-1.06-1.06l4.72-4.72H9a5.25 5.25 0 1 0 0 10.5h3a.75.75 0 0 1 0 1.5H9a6.75 6.75 0 0 1 0-13.5h10.19l-4.72-4.72a.75.75 0 0 1 0-1.06Z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  ) : null}
+
                   {isActive && b.kind !== "stop" && (
                     <div className="absolute inset-0 flex items-center justify-center">
                       <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
                     </div>
                   )}
-                </button>
+                </div>
 
                 {isActive && (
                   <span className="absolute -top-2 right-2 text-[10px] px-2 py-[2px] rounded-full bg-yellow-400 text-slate-900 font-bold">
                     ACTIVO
                   </span>
                 )}
-              </div>
+              </button>
 
-              {/* Progreso */}
+              {/* Progreso (SIEMPRE visible, también para stop) */}
               <div className="mt-1 h-2 w-full rounded-full bg-white/10 ring-1 ring-white/10 overflow-hidden">
                 <div
                   className={`h-full transition-all duration-300 ${

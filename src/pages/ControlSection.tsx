@@ -64,6 +64,14 @@ const kindColor: Record<BlockKind, string> = {
   stop: "bg-rose-500/80",
 };
 
+const labelES: Record<BlockKind, string> = {
+  ramp: "RAMPA",
+  hold: "CONSTANTE",
+  pivot: "PIVOTE",
+  arc: "CURVA",
+  stop: "DETENER",
+};
+
 const TICK_MS = 50;
 
 // Props persistidas por bloque + pairing para pivots en modo simple
@@ -72,10 +80,8 @@ type BlockProps = {
   speed?: number;
   fromPct?: number;
   toPct?: number;
-  rampDn?: number;
   arcSide?: 0 | 1;
   pivotBaseDir?: Dir;
-  brake?: boolean;
   pivotPairId?: string; // <-- id de pareja de pivot
 };
 
@@ -135,16 +141,22 @@ export default function ControlSection() {
   // === MAPA DE PROPIEDADES POR BLOQUE (persistencia) ===
   const [blockProps, setBlockProps] = useState<Record<string, BlockProps>>({});
 
-  const getDefaultPropsFor = (b: Block): BlockProps => ({
-    durationMs: b.durationMs ?? 700,
-    speed: b.speed ?? 60,
-    fromPct: 60,
-    toPct: 80,
-    rampDn: 140,
-    arcSide: 0,
-    pivotBaseDir: 0,
-    brake: false,
-  });
+  // Defaults según tipo/rampa/dirección
+  const getDefaultPropsFor = (b: Block): BlockProps => {
+    const isRamp = b.kind === "ramp";
+    const dir = (b as any).direction ?? 0; // 0=UP, 1=DN
+    const rampFrom = dir === 1 ? 80 : 20; // DN: alto→bajo, UP: bajo→alto
+    const rampTo = dir === 1 ? 20 : 80;
+
+    return {
+      durationMs: b.durationMs ?? 700,
+      speed: (b as any).speed ?? 60,
+      fromPct: isRamp ? rampFrom : 60,
+      toPct: isRamp ? rampTo : 80,
+      arcSide: 0,
+      pivotBaseDir: 0,
+    };
+  };
 
   // === ESTADO DEL PANEL (se carga al seleccionar) ===
   const [durationMs, setDurationMs] = useState<number>(700);
@@ -152,12 +164,28 @@ export default function ControlSection() {
   const [direction, setDirection] = useState<Dir>(0);
   const [fromPct, setFromPct] = useState<number>(60);
   const [toPct, setToPct] = useState<number>(80);
-  const [rampDn, setRampDn] = useState<number>(140);
   const [arcSide, setArcSide] = useState<0 | 1>(0);
   const [pivotBaseDir, setPivotBaseDir] = useState<Dir>(0);
-  const [brake, setBrake] = useState<boolean>(false);
 
-  // Cargar props al seleccionar
+  // Precargar props para todos los bloques iniciales
+  useEffect(() => {
+    setBlockProps((prev) => {
+      if (Object.keys(prev).length > 0) return prev;
+      const acc: Record<string, BlockProps> = {};
+      const fill = (list: Block[]) => {
+        list.forEach((b) => {
+          acc[b.id] = getDefaultPropsFor(b);
+        });
+      };
+      fill(blocksLeft);
+      fill(blocksRight);
+      fill(blocksDual);
+      return acc;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Cargar props al seleccionar (incluye deps para evitar valores viejos)
   useEffect(() => {
     if (!selection) return;
     const list =
@@ -166,35 +194,26 @@ export default function ControlSection() {
         : selection.track === "right"
         ? blocksRight
         : blocksDual;
+
     const blk = list.find((b) => b.id === selection.id);
     if (!blk) return;
     const p = blockProps[blk.id] ?? getDefaultPropsFor(blk);
 
     setDurationMs(p.durationMs ?? blk.durationMs ?? 700);
-    setSpeed(p.speed ?? blk.speed ?? 60);
+    setSpeed(p.speed ?? (blk as any).speed ?? 60);
     setDirection((blk as any).direction ?? 0);
     setFromPct(p.fromPct ?? 60);
     setToPct(p.toPct ?? 80);
-    setRampDn(p.rampDn ?? 140);
     setArcSide((p.arcSide ?? 0) as 0 | 1);
     setPivotBaseDir(p.pivotBaseDir ?? 0);
-    setBrake(p.brake ?? false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selection?.id]);
-
-  // === DURACIÓN TOTAL POR TRACK ===
-  const totalMsLeft = useMemo(
-    () => blocksLeft.reduce((a, b) => a + Math.max(0, b.durationMs), 0) || 1,
-    [blocksLeft]
-  );
-  const totalMsRight = useMemo(
-    () => blocksRight.reduce((a, b) => a + Math.max(0, b.durationMs), 0) || 1,
-    [blocksRight]
-  );
-  const totalMsDual = useMemo(
-    () => blocksDual.reduce((a, b) => a + Math.max(0, b.durationMs), 0) || 1,
-    [blocksDual]
-  );
+  }, [
+    selection?.id,
+    selection?.track,
+    blocksLeft,
+    blocksRight,
+    blocksDual,
+    blockProps,
+  ]);
 
   // === HELPERS DE TRACK ===
   const getBlocks = (t: TrackKey) =>
@@ -259,7 +278,6 @@ export default function ControlSection() {
     if (t === "left") setIsPlayingLeft(true);
     else if (t === "right") setIsPlayingRight(true);
     else setIsPlayingDual(true);
-    // Importante: NO tocamos selección al reproducir
     runBlock(t, 0);
   };
 
@@ -272,17 +290,6 @@ export default function ControlSection() {
     const b = list[i] as any;
     const now = Date.now();
     blockStartRef(t).current = now;
-
-    const nextId = list[i + 1]?.id ?? null;
-    console.log(`[${t}] start block`, {
-      id: b.id,
-      index: i,
-      durationMs: b.durationMs,
-      direction: b.direction,
-      speed: b.speed,
-      startAt: now,
-      nextId,
-    });
 
     if (b.durationMs <= 0) {
       setActiveIndex(t, i);
@@ -353,45 +360,46 @@ export default function ControlSection() {
     }
   };
 
+  // === SELECCIÓN DE TIPO EN PALETA (no agrega ni selecciona timeline) ===
+  const [paletteKind, setPaletteKind] = useState<BlockKind>("hold");
+
   // === ALTAS/BAJAS ===
   const currentTrackForCreate: TrackKey =
     selection?.track ?? (dualMode ? "dual" : "left");
 
   const onAddBlock = () => {
+    // agrega el tipo seleccionado en la paleta
+    const k = paletteKind;
+
+    // Caso especial: Pivot pareado en modo simple
+    if (k === "pivot" && !dualMode) {
+      createPairedPivot(); // crea par y selecciona el izquierdo
+      return;
+    }
+
+    // En dual, pivot está oculto; si por alguna razón quedó, lo ignoramos
+    if (dualMode && k === "pivot") return;
+
     const t = dualMode ? "dual" : currentTrackForCreate;
-    const b: Block = {
+    const nb: Block = {
       id: uid(),
-      kind: "hold",
-      label: "Hold",
+      kind: k,
+      label: k.charAt(0).toUpperCase() + k.slice(1),
       durationMs: 500,
-      speed: 50,
       direction: 0 as Dir,
+      speed: k === "stop" ? undefined : 50,
     } as any;
-    setBlocks(t)((prev) => [...prev, b]);
-    setBlockProps((prev) => ({ ...prev, [b.id]: getDefaultPropsFor(b) }));
-    attemptSelect(t, b.id);
+
+    setBlocks(t)((prev) => [...prev, nb]);
+    setBlockProps((prev) => ({ ...prev, [nb.id]: getDefaultPropsFor(nb) }));
+    attemptSelect(t, nb.id);
   };
 
   // === Paleta: crear PIVOT pareado (simple mode) con dirección invertida ===
   const createPairedPivot = () => {
-    // No permitir durante reproducción
     if (selectionLocked) return;
-    if (dualMode) {
-      // En dual sólo uno
-      const nb: Block = {
-        id: uid(),
-        kind: "pivot",
-        label: "Pivot",
-        durationMs: 500,
-        speed: 50,
-        direction: 0 as Dir,
-      } as any;
-      setBlocks("dual")((prev) => [...prev, nb]);
-      setBlockProps((prev) => ({ ...prev, [nb.id]: getDefaultPropsFor(nb) }));
-      attemptSelect("dual", nb.id);
-      return;
-    }
-    // Modo simple: insertar en ambos con direcciones opuestas y mismo pairId
+    if (dualMode) return;
+
     const pairId = uid();
     const nbL: Block = {
       id: uid(),
@@ -435,12 +443,14 @@ export default function ControlSection() {
     const { track, id } = selection;
 
     // Si es pivot y está pareado, también borramos el par
-    const maybePairId = blockProps[id]?.pivotPairId;
-    if (maybePairId && track !== "dual") {
-      const otherTrack: TrackKey = track === "left" ? "right" : "left";
-      setBlocks(otherTrack)((prev) =>
-        prev.filter((b) => blockProps[b.id]?.pivotPairId !== maybePairId)
-      );
+    thePivotPairCleanup: {
+      const maybePairId = blockProps[id]?.pivotPairId;
+      if (maybePairId && track !== "dual") {
+        const otherTrack: TrackKey = track === "left" ? "right" : "left";
+        setBlocks(otherTrack)((prev) =>
+          prev.filter((b) => blockProps[b.id]?.pivotPairId !== maybePairId)
+        );
+      }
     }
 
     setBlocks(track)((prev) => prev.filter((b) => b.id !== id));
@@ -462,13 +472,114 @@ export default function ControlSection() {
   const highlightRight: string[] =
     pairSelected?.track === "right" ? [pairSelected.id] : [];
 
-  const derivedTargetLabel = !selection
-    ? "—"
-    : selection.track === "left"
-    ? "Izquierdo"
-    : selection.track === "right"
-    ? "Derecho"
-    : "Ambos";
+  // ======= VISTA "LIVE" MIENTRAS EDITÁS =======
+  // 1) Duración visible (ancho) del bloque seleccionado
+  const visibleBlocksLeft = useMemo(
+    () =>
+      blocksLeft.map((b) =>
+        selection?.track === "left" && selection.id === b.id
+          ? ({ ...b, durationMs } as Block)
+          : b
+      ),
+    [blocksLeft, selection?.track, selection?.id, durationMs]
+  );
+  const visibleBlocksRight = useMemo(
+    () =>
+      blocksRight.map((b) =>
+        selection?.track === "right" && selection.id === b.id
+          ? ({ ...b, durationMs } as Block)
+          : b
+      ),
+    [blocksRight, selection?.track, selection?.id, durationMs]
+  );
+  const visibleBlocksDual = useMemo(
+    () =>
+      blocksDual.map((b) =>
+        selection?.track === "dual" && selection.id === b.id
+          ? ({ ...b, durationMs } as Block)
+          : b
+      ),
+    [blocksDual, selection?.track, selection?.id, durationMs]
+  );
+
+  // 2) Totales visibles (para porcentajes de ancho)
+  const totalMsLeft = useMemo(
+    () =>
+      visibleBlocksLeft.reduce((a, b) => a + Math.max(0, b.durationMs), 0) || 1,
+    [visibleBlocksLeft]
+  );
+  const totalMsRight = useMemo(
+    () =>
+      visibleBlocksRight.reduce((a, b) => a + Math.max(0, b.durationMs), 0) ||
+      1,
+    [visibleBlocksRight]
+  );
+  const totalMsDual = useMemo(
+    () =>
+      visibleBlocksDual.reduce((a, b) => a + Math.max(0, b.durationMs), 0) || 1,
+    [visibleBlocksDual]
+  );
+
+  // 3) Props mínimas por bloque para dibujar formas, con override en caliente del seleccionado
+  type MinimalBlockProps = { fromPct?: number; toPct?: number; speed?: number };
+  const buildMinimalProps = (
+    list: Block[],
+    trackKey: TrackKey
+  ): Record<string, MinimalBlockProps> => {
+    const map: Record<string, MinimalBlockProps> = {};
+    list.forEach((b) => {
+      const saved = blockProps[b.id];
+      map[b.id] = {
+        fromPct: saved?.fromPct,
+        toPct: saved?.toPct,
+        speed: saved?.speed ?? (b as any).speed,
+      };
+    });
+    if (selection && selection.track === trackKey) {
+      map[selection.id] = {
+        fromPct,
+        toPct,
+        speed,
+      };
+    }
+    return map;
+  };
+  const blockPropsLeft = useMemo(
+    () => buildMinimalProps(visibleBlocksLeft, "left"),
+    [
+      visibleBlocksLeft,
+      selection?.id,
+      selection?.track,
+      fromPct,
+      toPct,
+      speed,
+      blockProps,
+    ]
+  );
+  const blockPropsRight = useMemo(
+    () => buildMinimalProps(visibleBlocksRight, "right"),
+    [
+      visibleBlocksRight,
+      selection?.id,
+      selection?.track,
+      fromPct,
+      toPct,
+      speed,
+      blockProps,
+    ]
+  );
+  const blockPropsDual = useMemo(
+    () => buildMinimalProps(visibleBlocksDual, "dual"),
+    [
+      visibleBlocksDual,
+      selection?.id,
+      selection?.track,
+      fromPct,
+      toPct,
+      speed,
+      blockProps,
+    ]
+  );
 
   // === UI ===
   return (
@@ -482,7 +593,7 @@ export default function ControlSection() {
       <PageHeader setOpenSettingsModal={() => {}} setOpenInfoModal={() => {}} />
 
       {/* Timeline + controles */}
-      <div className="w-full rounded-2xl bg-white/5 backdrop-blur ring-1 ring-white/10 shadow-sm p-6 mb-6 max-w-11/12">
+      <div className="rounded-2xl bg-white/5 backdrop-blur ring-1 ring-white/10 shadow-sm p-6 mb-6 w-full lg:max-w-10/12">
         <div className="flex items-center justify-between mb-4">
           <div className="text-2xl font-bold uppercase">Linea de tiempo</div>
 
@@ -491,12 +602,14 @@ export default function ControlSection() {
               checked={dualMode}
               onChange={() => {
                 // si cambio de modo, detengo todo y limpio activos
-                ["left", "right", "dual"].forEach((t) =>
-                  stopTrack(t as TrackKey)
+                (["left", "right", "dual"] as TrackKey[]).forEach((t) =>
+                  stopTrack(t)
                 );
-                setSelection(null);
+                // NO limpiar la selección (para no resetear el panel)
                 setPairSelected(null); // limpiar highlight pareado
                 setDualMode((p) => !p);
+                // resetear tipo seleccionado (y pivot queda oculto en dual)
+                setPaletteKind("hold");
               }}
               ariaLabel="Activar modo dual"
               size="md"
@@ -512,9 +625,9 @@ export default function ControlSection() {
           {dualMode ? (
             <>
               <TimelineRow
-                title="Ambos"
+                title="Ambos motores"
                 track="dual"
-                blocks={blocksDual}
+                blocks={visibleBlocksDual}
                 totalMs={totalMsDual}
                 kindColor={kindColor}
                 activeIndex={activeIndexDual}
@@ -525,6 +638,7 @@ export default function ControlSection() {
                   if (id) attemptSelect("dual", id);
                   else attemptSelect("dual", null);
                 }}
+                blockProps={blockPropsDual}
               />
               <div className="flex justify-end -mt-2">
                 <button
@@ -535,8 +649,8 @@ export default function ControlSection() {
                   className={`group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold transition-all duration-300
                     ${
                       isPlayingDual
-                        ? "btn-danger text-slate-900 hover:text-white hover:shadow-[inset_0_0_0_2px_theme('colors.red.400')] hover:outline-none hover:ring-2 hover:ring-white bg-red-400"
-                        : "btn-success text-slate-900 hover:text-white hover:shadow-[inset_0_0_0_2px_theme('colors.emerald.400')] hover:outline-none hover:ring-2 hover:ring-white bg-emerald-400"
+                        ? "btn-danger hover:text-slate-900 text-white hover:shadow-[inset_0_0_0_2px_theme('colors.red.400')] hover:outline-none hover:ring-2 hover:ring-slate-900 bg-red-400"
+                        : "btn-success hover:text-slate-900 text-white hover:shadow-[inset_0_0_0_2px_theme('colors.emerald.400')] hover:outline-none hover:ring-2 hover:ring-slate-900 bg-emerald-400/20 hover:bg-emerald-400"
                     }
                     disabled:opacity-50 disabled:cursor-not-allowed`}
                   title={
@@ -576,9 +690,9 @@ export default function ControlSection() {
             <>
               <div className="flex flex-col gap-2">
                 <TimelineRow
-                  title="Izquierdo"
+                  title="Motor izquierdo"
                   track="left"
-                  blocks={blocksLeft}
+                  blocks={visibleBlocksLeft}
                   totalMs={totalMsLeft}
                   kindColor={kindColor}
                   activeIndex={activeIndexLeft}
@@ -590,8 +704,9 @@ export default function ControlSection() {
                     else attemptSelect("left", null);
                   }}
                   highlightIds={highlightLeft}
+                  blockProps={blockPropsLeft}
                 />
-                <div className="flex justify-end">
+                <div className="flex justify-center lg:justify-end">
                   <button
                     onClick={() =>
                       isPlayingLeft ? stopTrack("left") : startTrack("left")
@@ -600,8 +715,8 @@ export default function ControlSection() {
                     className={`group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold transition-all duration-300
                       ${
                         isPlayingLeft
-                          ? "btn-danger text-slate-900 hover:text-white hover:shadow-[inset_0_0_0_2px_theme('colors.red.400')] hover:outline-none hover:ring-2 hover:ring-white bg-red-400"
-                          : "btn-success text-slate-900 hover:text-white hover:shadow-[inset_0_0_0_2px_theme('colors.emerald.400')] hover:outline-none hover:ring-2 hover:ring-white bg-emerald-400"
+                          ? "btn-danger hover:text-slate-900 text-white hover:shadow-[inset_0_0_0_2px_theme('colors.red.400')] hover:outline-none hover:ring-2 hover:ring-slate-900 bg-red-400"
+                          : "btn-success hover:text-slate-900 text-white hover:shadow-[inset_0_0_0_2px_theme('colors.emerald.400')] hover:outline-none hover:ring-2 hover:ring-slate-900 bg-emerald-400/20 hover:bg-emerald-400"
                       }
                       disabled:opacity-50 disabled:cursor-not-allowed`}
                     title={
@@ -642,9 +757,9 @@ export default function ControlSection() {
 
               <div className="flex flex-col gap-2">
                 <TimelineRow
-                  title="Derecho"
+                  title="Motor derecho"
                   track="right"
-                  blocks={blocksRight}
+                  blocks={visibleBlocksRight}
                   totalMs={totalMsRight}
                   kindColor={kindColor}
                   activeIndex={activeIndexRight}
@@ -658,8 +773,9 @@ export default function ControlSection() {
                     else attemptSelect("right", null);
                   }}
                   highlightIds={highlightRight}
+                  blockProps={blockPropsRight}
                 />
-                <div className="flex justify-end">
+                <div className="flex justify-center lg:justify-end">
                   <button
                     onClick={() =>
                       isPlayingRight ? stopTrack("right") : startTrack("right")
@@ -668,8 +784,8 @@ export default function ControlSection() {
                     className={`group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold transition-all duration-300
                       ${
                         isPlayingRight
-                          ? "btn-danger text-slate-900 hover:text-white hover:shadow-[inset_0_0_0_2px_theme('colors.red.400')] hover:outline-none hover:ring-2 hover:ring-white bg-red-400"
-                          : "btn-success text-slate-900 hover:text-white hover:shadow-[inset_0_0_0_2px_theme('colors.emerald.400')] hover:outline-none hover:ring-2 hover:ring-white bg-emerald-400"
+                          ? "btn-danger hover:text-slate-900 text-white hover:shadow-[inset_0_0_0_2px_theme('colors.red.400')] hover:outline-none hover:ring-2 hover:ring-slate-900 bg-red-400"
+                          : "btn-success hover:text-slate-900 text-white hover:shadow-[inset_0_0_0_2px_theme('colors.emerald.400')] hover:outline-none hover:ring-2 hover:ring-slate-900 bg-emerald-400/20 hover:bg-emerald-400"
                       }
                       disabled:opacity-50 disabled:cursor-not-allowed`}
                     title={
@@ -713,29 +829,28 @@ export default function ControlSection() {
       </div>
 
       {/* Selector + Propiedades */}
-      <div className="w-full max-w-11/12 flex flex-row gap-6">
+      <div className="w-full lg:max-w-10/12 flex flex-col lg:flex-row gap-6">
         {/* Selector */}
-        <div className="flex-1 rounded-2xl bg-white/5 backdrop-blur ring-1 ring-white/10 shadow-sm p-6">
+        <div className="order-last lg:order-first flex-1 rounded-2xl bg-white/5 backdrop-blur ring-1 ring-white/10 shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
-            <div className="text-xl font-semibold">
-              Selector de bloques (
+            <div className="text-xl font-bold uppercase">
+              Selector de bloques
               {selection
                 ? selection.track === "dual"
-                  ? "Dual"
+                  ? " (Dual)"
                   : selection.track === "left"
-                  ? "Izquierdo"
-                  : "Derecho"
+                  ? " (Izquierdo)"
+                  : " (Derecho)"
                 : dualMode
-                ? "Dual"
-                : "Izquierdo"}
-              )
+                ? " (Dual)"
+                : ""}
             </div>
             <div className="flex items-center gap-3">
               <button
                 onClick={onAddBlock}
-                className="btn-indigo group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold text-white
-                           transition-all duration-300 hover:text-slate-900
-                           hover:shadow-[inset_0_0_0_2px_theme('colors.indigo.400')]
+                className="btn-green group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold text-white
+                           transition-all duration-300 hover:text-slate-900 bg-green-400/50
+                           hover:shadow-[inset_0_0_0_2px_theme('colors.green.400')]
                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40"
                 title="Agregar bloque"
               >
@@ -757,89 +872,56 @@ export default function ControlSection() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            {(["ramp", "hold", "pivot", "arc", "stop"] as BlockKind[]).map(
-              (k) => (
-                <MotorBlock
-                  key={k}
-                  kind={k}
-                  selected={selected?.kind === k}
-                  // Indicio visual en el tile "PIVOTE" si hay un par seleccionado en timeline
-                  pairSelected={
-                    Boolean(pairSelected) &&
-                    k === "pivot" &&
-                    selected?.kind === "pivot" &&
-                    selection?.track !== "dual"
-                  }
-                  onClick={() => {
-                    if (selectionLocked) return;
-
-                    if (k === "pivot" && !dualMode) {
-                      createPairedPivot();
-                      return;
-                    }
-
-                    const t = selection?.track ?? (dualMode ? "dual" : "left");
-                    const list = getBlocks(t);
-                    const existing = list.find((b) => b.kind === k);
-                    if (existing) {
-                      attemptSelect(t, existing.id);
-                    } else {
-                      const nb: Block = {
-                        id: uid(),
-                        kind: k,
-                        label: k.charAt(0).toUpperCase() + k.slice(1),
-                        durationMs: 500,
-                        direction: 0 as Dir,
-                        speed: k === "stop" ? undefined : 50,
-                      } as any;
-                      setBlocks(t)((prev) => [...prev, nb]);
-                      setBlockProps((prev) => ({
-                        ...prev,
-                        [nb.id]: getDefaultPropsFor(nb),
-                      }));
-                      attemptSelect(t, nb.id);
-                    }
-                  }}
-                />
-              )
-            )}
+            {(
+              (dualMode
+                ? (["ramp", "hold", "arc", "stop"] as BlockKind[]) // sin pivot en dual
+                : ([
+                    "ramp",
+                    "hold",
+                    "pivot",
+                    "arc",
+                    "stop",
+                  ] as BlockKind[])) as BlockKind[]
+            ).map((k) => (
+              <MotorBlock
+                key={k}
+                kind={k}
+                // Solo marca tipo seleccionado en la paleta
+                selected={paletteKind === k}
+                // Indicio visual (pivot puede estar oculto en dual)
+                pairSelected={
+                  Boolean(pairSelected) &&
+                  k === "pivot" &&
+                  selection?.track !== "dual"
+                }
+                onClick={() => {
+                  if (selectionLocked) return;
+                  setPaletteKind(k); // sólo marcar, no agregar ni seleccionar timeline
+                }}
+              />
+            ))}
           </div>
         </div>
 
         {/* Propiedades */}
         <div
-          className={`w-full max-w-sm rounded-2xl bg-white/5 backdrop-blur ring-1 ring-white/10 shadow-sm p-6 ${
+          className={`w-full lg:max-w-sm rounded-2xl bg-white/5 backdrop-blur ring-1 ring-white/10 shadow-sm p-6 ${
             !selection && "opacity-50"
           }`}
         >
-          <div className="text-xl font-semibold mb-4">
+          <div className="text-xl font-bold mb-4 uppercase">
             Propiedades del bloque
-          </div>
-
-          <div className="mb-2 text-sm text-slate-300">
-            Track:{" "}
-            <span className="font-semibold text-slate-100">
-              {selection
-                ? selection.track === "dual"
-                  ? "Dual"
-                  : selection.track === "left"
-                  ? "Izquierdo"
-                  : "Derecho"
-                : "—"}
-            </span>
           </div>
 
           <div className="mb-2 text-sm text-slate-300">
             Tipo:{" "}
             <span className="font-semibold text-slate-100">
-              {selected ? selected.kind.toUpperCase() : "—"}
+              {selected ? labelES[selected.kind] : "—"}
             </span>
           </div>
 
           <div className="mb-4">
-            <span className="text-sm text-slate-300 mr-2">
-              Target (derivado):
-            </span>
+            <span className="text-sm text-slate-300 mr-2">Track:</span>
             <span className="inline-flex items-center rounded-xl px-2 py-1 bg-white/10 ring-1 ring-white/10 text-slate-100 text-xs">
               {selection
                 ? selection.track === "left"
@@ -881,12 +963,12 @@ export default function ControlSection() {
               </label>
               <select
                 className="w-full rounded-xl bg-white/10 text-slate-100 ring-1 ring-white/10 p-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
-                value={direction}
+                defaultValue={direction}
                 onChange={(e) => {
                   const newDirection = Number(e.target.value) as Dir;
                   setDirection(newDirection);
 
-                  // Si es pivot en modo simple y tiene par, actualizar inmediatamente la dirección invertida del par
+                  // Si es pivot en modo simple y tiene par, actualizar dirección invertida del par
                   if (
                     selected &&
                     selected.kind === "pivot" &&
@@ -1007,19 +1089,6 @@ export default function ControlSection() {
                   />
                 </div>
               </div>
-
-              <div className="mb-3">
-                <label className="block mb-1 text-sm text-slate-300">
-                  Ramp Down (ms)
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  className="w-full rounded-xl bg-white/10 text-slate-100 ring-1 ring-white/10 p-2.5 focus:outline-none focus:ring-2 focus:ring-slate-400/40"
-                  value={rampDn}
-                  onChange={(e) => setRampDn(Number(e.target.value))}
-                />
-              </div>
             </>
           )}
 
@@ -1041,24 +1110,6 @@ export default function ControlSection() {
                 </select>
               </div>
             )}
-
-          {/* Freno */}
-          {selected && (
-            <div className="mb-4 flex items-center gap-3">
-              <input
-                id="brake"
-                type="checkbox"
-                className="h-4 w-4 rounded-md"
-                checked={brake}
-                onChange={(e) => setBrake(e.target.checked)}
-              />
-              <label htmlFor="brake" className="text-sm text-slate-300">
-                {selected.kind === "stop"
-                  ? "Aplicar freno al detener"
-                  : "Aplicar freno al finalizar"}
-              </label>
-            </div>
-          )}
 
           {/* Guardar cambios */}
           <div className="flex items-center justify-between mt-2">
@@ -1083,10 +1134,8 @@ export default function ControlSection() {
                       speed,
                       fromPct,
                       toPct,
-                      rampDn,
                       arcSide,
                       pivotBaseDir,
-                      brake,
                     },
                   };
 
@@ -1113,7 +1162,7 @@ export default function ControlSection() {
                   return nextMap;
                 });
 
-                // Actualizar el bloque seleccionado
+                // Actualizar el bloque seleccionado (duración / velocidad / dirección)
                 setBlocks(t)((prev) =>
                   prev.map((b) =>
                     b.id === id
