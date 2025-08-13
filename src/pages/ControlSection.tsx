@@ -905,7 +905,7 @@ export default function ControlSection() {
 
         {/* Propiedades */}
         <div
-          className={`w-full lg:max-w-sm rounded-2xl bg-white/5 backdrop-blur ring-1 ring-white/10 shadow-sm p-6 ${
+          className={`w-full ${!selected && "hidden lg:block"} lg:max-w-sm rounded-2xl bg-white/5 backdrop-blur ring-1 ring-white/10 shadow-sm p-6 ${
             !selection && "opacity-50"
           }`}
         >
