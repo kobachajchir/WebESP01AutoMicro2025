@@ -19,6 +19,14 @@ const labelES: Record<BlockKind, string> = {
   stop: "DETENER",
 };
 
+const borderColorsByKind: Record<BlockKind, string> = {
+  ramp: "!ring-amber-400",
+  hold: "!ring-emerald-400",
+  pivot: "!ring-sky-400",
+  arc: "!ring-indigo-400",
+  stop: "!ring-rose-400",
+};
+
 const bgByKind: Record<BlockKind, string> = {
   ramp: "!bg-amber-500/80",
   hold: "!bg-emerald-500/80",
@@ -47,7 +55,7 @@ export default function MotorBlock({
     `${
       !selected ? "bg-white/10" : bgByKind[kind]
     } text-slate-100 ring-1 ring-white/10 shadow-sm transition-all duration-300 ` +
-    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40";
+    `focus-visible:outline-none focus-visible:ring-2 focus-visible:${borderColorsByKind[kind]}`;
 
   const hover =
     "hover:text-slate-900 hover:shadow-[inset_0_0_0_1px_theme('colors.cyan.400')] hover:-translate-y-1";
@@ -55,7 +63,7 @@ export default function MotorBlock({
   const active = selected
     ? "border-4 border-cyan-400/20"
     : pairSelected && kind === "pivot"
-    ? "outline outline-4 outline-white outline-offset-2 ring-2 ring-white/50"
+    ? {/*"outline outline-4 outline-white outline-offset-2 ring-2 ring-white/50"*/}
     : "";
 
   const disabledCls = disabled

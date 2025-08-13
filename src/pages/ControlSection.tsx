@@ -361,7 +361,7 @@ export default function ControlSection() {
   };
 
   // === SELECCIÓN DE TIPO EN PALETA (no agrega ni selecciona timeline) ===
-  const [paletteKind, setPaletteKind] = useState<BlockKind>("hold");
+  const [paletteKind, setPaletteKind] = useState<BlockKind |  null>(null);
 
   // === ALTAS/BAJAS ===
   const currentTrackForCreate: TrackKey =
@@ -384,7 +384,7 @@ export default function ControlSection() {
     const nb: Block = {
       id: uid(),
       kind: k,
-      label: k.charAt(0).toUpperCase() + k.slice(1),
+      label: k ? k.charAt(0).toUpperCase() + k.slice(1): "",
       durationMs: 500,
       direction: 0 as Dir,
       speed: k === "stop" ? undefined : 50,
@@ -896,7 +896,11 @@ export default function ControlSection() {
                 }
                 onClick={() => {
                   if (selectionLocked) return;
-                  setPaletteKind(k); // sólo marcar, no agregar ni seleccionar timeline
+                  if (k === paletteKind) {
+                    setPaletteKind(null); // desmarcar y dejar vacio
+                  } else {
+                    setPaletteKind(k); // sólo marcar, no agregar ni seleccionar timeline
+                  }
                 }}
               />
             ))}
@@ -905,7 +909,9 @@ export default function ControlSection() {
 
         {/* Propiedades */}
         <div
-          className={`w-full ${!selected && "hidden lg:block"} lg:max-w-sm rounded-2xl bg-white/5 backdrop-blur ring-1 ring-white/10 shadow-sm p-6 ${
+          className={`w-full ${
+            !selected && "hidden lg:block"
+          } lg:max-w-sm rounded-2xl bg-white/5 backdrop-blur ring-1 ring-white/10 shadow-sm p-6 ${
             !selection && "opacity-50"
           }`}
         >
@@ -1115,8 +1121,8 @@ export default function ControlSection() {
           <div className="flex items-center justify-between mt-2">
             <button
               className="group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold
-                         transition-all duration-300 hover:text-slate-900
-                         hover:shadow-[inset_0_0_0_2px_theme('colors.cyan.400')]
+                         transition-all duration-300 hover:text-slate-900 bg-indigo-600 hover:ring-indigo-400 hover:ring-2
+                         hover:shadow-[inset_0_0_0_2px_theme('colors.white.400')]
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
               onClick={() => {
                 if (!selection || !selected) return;
@@ -1204,7 +1210,7 @@ export default function ControlSection() {
               onClick={onRemoveSelected}
               disabled={!selection}
               className="btn-danger group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold text-white
-                         transition-all duration-300 hover:text-slate-900
+                         transition-all duration-300 hover:text-slate-900 bg-red-600 hover:ring-red-400 hover:ring-2
                          hover:shadow-[inset_0_0_0_2px_theme('colors.red.400')]
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40
                          disabled:opacity-50 disabled:cursor-not-allowed"
