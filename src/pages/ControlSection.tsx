@@ -360,8 +360,15 @@ export default function ControlSection() {
     }
   };
 
+  // Reordenamiento desde TimelineRow (Drag & Drop)
+  const handleReorder = (track: TrackKey) => (newOrder: Block[]) => {
+    if (track === "left") setBlocksLeft(newOrder);
+    else if (track === "right") setBlocksRight(newOrder);
+    else setBlocksDual(newOrder);
+  };
+
   // === SELECCIÓN DE TIPO EN PALETA (no agrega ni selecciona timeline) ===
-  const [paletteKind, setPaletteKind] = useState<BlockKind |  null>(null);
+  const [paletteKind, setPaletteKind] = useState<BlockKind | null>(null);
 
   // === ALTAS/BAJAS ===
   const currentTrackForCreate: TrackKey =
@@ -370,7 +377,7 @@ export default function ControlSection() {
   const onAddBlock = () => {
     // agrega el tipo seleccionado en la paleta
     const k = paletteKind;
-
+    if (!k) return; // no hay tipo seleccionado en la paleta
     // Caso especial: Pivot pareado en modo simple
     if (k === "pivot" && !dualMode) {
       createPairedPivot(); // crea par y selecciona el izquierdo
@@ -384,7 +391,7 @@ export default function ControlSection() {
     const nb: Block = {
       id: uid(),
       kind: k,
-      label: k ? k.charAt(0).toUpperCase() + k.slice(1): "",
+      label: k ? k.charAt(0).toUpperCase() + k.slice(1) : "",
       durationMs: 500,
       direction: 0 as Dir,
       speed: k === "stop" ? undefined : 50,
@@ -639,6 +646,8 @@ export default function ControlSection() {
                   else attemptSelect("dual", null);
                 }}
                 blockProps={blockPropsDual}
+                onReorder={handleReorder("dual")}
+                dndDisabled={isPlayingDual}
               />
               <div className="flex justify-end -mt-2">
                 <button
@@ -705,6 +714,8 @@ export default function ControlSection() {
                   }}
                   highlightIds={highlightLeft}
                   blockProps={blockPropsLeft}
+                  onReorder={handleReorder("left")}
+                  dndDisabled={isPlayingLeft}
                 />
                 <div className="flex justify-center lg:justify-end">
                   <button
@@ -774,6 +785,8 @@ export default function ControlSection() {
                   }}
                   highlightIds={highlightRight}
                   blockProps={blockPropsRight}
+                  onReorder={handleReorder("right")}
+                  dndDisabled={isPlayingRight}
                 />
                 <div className="flex justify-center lg:justify-end">
                   <button
@@ -969,7 +982,7 @@ export default function ControlSection() {
               </label>
               <select
                 className="w-full rounded-xl bg-white/10 text-slate-100 ring-1 ring-white/10 p-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
-                defaultValue={direction}
+                value={direction}
                 onChange={(e) => {
                   const newDirection = Number(e.target.value) as Dir;
                   setDirection(newDirection);

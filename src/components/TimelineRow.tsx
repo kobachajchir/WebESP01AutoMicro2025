@@ -1,7 +1,25 @@
 // src/components/TimelineRow.tsx
-import { useState } from "react";
+import React, { useState } from "react";
 import type { Block, TrackKey } from "../types/MotorTypes";
 import type { BlockKind } from "./MotorBlock";
+
+import {
+  DndContext,
+  closestCenter,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+} from "@dnd-kit/core";
+import type { DragStartEvent, DragEndEvent } from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  arrayMove,
+  horizontalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 type MinimalBlockProps = {
   fromPct?: number;
@@ -23,6 +41,10 @@ interface TimelineRowProps {
   highlightIds?: string[];
   /** Props por bloque para dibujar formas (from/to/speed). Opcional. */
   blockProps?: Record<string, MinimalBlockProps>;
+  /** Callback al soltar para persistir nuevo orden en el track */
+  onReorder: (newOrder: Block[]) => void;
+  /** Deshabilita DnD (ej: cuando se está reproduciendo) */
+  dndDisabled?: boolean;
 }
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
@@ -48,8 +70,7 @@ function getBlockStyles(
         clipPath: `polygon(0% ${topLeft}%, 100% ${topRight}%, 100% 100%, 0% 100%)`,
         borderRadius: "0",
         height: `${clamp01(Math.max(scale, MIN_SCALE)) * 100}%`,
-        // sin marginTop: el contenedor ya alinea al piso
-      } as React.CSSProperties;
+      };
     }
 
     case "arc": {
@@ -63,7 +84,7 @@ function getBlockStyles(
         borderRadius: borderRadiusValue,
         clipPath: "none",
         height: `${scale * 100}%`,
-      } as React.CSSProperties;
+      };
     }
 
     case "hold": {
@@ -72,28 +93,28 @@ function getBlockStyles(
       return {
         clipPath: "none",
         height: `${scale * 100}%`,
-        // IMPORTANTE: NO usar marginTop para que no se desplace
-      } as React.CSSProperties;
+      };
     }
 
     case "pivot": {
-      // Visual simple rectangular, escalada por velocidad (idéntico a hold)
+      // Visual rectangular, escalada por velocidad (igual a hold)
       const sp = p?.speed ?? (block as any).speed ?? 60;
       const scale = clamp01(Math.max(sp / 100, 0.05));
       return {
         clipPath: "none",
         height: `${scale * 100}%`,
-      } as React.CSSProperties;
+      };
     }
 
     case "stop": {
-        const sp = p?.speed ?? (block as any).speed ?? 60;
+      // Mantener visible el bloque pero pequeño, sin afectar la barra de progreso
       return {
         clipPath: "none",
-        height: clamp01(Math.max(sp / 100, 0.05)),
-        // sin marginTop para no afectar al progress de abajo
-        opacity: 1,
-      } as React.CSSProperties;
+        borderRadius: "0.25rem",
+        height: "8px",
+        marginTop: "calc(100% - 8px)",
+        opacity: 0.6,
+      };
     }
 
     default:
@@ -101,10 +122,142 @@ function getBlockStyles(
         clipPath: "none",
         borderRadius: "0.75rem 0.75rem 0 0",
         height: "100%",
-      } as React.CSSProperties;
+      };
   }
 }
 
+/* ================= Sortable item ================= */
+function SortableBlock({
+  b,
+  wPct,
+  isActive,
+  isPast,
+  isSelected,
+  isHighlighted,
+  fill,
+  onSelect,
+  colorClass,
+  shapeStyles,
+  title,
+  disabled,
+}: {
+  b: Block;
+  wPct: string;
+  isActive: boolean;
+  isPast: boolean;
+  isSelected: boolean;
+  isHighlighted: boolean;
+  fill: number;
+  onSelect: (id: string | null) => void;
+  colorClass: string;
+  shapeStyles: React.CSSProperties;
+  title: string;
+  disabled: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition } =
+    useSortable({ id: b.id, disabled });
+
+  const wrapperStyle: React.CSSProperties = {
+    width: wPct,
+    minWidth: 56,
+    transform: CSS.Transform.toString(transform),
+    transition,
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "space-between",
+    height: "100%",
+  };
+
+  return (
+    <div ref={setNodeRef} style={wrapperStyle} className="group">
+      {/* Cabecera */}
+      <div className="flex flex-col items-center mb-1 select-none">
+        <div className="text-xs text-slate-300 truncate w-full text-center">
+          {b.label}
+        </div>
+        <div className="text-[11px] text-slate-400">{b.durationMs} ms</div>
+      </div>
+
+      {/* Bloque */}
+      <button
+        {...attributes}
+        {...listeners}
+        className="relative h-16 flex items-end hover:cursor-grab active:cursor-grabbing"
+        onClick={() => onSelect(isSelected ? null : b.id)}
+        aria-pressed={isSelected}
+        title={title}
+      >
+        <div
+          className={`w-full flex items-center justify-center ${colorClass} ring-1 ring-white/10 shadow-sm
+                      transition-all duration-300 hover:-translate-y-1
+                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40
+                      ${isActive ? "shadow-md" : ""}
+                      ${isSelected ? "bg-white !text-slate-900" : ""}
+                      ${
+                        isHighlighted
+                          ? "outline outline-2 outline-white -outline-offset-2 inset-ring-2 ring-white/50"
+                          : ""
+                      }`}
+          style={shapeStyles}
+        >
+          {b.kind === "pivot" ? (
+            b.direction === 1 ? (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                className="size-4"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M9.53 2.47a.75.75 0 0 1 0 1.06L4.81 8.25H15a6.75 6.75 0 0 1 0 13.5h-3a.75.75 0 0 1 0-1.5h3a5.25 5.25 0 1 0 0-10.5H4.81l4.72 4.72a.75.75 0 1 1-1.06 1.06l-6-6a.75.75 0 0 1 0-1.06l6-6a.75.75 0 0 1 1.06 0Z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            ) : (
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                className="size-4"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M14.47 2.47a.75.75 0 0 1 1.06 0l6 6a.75.75 0 0 1 0 1.06l-6 6a.75.75 0 1 1-1.06-1.06l4.72-4.72H9a5.25 5.25 0 1 0 0 10.5h3a.75.75 0 0 1 0 1.5H9a6.75 6.75 0 0 1 0-13.5h10.19l-4.72-4.72a.75.75 0 0 1 0-1.06Z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            )
+          ) : null}
+
+          {isActive && b.kind !== "stop" && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
+            </div>
+          )}
+        </div>
+
+        {isActive && (
+          <span className="absolute -top-2 right-2 text-[10px] px-2 py-[2px] rounded-full bg-yellow-400 text-slate-900 font-bold">
+            ACTIVO
+          </span>
+        )}
+      </button>
+
+      {/* Progreso (SIEMPRE visible, también para stop) */}
+      <div className="mt-1 h-2 w-full rounded-full bg-white/10 ring-1 ring-white/10 overflow-hidden">
+        <div
+          className={`h-full transition-all duration-300 ${
+            isPast || isActive ? "bg-yellow-400" : "bg-cyan-400"
+          }`}
+          style={{ width: `${fill * 100}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ================= Componente principal (con DnD) ================= */
 function TimelineRow({
   title,
   track,
@@ -117,15 +270,47 @@ function TimelineRow({
   onSelect,
   highlightIds = [],
   blockProps = {},
+  onReorder,
+  dndDisabled = false,
 }: TimelineRowProps) {
+  const sensors = useSensors(
+    useSensor(MouseSensor, {
+      activationConstraint: { distance: 8 }, // empieza a arrastrar tras 8px
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 150, tolerance: 5 }, // long-press 150ms, tolerancia 5px
+    })
+  );
+
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [overlaySize, setOverlaySize] = useState<{
+    w: number;
+    h: number;
+  } | null>(null);
+
+  const handleDragStart = (e: DragStartEvent) => {
+    setActiveId(String(e.active.id));
+  };
+
+  const handleDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    setActiveId(null);
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = blocks.findIndex((b) => b.id === active.id);
+    const newIndex = blocks.findIndex((b) => b.id === over.id);
+    if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) return;
+
+    const newOrder = arrayMove(blocks, oldIndex, newIndex);
+    onReorder(newOrder);
+  };
 
   return (
     <div
       className={`w-full overflow-x-auto items-center flex flex-col lg:flex-row gap-2 mb-2 py-2.5 mx-0 px-2 inset-ring-0 ${
-        selectedId &&
-        blocks.some((b) => b.id === selectedId) &&
-        track === track &&
-        "bg-slate-400/10 py-2.5 rounded-xl"
+        selectedId && blocks.some((b) => b.id === selectedId)
+          ? "bg-slate-400/10 py-2.5 rounded-xl"
+          : ""
       }`}
     >
       <div className="items-center flex flex-col gap-1">
@@ -169,116 +354,129 @@ function TimelineRow({
         </span>
       </div>
 
-      <div className="relative w-full h-28 flex items-end gap-1.5">
-        {/* Marcadores absolutos 100% / 0% a la izquierda */}
-        <div className="pointer-events-none absolute -left-6 top-6 text-[10px] text-slate-400">
-          100%
-        </div>
-        <div className="pointer-events-none absolute w-full top-8 text-slate-500/10 border-1"></div>
-        <div className="pointer-events-none absolute -left-6 bottom-0 text-[10px] text-slate-400">
-          0%
-        </div>
-        {blocks.map((b, i) => {
-          const w = `${(Math.max(0, b.durationMs) / totalMs) * 100}%`;
-          const isActive = i === activeIndex;
-          const isPast = i < activeIndex;
-          const isSelected = selectedId === b.id;
-          const isHighlighted = highlightIds.includes(b.id);
-          const fill = isPast ? 1 : isActive ? clamp01(activeProgress) : 0;
-          const p = blockProps[b.id];
-
-          return (
-            <div
-              key={b.id}
-              className="flex flex-col justify-between h-full"
-              style={{ width: w, minWidth: 56 }}
-            >
-              {/* Cabecera */}
-              <div className="flex flex-col items-center mb-1">
-                <div className="text-xs text-slate-300">{b.label}</div>
-                <div className="text-[11px] text-slate-400">
-                  {b.durationMs} ms
-                </div>
-              </div>
-
-              {/* Bloque */}
-              <button
-                className="relative h-16 flex items-end hover:cursor-pointer"
-                onClick={() => onSelect(isSelected ? null : b.id)}
-                aria-pressed={isSelected}
-              >
-                <div
-                  className={`w-full flex items-center justify-center ${
-                    kindColor[b.kind]
-                  } ring-1 ring-white/10 shadow-sm
-                              transition-all duration-300 hover:-translate-y-1
-                              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40
-                              ${isActive ? "shadow-md" : ""}
-                              ${isSelected ? "bg-white !text-slate-900" : ""}
-                              ${
-                                isHighlighted
-                                  ? "outline outline-2 outline-white -outline-offset-2 inset-ring-2 ring-white/50"
-                                  : ""
-                              }`}
-                  style={getBlockStyles(b, p)}
-                  title={`${b.kind} (${b.durationMs} ms)`}
-                >
-                  {b.kind == "pivot" ? b.direction == 1 ? (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      className="size-4"
-                    >
-                      {" "}
-                      <path
-                        fillRule="evenodd"
-                        d="M9.53 2.47a.75.75 0 0 1 0 1.06L4.81 8.25H15a6.75 6.75 0 0 1 0 13.5h-3a.75.75 0 0 1 0-1.5h3a5.25 5.25 0 1 0 0-10.5H4.81l4.72 4.72a.75.75 0 1 1-1.06 1.06l-6-6a.75.75 0 0 1 0-1.06l6-6a.75.75 0 0 1 1.06 0Z"
-                        clipRule="evenodd"
-                      />{" "}
-                    </svg>
-                  ) : (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                      className="size-4"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M14.47 2.47a.75.75 0 0 1 1.06 0l6 6a.75.75 0 0 1 0 1.06l-6 6a.75.75 0 1 1-1.06-1.06l4.72-4.72H9a5.25 5.25 0 1 0 0 10.5h3a.75.75 0 0 1 0 1.5H9a6.75 6.75 0 0 1 0-13.5h10.19l-4.72-4.72a.75.75 0 0 1 0-1.06Z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  ) : null}
-
-                  {isActive && b.kind !== "stop" && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
-                    </div>
-                  )}
-                </div>
-
-                {isActive && (
-                  <span className="absolute -top-2 right-2 text-[10px] px-2 py-[2px] rounded-full bg-yellow-400 text-slate-900 font-bold">
-                    ACTIVO
-                  </span>
-                )}
-              </button>
-
-              {/* Progreso (SIEMPRE visible, también para stop) */}
-              <div className="mt-1 h-2 w-full rounded-full bg-white/10 ring-1 ring-white/10 overflow-hidden">
-                <div
-                  className={`h-full transition-all duration-300 ${
-                    isActive ? "bg-yellow-400" : "bg-cyan-400"
-                  }`}
-                  style={{ width: `${fill * 100}%` }}
-                />
-              </div>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={(e) => {
+          setActiveId(String(e.active.id));
+          const r = e.active.rect.current?.initial;
+          if (r) setOverlaySize({ w: r.width, h: r.height });
+          // si ya tenés esta función, la seguimos llamando
+          handleDragStart?.(e);
+        }}
+        onDragEnd={(e) => {
+          setActiveId(null);
+          setOverlaySize(null);
+          handleDragEnd?.(e);
+        }}
+        onDragCancel={() => {
+          setActiveId(null);
+          setOverlaySize(null);
+        }}
+      >
+        <SortableContext
+          items={blocks.map((b) => b.id)}
+          strategy={horizontalListSortingStrategy}
+        >
+          <div className="relative w-full h-28 flex items-end gap-1.5">
+            {/* Marcadores absolutos 100% / 0% a la izquierda */}
+            <div className="pointer-events-none absolute -left-6 top-6 text-[10px] text-slate-400">
+              100%
             </div>
-          );
-        })}
-      </div>
+            <div className="pointer-events-none absolute w-full top-8 text-slate-500/10 border-1" />
+            <div className="pointer-events-none absolute -left-6 bottom-0 text-[10px] text-slate-400">
+              0%
+            </div>
+
+            {blocks.map((b, i) => {
+              const w = `${(Math.max(0, b.durationMs) / totalMs) * 100}%`;
+              const isActive = i === activeIndex;
+              const isPast = i < activeIndex;
+              const isSelected = selectedId === b.id;
+              const isHighlighted = (highlightIds || []).includes(b.id);
+              const fill = isPast ? 1 : isActive ? clamp01(activeProgress) : 0;
+              const p = blockProps[b.id];
+
+              return (
+                <SortableBlock
+                  key={b.id}
+                  b={b}
+                  wPct={w}
+                  isActive={isActive}
+                  isPast={isPast}
+                  isSelected={isSelected}
+                  isHighlighted={isHighlighted}
+                  fill={fill}
+                  onSelect={onSelect}
+                  colorClass={kindColor[b.kind]}
+                  shapeStyles={getBlockStyles(b, p)}
+                  title={`${b.kind} (${b.durationMs} ms)`}
+                  disabled={!!dndDisabled}
+                />
+              );
+            })}
+          </div>
+        </SortableContext>
+
+        {/* Ghost fijo al tamaño original durante el drag */}
+        <DragOverlay dropAnimation={null}>
+          {activeId
+            ? (() => {
+                const ab = blocks.find((x) => x.id === activeId);
+                if (!ab) return null;
+                const p = blockProps[ab.id];
+                return null
+                {/*return (
+                  <div
+                    style={{
+                      width: overlaySize?.w,
+                      height: overlaySize?.h,
+                    }}
+                    className="relative h-16 flex items-end"
+                  >
+                    <div
+                      className={`w-full flex items-center justify-center ${
+                        kindColor[ab.kind]
+                      } ring-1 ring-white/10 shadow-sm`}
+                      style={getBlockStyles(ab, p)}
+                    >
+}
+                      {ab.kind === "pivot" ? (
+                        ab.direction === 1 ? (
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            className="size-4"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M9.53 2.47a.75.75 0 0 1 0 1.06L4.81 8.25H15a6.75 6.75 0 0 1 0 13.5h-3a.75.75 0 0 1 0-1.5h3a5.25 5.25 0 1 0 0-10.5H4.81l4.72 4.72a.75.75 0 1 1-1.06 1.06l-6-6a.75.75 0 0 1 0-1.06l6-6a.75.75 0 0 1 1.06 0Z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        ) : (
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            className="size-4"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M14.47 2.47a.75.75 0 0 1 1.06 0l6 6a.75.75 0 0 1 0 1.06l-6 6a.75.75 0 1 1-1.06-1.06l4.72-4.72H9a5.25 5.25 0 1 0 0 10.5h3a.75.75 0 0 1 0 1.5H9a6.75 6.75 0 0 1 0-13.5h10.19l-4.72-4.72a.75.75 0 0 1 0-1.06Z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        )
+                      ) : null}
+                    </div>
+                  </div>
+                );*/}
+              })()
+            : null}
+        </DragOverlay>
+      </DndContext>
     </div>
   );
 }
