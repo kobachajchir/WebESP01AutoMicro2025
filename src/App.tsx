@@ -10,7 +10,7 @@ import WifiSection from "./pages/WifiSection";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { PublicRoute } from "./components/PublicRoute";
-import AppFooter from "./components/AppFooter";
+//import AppFooter from "./components/AppFooter";
 import RedirectRoot from "./components/RedirectRoot";
 import RootLayout from "./components/RootLayout";
 import ControlSection from "./pages/ControlSection";

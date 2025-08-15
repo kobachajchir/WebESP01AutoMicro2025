@@ -52,7 +52,7 @@ function Model({ url, eulerDeg }: ModelProps) {
     const draco = new DRACOLoader();
     const base = import.meta.env.BASE_URL || "/";
     draco.setDecoderPath(`${base}draco/`); // apunta a public/draco/
-    draco.setDecoderConfig({ type: "wasm" });
+    draco.setDecoderConfig({ type: "wasm"});
     (loader as GLTFLoader).setDRACOLoader(draco);
   }) as GLTF;
   const groupRef = useRef<THREE.Group>(null);
@@ -63,8 +63,12 @@ function Model({ url, eulerDeg }: ModelProps) {
     const size = new THREE.Vector3();
     box.getSize(size);
     const maxDim = Math.max(size.x, size.y, size.z) || 1;
+    // Detectar si está en "lg" usando una media query
+    const isLg = window.matchMedia("(min-width: 1024px)").matches;
+    // Puedes usar isLg para ajustar el modelo o exponerlo como variable
+    // Ejemplo: console.log("¿Está en lg?", isLg);
     // Aumentamos el scale para hacer el modelo más grande
-    const scale = 6 / maxDim; // era 2, ahora es 4
+    const scale = isLg ? 6 / maxDim : 8 / maxDim; // era 2, ahora es 4
     groupRef.current.scale.setScalar(scale);
     const center = new THREE.Vector3();
     box.getCenter(center);
@@ -160,7 +164,6 @@ export default function ThreeModelViewer({
   eulerDeg,
   allowControls = true,
   exposure = 1.0,
-  background = "#101014",
   className = "",
   childrenInsideCanvas = null,
 }: ThreeModelViewerProps) {
@@ -191,7 +194,7 @@ export default function ThreeModelViewer({
         <perspectiveCamera
           position={[0.3, 0.2, 0.4]} // vista frontal: Z positivo
           fov={45} // FOV más amplio: era 25
-          near={0.01} // near plane más cerca
+          near={1} // near plane más cerca
           far={100}
         />
 
@@ -199,15 +202,15 @@ export default function ThreeModelViewer({
         {allowControls && <Controls />}
 
         {/* Luces */}
-        <ambientLight intensity={0.6} color="#ffffff" />
+        <ambientLight intensity={1} color="#ffffff" />
         <directionalLight
           position={[-3, 5, 4]}
-          intensity={1.2}
+          intensity={3}
           color="#ffffff"
         />
         <directionalLight
           position={[3, 2, -2]}
-          intensity={0.4}
+          intensity={6}
           color="#ffffff"
         />
 

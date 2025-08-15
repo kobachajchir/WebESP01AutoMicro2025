@@ -1,4 +1,3 @@
-import React from "react";
 import type { PresetKey } from "./CameraRig";
 
 export default function CameraPresetsPanel({
@@ -22,7 +21,7 @@ export default function CameraPresetsPanel({
       className={`w-full p-3 border border-slate-800 rounded-2xl bg-slate-900/60 ${className}`}
     >
       <h3 className="m-0 mb-2 text-slate-100 text-sm">Vistas</h3>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-4 lg:grid-cols-6 gap-2">
         <Btn label="Frente" k="front" />
         <Btn label="Atrás" k="back" />
         <Btn label="Arriba" k="top" />
