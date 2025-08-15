@@ -1,6 +1,6 @@
 // src/App.tsx
 import { useEffect } from "react";
-import { BrowserRouter, Routes, Route, Navigate, RouterProvider, createBrowserRouter } from "react-router-dom";
+import { RouterProvider, createBrowserRouter } from "react-router-dom";
 import { useUser } from "./contexts/UserContext";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
@@ -14,9 +14,10 @@ import AppFooter from "./components/AppFooter";
 import RedirectRoot from "./components/RedirectRoot";
 import RootLayout from "./components/RootLayout";
 import ControlSection from "./pages/ControlSection";
+import EstadoSection from "./pages/EstadoSection";
 
 const App: React.FC = () => {
-  const { user, setUser } = useUser();
+  const { user } = useUser();
   const { connected } = useWebSocket();
 
   const router = createBrowserRouter([
@@ -50,7 +51,7 @@ const App: React.FC = () => {
             </ProtectedRoute>
           ),
         },
-        // { path: "statics", element: <ProtectedRoute><StaticsSection /></ProtectedRoute> },
+        { path: "statics", element: <ProtectedRoute><EstadoSection /></ProtectedRoute> },
         { path: "control", element: <ProtectedRoute><ControlSection /></ProtectedRoute> },
         { path: "notFound", element: <NotFound /> }, // opcional
       ],

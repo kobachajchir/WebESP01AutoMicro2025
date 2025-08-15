@@ -1,5 +1,3 @@
-import { useEffect } from "react";
-
 export type BlockKind = "ramp" | "hold" | "pivot" | "arc" | "stop";
 
 interface Props {

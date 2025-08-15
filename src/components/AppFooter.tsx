@@ -1,7 +1,4 @@
 // src/components/AppFooter.tsx
-import React from "react";
-import githubMark from "../assets/github-mark.svg";
-
 export default function AppFooter() {
   return (
     <footer

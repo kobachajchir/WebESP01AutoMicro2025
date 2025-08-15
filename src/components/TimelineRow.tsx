@@ -195,7 +195,7 @@ function SortableBlock({
                       ${isSelected ? "bg-white !text-slate-900" : ""}
                       ${
                         isHighlighted
-                          ? "outline outline-2 outline-white -outline-offset-2 inset-ring-2 ring-white/50"
+                          ? " outline-white -outline-offset-2 inset-ring-2 ring-white/50"
                           : ""
                       }`}
           style={shapeStyles}
@@ -283,6 +283,7 @@ function TimelineRow({
   );
 
   const [activeId, setActiveId] = useState<string | null>(null);
+  //@ts-ignore
   const [overlaySize, setOverlaySize] = useState<{
     w: number;
     h: number;
@@ -424,7 +425,7 @@ function TimelineRow({
             ? (() => {
                 const ab = blocks.find((x) => x.id === activeId);
                 if (!ab) return null;
-                const p = blockProps[ab.id];
+                //const p = blockProps[ab.id];
                 return null
                 {/*return (
                   <div

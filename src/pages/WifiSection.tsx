@@ -4,12 +4,10 @@ import { useMockFirmware } from "../hooks/useMockFirmware";
 import ToggleButton from "../components/toggleButton";
 import Modal from "../components/modal";
 import type { WifiMode } from "../types/WifiTypes";
-import { useNavigate } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 
 export default function WifiSection() {
   const { send, subscribe, connected } = useWebSocket();
-  const navigate = useNavigate();
   const [mode, setMode] = useState<WifiMode | null>(null);
   const [changesMade, setChangesMade] = useState(false);
   const [fixedIPStation, setFixedIPStation] = useState(false);
