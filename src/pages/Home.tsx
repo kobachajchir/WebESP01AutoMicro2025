@@ -3,8 +3,9 @@ import React, { useEffect, useState, useRef } from "react";
 import { useNavigate, useViewTransitionState } from "react-router-dom";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { useUNERProtocol } from "../hooks/useUnerProtocol";
-import MockInjectButton from "../components/MockInjectButton";
 import { le16, readLe16 } from "../api/UnerProtocolUtils";
+import PageHeader from "../components/PageHeader";
+import Modal from "../components/modal";
 
 const Home: React.FC = () => {
   const {
@@ -20,6 +21,8 @@ const Home: React.FC = () => {
   const navigate = useNavigate();
   const [on, setOn] = useState(false);
   const [disabledHeartbeat, setDisabledHeartbeat] = useState<boolean>(true);
+  const [openInfoModal, setOpenInfoModal] = useState(false);
+  const [openSettingsModal, setOpenSettingsModal] = useState(false);
 
   // Refs para el timer del parpadeo
   const blinkIntervalRef = useRef<number | null>(null);
@@ -104,14 +107,11 @@ const Home: React.FC = () => {
 
       {/* Header */}
       <div className="flex flex-col h-1/3 w-full items-center justify-center p-4">
-        <p
-          className="text-4xl md:text-6xl font-extrabold uppercase tracking-tight
-                     bg-clip-text text-transparent bg-gradient-to-r from-cyan-300 via-indigo-400 to-fuchsia-400
-                     bg-[length:200%_100%] motion-safe:animate-[gradient-move_6s_linear_infinite]
-                     drop-shadow-sm"
-        >
-          Auto Microcontroladores 2025
-        </p>
+        <PageHeader
+          setOpenSettingsModal={setOpenSettingsModal}
+          setOpenInfoModal={setOpenInfoModal}
+          titleOverride="Auto Microcontroladores 2025"
+        />
 
         <div className="flex flex-col xl:flex-row justify-evenly items-center w-full max-w-6xl mt-8 gap-6">
           {/* Estado y Watchdog */}
@@ -139,113 +139,31 @@ const Home: React.FC = () => {
                 {connected ? "Conectado" : "Desconectado"}
               </span>
             </div>
-
-            {/* Watchdog Status */}
-            {connected && (
-              <div className="flex flex-col items-center gap-2 p-3 rounded-lg bg-slate-800/50 border border-slate-700">
-                <div className="flex items-center gap-3">
-                  <p className="text-sm text-slate-300">Watchdog:</p>
-                  <button
-                    onClick={toggleHeartbeatWatchdog}
-                    className={`px-3 py-1 rounded-full text-sm font-semibold transition-colors ${
-                      heartbeatConfig.isActive
-                        ? "bg-green-600 text-white hover:bg-green-700"
-                        : "bg-slate-600 text-slate-200 hover:bg-slate-500"
-                    }`}
-                  >
-                    {heartbeatConfig.isActive ? "Activo" : "Inactivo"}
-                  </button>
-                </div>
-                <div className="flex items-center gap-3">
-                  <p className="text-sm text-slate-400">Intentos restantes:</p>
-                  <span
-                    className={`font-bold text-lg ${
-                      heartbeatConfig.remainingRetries === 0
-                        ? "text-red-400"
-                        : heartbeatConfig.remainingRetries <= 2
-                        ? "text-yellow-400"
-                        : "text-green-400"
-                    }`}
-                  >
-                    {heartbeatConfig.remainingRetries}/
-                    {heartbeatConfig.maxRetries}
-                  </span>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Configuraciones */}
-          <div className="flex flex-col items-center gap-4">
-            <button
-              disabled={!connected || disabledHeartbeat}
-              onClick={handleSendHeartbeat}
-              className="refresh-btn group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold text-white transition-all duration-300 hover:text-slate-900 hover:shadow-[inset_0_0_0_2px_theme('colors.cyan.400')] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                className="size-6 transition-transform duration-300 group-hover:rotate-180"
+          {!connected && (
+            <div className="flex flex-col items-center gap-4">
+              <button
+                onClick={handleSendHeartbeat}
+                className="refresh-btn group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold text-white transition-all duration-300 hover:text-slate-900 hover:shadow-[inset_0_0_0_2px_theme('colors.cyan.400')] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <path
-                  fillRule="evenodd"
-                  d="M4.755 10.059a7.5 7.5 0 0 1 12.548-3.364l1.903 1.903h-3.183a.75.75 0 1 0 0 1.5h4.992a.75.75 0 0 0 .75-.75V4.356a.75.75 0 0 0-1.5 0v3.18l-1.9-1.9A9 9 0 0 0 3.306 9.67a.75.75 0 1 0 1.45.388Zm15.408 3.352a.75.75 0 0 0-.919.53 7.5 7.5 0 0 1-12.548 3.364l-1.902-1.903h3.183a.75.75 0 0 0 0-1.5H2.984a.75.75 0 0 0-.75.75v4.992a.75.75 0 0 0 1.5 0v-3.18l1.9 1.9a9 9 0 0 0 15.059-4.035.75.75 0 0 0-.30-.918Z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              <p className="text-xl">
-                {connected ? "Enviar heartbeat" : "Sin conexión"}
-              </p>
-            </button>
-
-            {/* Sliders de configuración */}
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col">
-                <label htmlFor="hb-slider" className="text-sm text-slate-400">
-                  {`Intervalo heartbeat (${heartbeatConfig.intervalMs} ms)`}
-                </label>
-                <div className="flex items-center gap-3">
-                  <input
-                    id="hb-slider"
-                    type="range"
-                    min={50}
-                    max={10000}
-                    step={50}
-                    value={heartbeatConfig.intervalMs}
-                    onChange={(e) => {
-                      setHeartbeatInterval(Number(e.target.value));
-                      setDisabledHeartbeat(false);
-                    }}
-                    className="w-56 accent-cyan-400"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-col">
-                <label
-                  htmlFor="retry-slider"
-                  className="text-sm text-slate-400"
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  className="size-6 transition-transform duration-300 group-hover:rotate-180"
                 >
-                  {`Intentos máximos (${heartbeatConfig.maxRetries})`}
-                </label>
-                <div className="flex items-center gap-3">
-                  <input
-                    id="retry-slider"
-                    type="range"
-                    min={1}
-                    max={10}
-                    step={1}
-                    value={heartbeatConfig.maxRetries}
-                    onChange={(e) =>
-                      setHeartbeatMaxRetries(Number(e.target.value))
-                    }
-                    className="w-56 accent-yellow-400"
+                  <path
+                    fillRule="evenodd"
+                    d="M4.755 10.059a7.5 7.5 0 0 1 12.548-3.364l1.903 1.903h-3.183a.75.75 0 1 0 0 1.5h4.992a.75.75 0 0 0 .75-.75V4.356a.75.75 0 0 0-1.5 0v3.18l-1.9-1.9A9 9 0 0 0 3.306 9.67a.75.75 0 1 0 1.45.388Zm15.408 3.352a.75.75 0 0 0-.919.53 7.5 7.5 0 0 1-12.548 3.364l-1.902-1.903h3.183a.75.75 0 0 0 0-1.5H2.984a.75.75 0 0 0-.75.75v4.992a.75.75 0 0 0 1.5 0v-3.18l1.9 1.9a9 9 0 0 0 15.059-4.035.75.75 0 0 0-.30-.918Z"
+                    clipRule="evenodd"
                   />
-                </div>
-              </div>
+                </svg>
+                <p className="text-xl">Enviar heartbeat</p>
+              </button>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -253,17 +171,20 @@ const Home: React.FC = () => {
       <div className="flex flex-col md:flex-row h-3/4 md:h-1/2 w-full md:w-11/12 max-w-6xl items-center justify-between gap-6">
         {/* 1) Estado — cyan → indigo */}
         <button
-          className="estado-btn group relative w-3/4 md:w-1/3 h-3/5 rounded-2xl
-               transition-all duration-300 hover:-translate-y-1 hover:text-slate-900
-               hover:shadow-[inset_0_0_0_2px_theme('colors.cyan.400')]
-               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40
-               "
+          className={`group relative w-3/4 md:w-1/3 h-3/5 rounded-2xl transition-all duration-300 ${
+            !connected
+              ? "!bg-gray-400 !text-slate-900"
+              : "estado-btn hover:-translate-y-1 hover:text-slate-900 hover:shadow-[inset_0_0_0_2px_theme('colors.cyan.400')] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+          }`}
           onClick={() => navigate("/statics", { viewTransition: true })}
           aria-label="Ir a Estado"
+          disabled={!connected}
         >
           <div
-            className="flex flex-col justify-center items-center h-full w-full rounded-2xl
-                 bg-transparent text-slate-100 transition-all duration-300 group-hover:text-slate-900 text-hover-indigo"
+            className={`flex flex-col justify-center items-center h-full w-full rounded-2xl
+                 bg-transparent text-slate-100 transition-all duration-300 group-hover:text-slate-900 ${
+                   connected ? "text-hover-indigo" : "text-hover-gray"
+                 }`}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -285,26 +206,31 @@ const Home: React.FC = () => {
 
         {/* 2) Control — indigo → fuchsia */}
         <button
-          className="control-btn group relative w-3/4 md:w-1/3 h-3/5 rounded-2xl
-               transition-all duration-300 hover:-translate-y-1 hover:text-slate-900
-               hover:shadow-[inset_0_0_0_2px_theme('colors.indigo.400')]
-               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40"
+          className={`group relative w-3/4 md:w-1/3 h-3/5 rounded-2xl transition-all duration-300 ${
+            !connected
+              ? "!bg-gray-400 !text-slate-900"
+              : "control-btn hover:-translate-y-1 hover:text-slate-900 hover:shadow-[inset_0_0_0_2px_theme('colors.cyan.400')] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+          }`}
           onClick={(e) => {
             e.preventDefault();
             navigate("/control", { viewTransition: true });
           }}
+          disabled={!connected}
           aria-label="Ir a Control"
         >
           <div
-            className="flex flex-col justify-center items-center h-full w-full rounded-2xl
-                 bg-transparent text-slate-100 transition-all duration-300 group-hover:text-slate-900 text-hover-indigo fill-white hover:fill-indigo-500"
+            className={`flex flex-col justify-center items-center h-full w-full rounded-2xl
+         bg-transparent text-slate-100 transition-all duration-300 group-hover:text-slate-900 ${
+           connected ? "text-hover-indigo" : "text-hover-gray"
+         }`}
           >
             <svg
               width="800px"
               height="800px"
               viewBox="0 0 20 20"
               xmlns="http://www.w3.org/2000/svg"
-              className="size-24 md:size-32 transition-transform duration-300 "
+              className="size-24 md:size-32 transition-transform duration-300"
+              fill="currentColor"
             >
               <path d="M19.444 9.361c-.882-4.926-2.854-6.379-3.903-6.379-1.637 0-2.057 1.217-5.541 1.258-3.484-.041-3.904-1.258-5.541-1.258-1.049 0-3.022 1.453-3.904 6.379-.503 2.812-1.049 7.01.252 7.514 1.619.627 2.168-.941 3.946-2.266C6.558 13.266 7.424 12.95 10 12.95s3.442.316 5.247 1.659c1.778 1.324 2.327 2.893 3.946 2.266 1.301-.504.755-4.701.251-7.514zM6 10a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm7 0a1 1 0 1 1 0-2 1 1 0 1 1 0 2zm2-2a1 1 0 1 1 0-2 1 1 0 1 1 0 2z" />
             </svg>
@@ -316,17 +242,20 @@ const Home: React.FC = () => {
 
         {/* 3) Wi-Fi — fuchsia → teal */}
         <button
-          className="wifi-btn group relative w-3/4 md:w-1/3 h-3/5 rounded-2xl
-               transition-all duration-300 hover:-translate-y-1 hover:text-slate-900
-               hover:shadow-[inset_0_0_0_2px_theme('colors.fuchsia.400')]
-               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400/40
-               text-slate-hovered"
+          className={`group relative w-3/4 md:w-1/3 h-3/5 rounded-2xl transition-all duration-300 ${
+            !connected
+              ? "!bg-gray-400 !text-slate-900"
+              : "wifi-btn hover:-translate-y-1 hover:text-slate-900 hover:shadow-[inset_0_0_0_2px_theme('colors.cyan.400')] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+          }`}
           onClick={() => navigate("/wifi", { viewTransition: true })}
           aria-label="Ir a Wi-Fi"
+          disabled={!connected}
         >
           <div
-            className="flex flex-col justify-center items-center h-full w-full rounded-2xl
-                 bg-transparent text-slate-100 transition-all duration-300 group-hover:text-slate-900 text-hover-indigo"
+            className={`flex flex-col justify-center items-center h-full w-full rounded-2xl
+                 bg-transparent text-slate-100 transition-all duration-300 group-hover:text-slate-900 ${
+                   connected ? "text-hover-indigo" : "text-hover-gray"
+                 }`}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -346,6 +275,115 @@ const Home: React.FC = () => {
           </div>
         </button>
       </div>
+      {openInfoModal && (
+        <Modal
+          isOpen={openInfoModal}
+          onClose={() => setOpenInfoModal(false)}
+          closeOnOverlayClick={false}
+        >
+          <h2 className="text-2xl font-bold mb-4 text-black">
+            Pantalla de Inicio
+          </h2>
+          <p className="mb-3 text-black">
+            La pantalla de inicio muestra el estado actual de la conexión con el
+            dispositivo y permite enviar el comando <em>heartbeat</em> para
+            verificar la comunicación. También indica visualmente si el enlace
+            con la placa está activo o no mediante un indicador que titila al
+            ritmo configurado.
+          </p>
+          <p className="text-black">
+            Es el punto de partida para acceder al resto de funciones de la
+            aplicación.
+          </p>
+        </Modal>
+      )}
+      {openSettingsModal && (
+        <Modal
+          isOpen={openSettingsModal}
+          onClose={() => setOpenSettingsModal(false)}
+          closeOnOverlayClick={false}
+          containerClassnames="flex-col"
+        >
+          <h2 className="text-2xl font-bold mb-4 text-black">Configuración</h2>
+          <div className="flex flex-col lg:flex-row gap-3">
+            {/* Watchdog Status */}
+            <div className="flex w-full lg:w-1/2 flex-col items-center justify-center gap-2 p-3 rounded-lg bg-slate-600/80 border border-slate-700">
+              <div className="flex items-center gap-3">
+                <p className="text-sm text-white">Watchdog:</p>
+                <button
+                  onClick={toggleHeartbeatWatchdog}
+                  className={`px-3 py-1 rounded-full text-sm font-semibold transition-colors ${
+                    heartbeatConfig.isActive
+                      ? "bg-green-600 text-white hover:bg-green-700"
+                      : "bg-slate-600 text-slate-200 hover:bg-slate-900"
+                  }`}
+                  disabled={!connected}
+                >
+                  {heartbeatConfig.isActive ? "Activo" : "Inactivo"}
+                </button>
+              </div>
+              <div className="flex items-center gap-3">
+                <p className="text-sm text-white">Intentos restantes:</p>
+                <span
+                  className={`font-bold text-lg ${
+                    heartbeatConfig.remainingRetries === 0
+                      ? "text-red-400"
+                      : heartbeatConfig.remainingRetries <= 2
+                      ? "text-yellow-400"
+                      : "text-green-400"
+                  }`}
+                >
+                  {heartbeatConfig.remainingRetries} de{" "}
+                  {heartbeatConfig.maxRetries}
+                </span>
+              </div>
+            </div>
+            {/* Sliders de configuración */}
+            <div className="flex w-full lg:w-1/2 flex-col gap-4 p-3 items-center justify-center rounded-lg bg-slate-600/80 border-slate-700">
+              <div className="flex flex-col">
+                <label htmlFor="hb-slider" className="text-sm text-white">
+                  {`Intervalo heartbeat (${heartbeatConfig.intervalMs} ms)`}
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    id="hb-slider"
+                    type="range"
+                    min={50}
+                    max={10000}
+                    step={50}
+                    value={heartbeatConfig.intervalMs}
+                    onChange={(e) => {
+                      setHeartbeatInterval(Number(e.target.value));
+                      setDisabledHeartbeat(false);
+                    }}
+                    className="w-56 accent-cyan-400"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col">
+                <label htmlFor="retry-slider" className="text-sm text-white">
+                  {`Intentos máximos (${heartbeatConfig.maxRetries})`}
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    id="retry-slider"
+                    type="range"
+                    min={1}
+                    max={10}
+                    step={1}
+                    value={heartbeatConfig.maxRetries}
+                    onChange={(e) =>
+                      setHeartbeatMaxRetries(Number(e.target.value))
+                    }
+                    className="w-56 accent-yellow-400"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 };

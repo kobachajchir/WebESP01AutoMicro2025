@@ -7,6 +7,7 @@ import React, {
   useCallback,
   type ReactNode,
 } from "react";
+import Modal from "../components/modal";
 
 type WSMessageHandler = (data: any) => void;
 type WSRawHandler = (data: ArrayBuffer | Uint8Array) => void;
@@ -39,6 +40,9 @@ interface WebSocketContextType {
   toggleHeartbeatWatchdog: () => void;
   resetHeartbeatWatchdog: () => void;
   onHeartbeatReceived: () => void;
+  retrying: boolean;
+  setRetrying: (newVal: boolean) => void;
+  setShowRetryModal: (newVal: boolean) => void;
 }
 
 export const WebSocketContext = createContext<WebSocketContextType | undefined>(
@@ -57,6 +61,8 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 }) => {
   const wsRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState<boolean>(false);
+  const [retrying, setRetrying] = useState<boolean>(false);
+  const [showRetryModal, setShowRetryModal] = useState<boolean>(false);
 
   // Estados del heartbeat watchdog
   const [heartbeatConfig, setHeartbeatConfig] = useState<HeartbeatConfig>({
@@ -96,6 +102,8 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
       clearTimeout(heartbeatTimeoutRef.current);
       heartbeatTimeoutRef.current = null;
     }
+
+    setShowRetryModal(true)
   }, [heartbeatConfig.maxRetries]);
 
   // Función para iniciar el watchdog
@@ -404,9 +412,43 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
         toggleHeartbeatWatchdog,
         resetHeartbeatWatchdog,
         onHeartbeatReceived,
+        retrying,
+        setRetrying,
+        setShowRetryModal,
       }}
     >
       {children}
+      {showRetryModal && (
+        <Modal
+          isOpen={showRetryModal}
+          onClose={() => {
+            setRetrying(false);
+            setShowRetryModal(false);
+            setConnected(false);
+          }}
+        >
+          <div className="flex flex-col items-center justify-center">
+            <h2 className="text-4xl font-bold mb-4 text-black uppercase">
+              Conexion perdida
+            </h2>
+            <button
+              onClick={() => {
+                setRetrying(true);
+                setShowRetryModal(false);
+                setConnected(false);
+              }}
+              className="btn-danger group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold text-white
+                         transition-all duration-300 hover:text-slate-900 bg-red-600/80 hover:ring-red-400 hover:ring-2
+                         hover:shadow-[inset_0_0_0_2px_theme('colors.red.400')]
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40
+                         disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Eliminar bloque seleccionado"
+            >
+              Reintentar conectar
+            </button>
+          </div>
+        </Modal>
+      )}
     </WebSocketContext.Provider>
   );
 };

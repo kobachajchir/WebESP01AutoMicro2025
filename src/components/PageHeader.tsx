@@ -7,6 +7,7 @@ interface PageHeaderProps {
   showSettings?: boolean;
   showInfo?: boolean;
   className?: string;
+  titleOverride?: string;
 }
 
 const PAGE_TITLES: Record<string, string> = {
@@ -25,6 +26,7 @@ export default function PageHeader({
   showSettings = true,
   showInfo = true,
   className = "flex flex-row items-center justify-between w-full mb-6",
+  titleOverride = ""
 }: PageHeaderProps) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -32,7 +34,11 @@ export default function PageHeader({
   // Obtener el título basado en la ruta actual
   const getPageTitle = () => {
     const path = location.pathname;
-    return PAGE_TITLES[path] || "Aplicación";
+    if(titleOverride.length > 0){
+      return titleOverride
+    }else{
+      return PAGE_TITLES[path] || "Aplicación";
+    }
   };
 
   return (
@@ -42,6 +48,7 @@ export default function PageHeader({
       </h1>
 
       <div className="flex flex-row gap-2">
+        {!location.pathname.includes("home") && (
         <button
           aria-label="Ir a Home"
           className="toolbar-btn group flex items-center justify-center py-2 px-3 rounded-2xl transition-all duration-300 hover:shadow-[inset_0_0_0_2px_theme('colors.cyan.400')] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
@@ -57,6 +64,7 @@ export default function PageHeader({
             <path d="m12 5.432 8.159 8.159c.03.03.06.058.091.086v6.198c0 1.035-.84 1.875-1.875 1.875H15a.75.75 0 0 1-.75-.75v-4.5a.75.75 0 0 0-.75-.75h-3a.75.75 0 0 0-.75.75V21a.75.75 0 0 1-.75.75H5.625a1.875 1.875 0 0 1-1.875-1.875v-6.198a2.29 2.29 0 0 0 .091-.086L12 5.432Z" />
           </svg>
         </button>
+      )}
 
         {showSettings && setOpenSettingsModal && (
           <button

@@ -65,6 +65,7 @@ body{
 }
 .control-btn:hover {
     background: white !important;
+    background-image: none !important;
 }
 
 .wifi-btn {
@@ -85,6 +86,10 @@ body{
 
 .text-hover-indigo:hover {
   color: #6366f1 !important;
+}
+
+.text-hover-gray:hover {
+  color: slategray !important;
 }
 
 :root{

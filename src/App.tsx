@@ -15,10 +15,11 @@ import RootLayout from "./components/RootLayout";
 import ControlSection from "./pages/ControlSection";
 import EstadoSection from "./pages/EstadoSection";
 import { useWebSocket } from "./hooks/useWebSocket";
+import ConnectingScreen from "./components/ConnectingScreen";
 
 const App: React.FC = () => {
   const { user } = useUser();
-  const { connected, setConnected } = useWebSocket();
+  const { connected, setConnected, retrying, setRetrying } = useWebSocket();
 
   const router = createBrowserRouter([
     {
@@ -51,48 +52,41 @@ const App: React.FC = () => {
             </ProtectedRoute>
           ),
         },
-        { path: "statics", element: <ProtectedRoute><EstadoSection /></ProtectedRoute> },
-        { path: "control", element: <ProtectedRoute><ControlSection /></ProtectedRoute> },
+        {
+          path: "statics",
+          element: (
+            <ProtectedRoute>
+              <EstadoSection />
+            </ProtectedRoute>
+          ),
+        },
+        {
+          path: "control",
+          element: (
+            <ProtectedRoute>
+              <ControlSection />
+            </ProtectedRoute>
+          ),
+        },
         { path: "notFound", element: <NotFound /> }, // opcional
       ],
     },
   ]);
 
-  // Mientras no estemos conectados al WS, mostramos un mensaje de espera
-  if (!connected) {
-    return (
-      <div
-        className="flex flex-col h-screen w-full items-center justify-center gap-3 p-6 relative
-                      bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-slate-100
-                      selection:bg-cyan-500/30"
-      >
-        <div
-          role="status"
-          className="inline-block size-24 rounded-full border-4 border-current border-r-transparent
-                    animate-spin motion-reduce:animate-none text-cyan-400"
-        />
-        <h1
-          className="text-2xl md:text-3xl font-extrabold uppercase tracking-tight
-                      bg-clip-text text-transparent bg-gradient-to-r from-cyan-300 via-indigo-400 to-fuchsia-400
-                      bg-[length:200%_100%] motion-safe:animate-[gradient-move_6s_linear_infinite] drop-shadow-sm"
-        >
-          Conectando al servidor de la ESP01...
-        </h1>
-      </div>
-    );
-  }
-
+  // Efecto para configurar View Transitions y altura completa
   useEffect(() => {
     if (!("startViewTransition" in document)) {
       console.warn("View Transitions no soportado en este navegador");
-    }else{
+    } else {
       console.log("View Transitions soportado en este navegador");
     }
     // Ajusta el root para que ocupe todo el alto visible del navegador y previene el scroll
     const setFullHeight = () => {
       const vh = window.innerHeight * 0.01;
       document.getElementById("root")?.style.setProperty("--vh", `${vh}px`);
-      document.getElementById("root")?.style.setProperty("height", `calc(var(--vh, 1vh) * 100)`);
+      document
+        .getElementById("root")
+        ?.style.setProperty("height", `calc(var(--vh, 1vh) * 100)`);
       document.body.style.height = `calc(var(--vh, 1vh) * 100)`;
       document.body.style.overflow = "scroll";
     };
@@ -101,38 +95,73 @@ const App: React.FC = () => {
       window.removeEventListener("resize", setFullHeight);
       document.body.style.overflow = "";
       document.body.style.height = "";
-    }
-  }, [])
-  
+    };
+  }, []);
 
+  // Efecto para logs de usuario
   useEffect(() => {
     console.log("Usuario autenticado:", user);
-    /*if(user){
-      setUser(null);
-    }*/
   }, [user]);
 
+  // Efecto para establecer el estado inicial de retry
   useEffect(() => {
-    // Si ya estamos conectados, no mockeamos nada
-    if (connected) return;
+    console.log("[APP] Iniciando estado de retry en el primer render");
+    setRetrying(true);
+  }, [setRetrying]);
 
-    const t = window.setTimeout(() => {
-      // Solo forzar si aún NO se conectó de verdad
+  // Efecto para mock de conexión después de 3 segundos
+  useEffect(() => {
+    // Solo ejecutar si estamos en modo retry y no conectado
+    if (!retrying || connected) {
+      return;
+    }
+
+    console.log("[APP] Iniciando timer para mock de conexión (3 segundos)");
+
+    const mockTimer = setTimeout(() => {
+      console.log("[MOCK] Inyectando mock de conexión después de 3 segundos");
       setConnected(true);
-      console.log("[MOCK] Forzado connected = true después 5 segs");
-    }, 10);
+      setRetrying(false);
+    }, 3000);
 
-    // Si el WS se conecta antes, cancelar el mock
-    return () => window.clearTimeout(t);
-  }, [connected, setConnected]);
+    // Cleanup del timer
+    return () => {
+      console.log("[APP] Limpiando timer de mock");
+      clearTimeout(mockTimer);
+    };
+  }, [retrying, connected, setConnected, setRetrying]);
+
+  // Si se conecta realmente antes del mock, detener el retry
+  useEffect(() => {
+    if (connected && retrying) {
+      console.log("[APP] Conexión real detectada, deteniendo retry");
+      setRetrying(false);
+    }
+  }, [connected, retrying, setRetrying]);
+
+  // Mostrar pantalla de conexión mientras está reintentando y no conectado
+  if (retrying && !connected) {
+    console.log(
+      "[APP] Renderizando ConnectingScreen - retrying:",
+      retrying,
+      "connected:",
+      connected
+    );
+    return <ConnectingScreen />;
+  }
+
+  console.log(
+    "[APP] Renderizando RouterProvider - retrying:",
+    retrying,
+    "connected:",
+    connected
+  );
 
   return (
     <div className="flex flex-col h-full w-full relative">
       {/* Aquí puedes agregar un Header si es necesario */}
       <RouterProvider router={router} />
-      <div className="mt-auto">
-      {/*<AppFooter />*/}
-      </div>
+      <div className="mt-auto">{/*<AppFooter />*/}</div>
     </div>
   );
 };

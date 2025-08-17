@@ -6,6 +6,7 @@ interface ModalProps {
   children: React.ReactNode;
   /** opcional: cerrar con click en overlay (default true) */
   closeOnOverlayClick?: boolean;
+  containerClassnames?: string;
 }
 
 const Modal: React.FC<ModalProps> = ({
@@ -13,6 +14,7 @@ const Modal: React.FC<ModalProps> = ({
   onClose,
   children,
   closeOnOverlayClick = true,
+  containerClassnames = ""
 }) => {
   const [mounted, setMounted] = useState(isOpen);
   const [closing, setClosing] = useState(false);
@@ -94,7 +96,7 @@ const Modal: React.FC<ModalProps> = ({
         </button>
 
         {/* Contenido */}
-        <div className="p-6 overflow-auto flex-grow">{children}</div>
+        <div className={`p-6 overflow-auto flex-grow ${containerClassnames}`}>{children}</div>
       </div>
 
       {/* Keyframes locales */}

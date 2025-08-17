@@ -558,7 +558,7 @@ export default function WifiSection() {
           <div className="flex flex-row gap-4 text-black w-full items-center justify-center my-4">
             <p className="text-lg">Reiniciar ESP01</p>
             <button
-              className="btn-indigo group relative inline-flex items-center gap-2 rounded-xl px-3 py-2 font-medium text-white
+              className="btn-indigo group relative inline-flex items-center gap-2 rounded-xl py-2 font-medium text-white
                          transition-all duration-300 hover:text-slate-900
                          hover:shadow-[inset_0_0_0_1px_theme('colors.indigo.400')]
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40 estado-btn px-5"
