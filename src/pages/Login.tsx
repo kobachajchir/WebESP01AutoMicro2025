@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { useWebSocket } from "../contexts/WebSocketContext";
+import { useWebSocket } from "../hooks/useWebSocket";
 
 export default function Login() {
   const { send } = useWebSocket();

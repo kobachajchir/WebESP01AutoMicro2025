@@ -5,7 +5,6 @@ import { useUser } from "./contexts/UserContext";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import "./App.css";
-import { useWebSocket } from "./contexts/WebSocketContext";
 import WifiSection from "./pages/WifiSection";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -15,10 +14,11 @@ import RedirectRoot from "./components/RedirectRoot";
 import RootLayout from "./components/RootLayout";
 import ControlSection from "./pages/ControlSection";
 import EstadoSection from "./pages/EstadoSection";
+import { useWebSocket } from "./hooks/useWebSocket";
 
 const App: React.FC = () => {
   const { user } = useUser();
-  const { connected } = useWebSocket();
+  const { connected, setConnected } = useWebSocket();
 
   const router = createBrowserRouter([
     {
@@ -111,6 +111,20 @@ const App: React.FC = () => {
       setUser(null);
     }*/
   }, [user]);
+
+  useEffect(() => {
+    // Si ya estamos conectados, no mockeamos nada
+    if (connected) return;
+
+    const t = window.setTimeout(() => {
+      // Solo forzar si aún NO se conectó de verdad
+      setConnected(true);
+      console.log("[MOCK] Forzado connected = true después 5 segs");
+    }, 10);
+
+    // Si el WS se conecta antes, cancelar el mock
+    return () => window.clearTimeout(t);
+  }, [connected, setConnected]);
 
   return (
     <div className="flex flex-col h-full w-full relative">

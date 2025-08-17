@@ -7,7 +7,7 @@ import React, {
   useEffect,
 } from "react";
 import type { ReactNode } from "react";
-import { useWebSocket } from "./WebSocketContext";
+import { useWebSocket } from "../hooks/useWebSocket";
 
 export interface User {
   id: string;

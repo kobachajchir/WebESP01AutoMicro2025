@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { useWebSocket } from "../contexts/WebSocketContext";
 import { useMockFirmware } from "../hooks/useMockFirmware";
 import ToggleButton from "../components/toggleButton";
 import Modal from "../components/modal";
 import type { WifiMode } from "../types/WifiTypes";
 import PageHeader from "../components/PageHeader";
+import { useWebSocket } from "../hooks/useWebSocket";
 
 export default function WifiSection() {
   const { send, subscribe, connected } = useWebSocket();

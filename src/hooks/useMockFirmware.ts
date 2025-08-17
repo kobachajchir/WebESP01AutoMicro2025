@@ -1,6 +1,6 @@
 // src/hooks/useMockFirmware.ts
 import { useEffect } from "react";
-import { useWebSocket } from "../contexts/WebSocketContext";
+import { useWebSocket } from "./useWebSocket";
 
 export function useMockFirmware(
   mode: "AP" | "STATION" = "AP",

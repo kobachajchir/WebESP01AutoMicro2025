@@ -1,30 +1,34 @@
 // src/contexts/WebSocketContext.tsx
 import React, {
   createContext,
-  useContext,
   useEffect,
   useState,
   useRef,
   useCallback,
+  type ReactNode,
 } from "react";
-import type { ReactNode } from "react";
 
 type WSMessageHandler = (data: any) => void;
+type WSRawHandler = (data: ArrayBuffer | Uint8Array) => void;
 
 interface WebSocketContextType {
-  /** Estado de conexión */
   connected: boolean;
-  /** Envía un mensaje (serializado a JSON) */
+  setConnected: (state: boolean) => void;
+
   send: (type: string, payload?: any) => void;
-  /** Se suscribe a un tipo de mensaje y recibe el payload */
   subscribe: (type: string, handler: WSMessageHandler) => () => void;
-  /** Cierra la conexión */
+
+  sendRaw: (data: Uint8Array) => void;
+  subscribeRaw: (handler: WSRawHandler) => () => void;
+
   disconnect: () => void;
-  /** Inyecta un mensaje entrante (para mocks) */
   mockMessage: (type: string, payload?: any) => void;
+
+  // 👇 NUEVO: inyectar binario en modo mock
+  mockRaw: (data: Uint8Array) => void;
 }
 
-const WebSocketContext = createContext<WebSocketContextType | undefined>(
+export const WebSocketContext = createContext<WebSocketContextType | undefined>(
   undefined
 );
 
@@ -39,79 +43,141 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
   children,
 }) => {
   const wsRef = useRef<WebSocket | null>(null);
-  const [connected, setConnected] = useState(false);
-  const listeners = useRef(new Map<string, Set<WSMessageHandler>>());
+  const [connected, setConnected] = useState<boolean>(false);
 
-  // 1) Abrir WS al montar
+  const jsonListeners = useRef(new Map<string, Set<WSMessageHandler>>());
+  const rawListeners = useRef(new Set<WSRawHandler>());
+
+  // 1) Abrir WS al montarconnection
   useEffect(() => {
+    const mockMode = url.includes("mock");
+
+    if (mockMode) {
+      setConnected(true);
+      wsRef.current = null; // no abrimos un WS real
+      return () => {
+        jsonListeners.current.clear();
+        rawListeners.current.clear();
+      };
+    }
+
     const ws = new WebSocket(url);
+    ws.binaryType = "arraybuffer";
     wsRef.current = ws;
 
-    // ✔ Conexión establecida tras 1s (mock)
-    setTimeout(() => setConnected(true), 1000);
+    ws.onopen = () => setConnected(true);
     ws.onclose = () => setConnected(false);
     ws.onerror = () => setConnected(false);
 
-    ws.onmessage = (evt) => {
-      let msg: any;
-      try {
-        msg = JSON.parse(evt.data);
-      } catch {
+    ws.onmessage = async (evt) => {
+      if (typeof evt.data === "string") {
+        let msg: any;
+        try {
+          msg = JSON.parse(evt.data);
+        } catch {
+          return;
+        }
+        const { type, payload } = msg ?? {};
+        jsonListeners.current.get(type)?.forEach((h) => h(payload));
         return;
       }
-      const { type, payload } = msg;
-      listeners.current.get(type)?.forEach((handler) => handler(payload));
+      if (evt.data instanceof ArrayBuffer) {
+        rawListeners.current.forEach((h) => h(evt.data as ArrayBuffer));
+        return;
+      }
+      if (evt.data instanceof Blob) {
+        try {
+          const buf = await (evt.data as Blob).arrayBuffer();
+          rawListeners.current.forEach((h) => h(buf));
+        } catch {}
+      }
     };
 
     return () => {
-      ws.close();
-      listeners.current.clear();
+      try {
+        ws.close();
+      } catch {}
+      jsonListeners.current.clear();
+      rawListeners.current.clear();
+      wsRef.current = null;
     };
   }, [url]);
 
-  // 2) Enviar mensaje al servidor
+  // 2) Enviar JSON
   const send = useCallback((type: string, payload?: any) => {
     const ws = wsRef.current;
     if (ws?.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type, payload }));
+    } else {
+      // modo mock: solo log
+      if (!ws) console.log("[WS mock] send JSON:", { type, payload });
     }
   }, []);
 
-  // 3) Suscribirse a un tipo de mensaje entrante
+  // 3) Suscribirse a tipo JSON
   const subscribe = useCallback((type: string, handler: WSMessageHandler) => {
-    if (!listeners.current.has(type)) {
-      listeners.current.set(type, new Set());
+    if (!jsonListeners.current.has(type)) {
+      jsonListeners.current.set(type, new Set());
     }
-    listeners.current.get(type)!.add(handler);
+    jsonListeners.current.get(type)!.add(handler);
     return () => {
-      listeners.current.get(type)!.delete(handler);
+      jsonListeners.current.get(type)!.delete(handler);
+      if (jsonListeners.current.get(type)!.size === 0) {
+        jsonListeners.current.delete(type);
+      }
     };
   }, []);
 
-  // 4) Cerrar la conexión
+  // 4) === NUEVO === Enviar binario
+  const sendRaw = useCallback((data: Uint8Array) => {
+    const ws = wsRef.current;
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(data);
+    } else {
+      // MODO MOCK: registrar log y simular recepción (eco)
+      console.log("[WS mock] sendRaw bytes:", data);
+      // ⬇️ inyecta hacia todos los suscriptores binarios:
+      rawListeners.current.forEach((h) => h(data));
+    }
+  }, []);
+
+  // 5) === NUEVO === Suscribirse a binario
+  const subscribeRaw = useCallback((handler: WSRawHandler) => {
+    rawListeners.current.add(handler);
+    return () => {
+      rawListeners.current.delete(handler);
+    };
+  }, []);
+
+  // 6) Cerrar
   const disconnect = useCallback(() => {
     wsRef.current?.close();
   }, []);
 
-  // 5) Inyectar un mensaje entrante para mocks
+  // 7) Mock JSON (no binario)
   const mockMessage = useCallback((type: string, payload?: any) => {
-    listeners.current.get(type)?.forEach((handler) => handler(payload));
+    jsonListeners.current.get(type)?.forEach((handler) => handler(payload));
+  }, []);
+
+  const mockRaw = useCallback((data: Uint8Array) => {
+    rawListeners.current.forEach((h) => h(data));
   }, []);
 
   return (
     <WebSocketContext.Provider
-      value={{ connected, send, subscribe, disconnect, mockMessage }}
+      value={{
+        connected,
+        setConnected,
+        send,
+        subscribe,
+        sendRaw,
+        subscribeRaw,
+        disconnect,
+        mockMessage,
+        mockRaw,
+      }}
     >
       {children}
     </WebSocketContext.Provider>
   );
 };
-
-/** Hook para usar WebSocketContext */
-export function useWebSocket() {
-  const ctx = useContext(WebSocketContext);
-  if (!ctx) {
-    throw new Error("useWebSocket debe usarse dentro de <WebSocketProvider>");
-  }
-  return ctx;
-}
