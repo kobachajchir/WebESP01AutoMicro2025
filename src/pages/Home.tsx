@@ -20,7 +20,6 @@ const Home: React.FC = () => {
   const { send, subscribe } = useUNERProtocol();
   const navigate = useNavigate();
   const [on, setOn] = useState(false);
-  const [disabledHeartbeat, setDisabledHeartbeat] = useState<boolean>(true);
   const [openInfoModal, setOpenInfoModal] = useState(false);
   const [openSettingsModal, setOpenSettingsModal] = useState(false);
 
@@ -80,7 +79,6 @@ const Home: React.FC = () => {
   // Manejar envío de heartbeat manual
   const handleSendHeartbeat = async () => {
     await send(CMD_HEARTBEAT, le16(heartbeatConfig.intervalMs)).then(() => {
-      setDisabledHeartbeat(true);
       // Si el contador está en 0, resetear el watchdog
       if (heartbeatConfig.remainingRetries === 0) {
         onHeartbeatReceived();
@@ -354,7 +352,6 @@ const Home: React.FC = () => {
                     value={heartbeatConfig.intervalMs}
                     onChange={(e) => {
                       setHeartbeatInterval(Number(e.target.value));
-                      setDisabledHeartbeat(false);
                     }}
                     className="w-56 accent-cyan-400"
                   />

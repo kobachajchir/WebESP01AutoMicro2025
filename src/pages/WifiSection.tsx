@@ -5,9 +5,11 @@ import Modal from "../components/modal";
 import type { WifiMode } from "../types/WifiTypes";
 import PageHeader from "../components/PageHeader";
 import { useWebSocket } from "../hooks/useWebSocket";
+import { CMD } from "../types/UnerProtocolCMDTypes";
 
 export default function WifiSection() {
-  const { send, subscribe, connected } = useWebSocket();
+  const { send, subscribe, connected, sendRaw, subscribeRaw, mockRaw } =
+    useWebSocket();
   const [mode, setMode] = useState<WifiMode | null>(null);
   const [changesMade, setChangesMade] = useState(false);
   const [fixedIPStation, setFixedIPStation] = useState(false);
@@ -27,6 +29,21 @@ export default function WifiSection() {
   const [openInfoModal, setOpenInfoModal] = useState(false);
   const [openSettingsModal, setOpenSettingsModal] = useState(false);
 
+  // Estados para datos fetcheados
+  const [initialStationInfo, setInitialStationInfo] = useState<{
+    ssid: string;
+    ip: string;
+    password: string;
+  } | null>(null);
+
+  const [availableNetworks, setAvailableNetworks] = useState<
+    Array<{
+      ssid: string;
+      rssi: number;
+      security: number;
+    }>
+  >([]);
+
   // Refs para "linkear" inputs (STATION)
   const stationSsidRef = useRef<HTMLInputElement>(null);
   const stationPassRef = useRef<HTMLInputElement>(null);
@@ -41,45 +58,205 @@ export default function WifiSection() {
 
   const [valid, setValid] = useState(false);
 
+  // Hook useMockFirmware actualizado
+  function useMockFirmware(mode: WifiMode, delay: number = 1000) {
+    useEffect(() => {
+      // Mock para WIFI_MODE
+      const modeTimeout = setTimeout(() => {
+        console.log("Mock: inyectando WIFI_MODE response", mode);
+        const modeValue = mode === "AP" ? 0 : 1;
+        const response = new Uint8Array([CMD.WIFI_MODE, modeValue]);
+        mockRaw(response);
+      }, delay);
+
+      // Mock para WIFI_SCAN_LIST (después del modo)
+      const scanTimeout = setTimeout(() => {
+        console.log("Mock: inyectando WIFI_SCAN_LIST response");
+
+        // Simular redes disponibles
+        const mockNetworks = [
+          { ssid: "Home_Network", rssi: -45, security: 3 },
+          { ssid: "Office_WiFi", rssi: -67, security: 4 },
+          { ssid: "CoffeeShop_Guest", rssi: -72, security: 0 },
+          { ssid: "Neighbor_WiFi", rssi: -81, security: 3 },
+          { ssid: "Public_Hotspot", rssi: -88, security: 1 },
+        ];
+
+        // Construir payload para WIFI_SCAN_LIST
+        const buffers: Uint8Array[] = [
+          new Uint8Array([CMD.WIFI_SCAN_LIST, mockNetworks.length]),
+        ];
+
+        for (const network of mockNetworks) {
+          const ssidBytes = new TextEncoder().encode(network.ssid);
+          const rssiValue =
+            network.rssi < 0 ? 256 + network.rssi : network.rssi; // Convertir signed a unsigned
+
+          const networkBuffer = new Uint8Array([
+            ssidBytes.length,
+            ...ssidBytes,
+            rssiValue,
+            network.security,
+          ]);
+          buffers.push(networkBuffer);
+        }
+
+        // Combinar todos los buffers
+        const totalLength = buffers.reduce((sum, buf) => sum + buf.length, 0);
+        const response = new Uint8Array(totalLength);
+        let offset = 0;
+        for (const buf of buffers) {
+          response.set(buf, offset);
+          offset += buf.length;
+        }
+
+        mockRaw(response);
+      }, delay + 200);
+
+      // Mock para datos iniciales de STATION (si aplica)
+      if (mode === "STATION") {
+        setTimeout(() => {
+          setInitialStationInfo({
+            ssid: "Home_Network",
+            ip: "192.168.1.100",
+            password: "password123",
+          });
+          console.log("Mock: Setting initial station info");
+        }, delay + 300);
+      }
+
+      return () => {
+        clearTimeout(modeTimeout);
+        clearTimeout(scanTimeout);
+      };
+    }, [mode, delay]);
+  }
+
   // Mockea que la placa está en STATION
   useMockFirmware("STATION", 1500);
 
-  // Datos simulados para STATION (valores iniciales del dispositivo)
-  const initialStationInfo = {
-    ssid: "Home_Network",
-    ip: "192.168.1.100",
-    password: "password123",
+  const encodeString = (str: string): Uint8Array => {
+    const encoder = new TextEncoder();
+    const encoded = encoder.encode(str);
+    const buffer = new Uint8Array(1 + encoded.length);
+    buffer[0] = encoded.length; // longitud como u8
+    buffer.set(encoded, 1);
+    return buffer;
   };
 
-  // Redes disponibles (mock)
-  const availableNetworks = [
-    "Office_WiFi",
-    "CoffeeShop_Guest",
-    "Home_Network",
-    "Neighbor_WiFi",
-    "Public_Hotspot",
-  ];
+  const combineBuffers = (...buffers: Uint8Array[]): Uint8Array => {
+    const totalLength = buffers.reduce((sum, buf) => sum + buf.length, 0);
+    const result = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const buf of buffers) {
+      result.set(buf, offset);
+      offset += buf.length;
+    }
+    return result;
+  };
 
-  // Conexión y suscripciones
+  // Función para decodificar WIFI_SCAN_LIST
+  const decodeScanList = (
+    bytes: Uint8Array
+  ): Array<{ ssid: string; rssi: number; security: number }> => {
+    if (bytes.length < 2) return [];
+
+    const networks: Array<{ ssid: string; rssi: number; security: number }> =
+      [];
+    const count = bytes[1]; // N = número de redes
+    let offset = 2;
+
+    for (let i = 0; i < count && offset < bytes.length; i++) {
+      if (offset >= bytes.length) break;
+
+      const ssidLen = bytes[offset];
+      offset++;
+
+      if (offset + ssidLen + 2 > bytes.length) break;
+
+      // Extraer SSID
+      const ssidBytes = bytes.slice(offset, offset + ssidLen);
+      const ssid = new TextDecoder().decode(ssidBytes);
+      offset += ssidLen;
+
+      // Extraer RSSI (i8, signed)
+      const rssi = bytes[offset] > 127 ? bytes[offset] - 256 : bytes[offset];
+      offset++;
+
+      // Extraer security (u8)
+      const security = bytes[offset];
+      offset++;
+
+      networks.push({ ssid, rssi, security });
+    }
+
+    return networks;
+  };
+
+  // Conexión y suscripciones actualizadas
   useEffect(() => {
     if (!connected) return;
 
-    const offMode = subscribe("wifiModeResponse", ({ mode }) => {
-      setMode(mode);
+    // Suscribirse a múltiples comandos usando subscribeRaw
+    const offRaw = subscribeRaw((data) => {
+      // Convertir ArrayBuffer a Uint8Array si es necesario
+      const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : data;
+
+      if (bytes.length < 1) return;
+
+      const command = bytes[0];
+
+      switch (command) {
+        case CMD.WIFI_MODE:
+          if (bytes.length >= 2) {
+            const mode = bytes[1] === 0 ? "AP" : "STATION";
+            setMode(mode);
+            console.log("Received WIFI_MODE:", mode);
+
+            // Después de obtener el modo, pedir scan de redes
+            setTimeout(() => {
+              const getScanCmd = new Uint8Array([CMD.WIFI_GET_SCAN]);
+              sendRaw(getScanCmd);
+              console.log("Requesting WiFi scan...");
+            }, 100);
+          }
+          break;
+
+        case CMD.WIFI_SCAN_LIST:
+          if (bytes.length >= 2) {
+            const networks = decodeScanList(bytes);
+            setAvailableNetworks(networks);
+            console.log("Received WiFi networks:", networks);
+          }
+          break;
+
+        case CMD.WIFI_ACK:
+          if (bytes.length >= 2) {
+            const code = bytes[1];
+            console.log(
+              "WiFi ACK received:",
+              code === 0 ? "OK" : `Error ${code}`
+            );
+          }
+          break;
+
+        default:
+          // Comando no reconocido
+          break;
+      }
     });
 
-    // (Si más adelante recibes 'available-wifi-response', aquí suscribes y setearías el listado real)
-    send("get-wifi-mode");
-    send("get-available-wifi");
+    // pedir modo usando sendRaw
+    const getModeCmd = new Uint8Array([CMD.WIFI_GET_MODE]);
+    sendRaw(getModeCmd);
+    console.log("Requesting WiFi mode...");
 
-    return () => {
-      offMode();
-    };
-  }, [connected, send, subscribe]);
+    return () => offRaw();
+  }, [connected, sendRaw, subscribeRaw]);
 
   // Inicializa los defaults y el formulario STATION cuando el modo cambia a STATION
   useEffect(() => {
-    if (mode !== "STATION") return;
+    if (mode !== "STATION" || !initialStationInfo) return;
 
     // Guarda defaults una sola vez
     if (!stationDefaultsRef.current) {
@@ -98,7 +275,7 @@ export default function WifiSection() {
       if (stationIpRef.current) stationIpRef.current.value = d.ip;
     }
     setChangesMade(false);
-  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mode, initialStationInfo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Validación AP
   useEffect(() => {
@@ -122,36 +299,57 @@ export default function WifiSection() {
       setApIP("192.168.1.1");
     } else {
       const d = stationDefaultsRef.current ?? initialStationInfo;
-      setStationSsid(d.ssid);
-      setStationPass(d.password);
-      setStationIP(d.ip);
+      if (d) {
+        setStationSsid(d.ssid);
+        setStationPass(d.password);
+        setStationIP(d.ip);
 
-      if (stationSsidRef.current) stationSsidRef.current.value = d.ssid;
-      if (stationPassRef.current) stationPassRef.current.value = d.password;
-      if (stationIpRef.current) stationIpRef.current.value = d.ip;
+        if (stationSsidRef.current) stationSsidRef.current.value = d.ssid;
+        if (stationPassRef.current) stationPassRef.current.value = d.password;
+        if (stationIpRef.current) stationIpRef.current.value = d.ip;
+      }
     }
     setChangesMade(false);
     console.log("Credenciales restablecidas a valores iniciales");
   }
 
-  // Enviar credenciales según modo
+  // Enviar credenciales según modo usando sendRaw
   function sendCredentials() {
     if (mode === "AP") {
-      send("set-ap-credentials", { ssid: apSsid, password: apPass, ip: apIP });
+      // Construir payload para WIFI_SET_AP: APCreds
+      const ssidEncoded = encodeString(apSsid);
+      const passEncoded = encodeString(apPass);
+      const ipEncoded = encodeString(apIP);
+
+      const payload = combineBuffers(ssidEncoded, passEncoded, ipEncoded);
+      const command = new Uint8Array([CMD.WIFI_SET_AP]);
+      const fullMessage = combineBuffers(command, payload);
+
+      sendRaw(fullMessage);
     } else {
-      send("set-station-credentials", {
-        ssid: stationSsid,
-        password: stationPass,
-        fixedIp: fixedIPStation,
-        ip: stationIP,
-      });
+      // Construir payload para WIFI_SET_STA: STACreds
+      const ssidEncoded = encodeString(stationSsid);
+      const passEncoded = encodeString(stationPass);
+      const ipEncoded = encodeString(stationIP);
+      const fixedIpFlag = new Uint8Array([fixedIPStation ? 1 : 0]);
+
+      const payload = combineBuffers(
+        ssidEncoded,
+        passEncoded,
+        ipEncoded,
+        fixedIpFlag
+      );
+      const command = new Uint8Array([CMD.WIFI_SET_STA]);
+      const fullMessage = combineBuffers(command, payload);
+
+      sendRaw(fullMessage);
     }
     setChangesMade(false);
     console.log("Credenciales enviadas:", {
       mode,
       ssid: mode === "AP" ? apSsid : stationSsid,
       password: mode === "AP" ? apPass : stationPass,
-      ip: apIP,
+      ip: mode === "AP" ? apIP : stationIP,
     });
   }
 
@@ -168,9 +366,10 @@ export default function WifiSection() {
     stationPassRef.current?.focus();
   }
 
-  // Refrescar redes disponibles
+  // Refrescar redes disponibles usando sendRaw
   function refreshNetworks() {
-    send("get-available-wifi");
+    const getScanCmd = new Uint8Array([CMD.WIFI_GET_SCAN]);
+    sendRaw(getScanCmd);
     console.log("Redes disponibles actualizadas");
   }
 
@@ -251,7 +450,7 @@ export default function WifiSection() {
                 className="w-full rounded-xl bg-white/10 text-slate-100 placeholder-slate-400 ring-1 ring-white/10 p-2.5
                            focus:outline-none focus:ring-2 focus:ring-cyan-400/40 transition duration-300"
                 placeholder="Contraseña del AP"
-                defaultValue={apPass}
+                value={apPass}
                 onChange={(e) => {
                   setApPass(e.target.value);
                   setChangesMade(true);
@@ -289,13 +488,12 @@ export default function WifiSection() {
               IP de la placa
             </label>
             <input
-              ref={stationIpRef}
               type="text"
               name="ap-ip"
               id="ap-ip"
               className="w-full rounded-xl bg-white/10 text-slate-100 placeholder-slate-400 ring-1 ring-white/10 p-2.5
                          focus:outline-none focus:ring-2 focus:ring-cyan-400/40 transition duration-300"
-              defaultValue={initialStationInfo.ip}
+              value={apIP}
               onChange={(e) => {
                 if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(e.target.value)) {
                   return;
@@ -341,7 +539,7 @@ export default function WifiSection() {
                 id="station-ssid"
                 className="w-full rounded-xl bg-white/10 text-slate-100 placeholder-slate-400 ring-1 ring-white/10 p-2.5
                            focus:outline-none focus:ring-2 focus:ring-cyan-400/40 transition duration-300"
-                defaultValue={initialStationInfo.ssid}
+                value={stationSsid}
                 onChange={(e) => {
                   setStationSsid(e.target.value);
                   setChangesMade(true);
@@ -362,7 +560,7 @@ export default function WifiSection() {
                   onActivate={() => setFixedIPStation(true)}
                   onDeactivate={() => {
                     setFixedIPStation(false);
-                    if (stationIpRef.current) {
+                    if (stationIpRef.current && initialStationInfo) {
                       stationIpRef.current.value = initialStationInfo.ip;
                       setStationIP(initialStationInfo.ip);
                       setChangesMade(true);
@@ -379,9 +577,6 @@ export default function WifiSection() {
                              disabled:opacity-50 ${
                                fixedIPStation ? "" : "input-disabled"
                              }`}
-                  defaultValue={
-                    fixedIPStation ? initialStationInfo.ip : "Asignada por DHCP"
-                  }
                   value={fixedIPStation ? stationIP : "Asignada por DHCP"}
                   readOnly={!fixedIPStation}
                   onChange={(e) => {
@@ -411,7 +606,7 @@ export default function WifiSection() {
                   id="station-password"
                   className="w-full rounded-xl bg-white/10 text-slate-100 placeholder-slate-400 ring-1 ring-white/10 p-2.5
                              focus:outline-none focus:ring-2 focus:ring-cyan-400/40 transition duration-300"
-                  defaultValue={initialStationInfo.password}
+                  value={stationPass}
                   onChange={(e) => {
                     setStationPass(e.target.value);
                     setChangesMade(true);
@@ -504,21 +699,75 @@ export default function WifiSection() {
               </button>
             </div>
 
-            <ul className="space-y-2 w-full max-w-xl">
-              {availableNetworks.map((net) => (
+            <ul className="space-y-2 w-full max-w-xl overflow-y-auto max-h-96">
+              {availableNetworks.map((network, index) => (
                 <li
-                  key={net}
+                  key={`${network.ssid}-${index}`}
                   className="w-full cursor-pointer rounded-xl px-3 py-2
                              bg-white/10 text-slate-100 ring-1 ring-white/10
                              transition-all duration-300
                              hover:bg-white hover:text-slate-900
-                             hover:shadow-[inset_0_0_0_1px_theme('colors.cyan.400')]"
-                  onClick={() => handleSelectNetwork(net)}
+                             hover:shadow-[inset_0_0_0_1px_theme('colors.cyan.400')]
+                             flex flex-row items-center justify-between"
+                  onClick={() => handleSelectNetwork(network.ssid)}
                   title="Seleccionar red (rellena SSID y vacía la contraseña)"
                 >
-                  {net}
+                  <div className="flex flex-col">
+                    <span className="font-medium">{network.ssid}</span>
+                    <span className="text-xs opacity-75">
+                      RSSI: {network.rssi}dBm | Seguridad:{" "}
+                      {network.security === 0
+                        ? "Abierta"
+                        : network.security === 1
+                        ? "WEP"
+                        : network.security === 3
+                        ? "WPA/WPA2"
+                        : network.security === 4
+                        ? "WPA2/WPA3"
+                        : "Desconocida"}
+                    </span>
+                  </div>
+                  <div className="flex items-center">
+                    {/* Icono de señal WiFi basado en RSSI */}
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                      className={`size-5 ${
+                        network.rssi >= -50
+                          ? "text-green-400"
+                          : network.rssi >= -70
+                          ? "text-yellow-400"
+                          : network.rssi >= -80
+                          ? "text-orange-400"
+                          : "text-red-400"
+                      }`}
+                    >
+                      <path d="M8.288 15.038a5.25 5.25 0 0 1 7.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 0 1 1.06 0Z" />
+                    </svg>
+                    {/* Icono de candado si tiene seguridad */}
+                    {network.security > 0 && (
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                        className="size-4 ml-1 text-slate-400"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M12 1.5a5.25 5.25 0 0 0-5.25 5.25v3a3 3 0 0 0-3 3v6.75a3 3 0 0 0 3 3h10.5a3 3 0 0 0 3-3v-6.75a3 3 0 0 0-3-3v-3c0-2.9-2.35-5.25-5.25-5.25Zm3.75 8.25v-3a3.75 3.75 0 1 0-7.5 0v3h7.5Z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    )}
+                  </div>
                 </li>
               ))}
+              {availableNetworks.length === 0 && (
+                <li className="w-full rounded-xl px-3 py-4 bg-white/5 text-slate-400 text-center">
+                  No se encontraron redes disponibles
+                </li>
+              )}
             </ul>
           </div>
         </div>
