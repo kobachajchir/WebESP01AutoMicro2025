@@ -7,137 +7,36 @@ import MockInjectButton from "../components/MockInjectButton";
 import { le16, readLe16 } from "../api/UnerProtocolUtils";
 
 const Home: React.FC = () => {
-  const { connected } = useWebSocket();
+  const {
+    connected,
+    heartbeatConfig,
+    setHeartbeatInterval,
+    setHeartbeatMaxRetries,
+    toggleHeartbeatWatchdog,
+    onHeartbeatReceived,
+  } = useWebSocket();
+
   const { send, subscribe } = useUNERProtocol();
   const navigate = useNavigate();
   const [on, setOn] = useState(false);
-  const [heartbeatMs, setHeartbeatMs] = useState<number>(500); // default 500 ms
-
-  // Estados para el contador de heartbeat
-  const [maxRetries, setMaxRetries] = useState<number>(5); // intentos máximos configurables
-  const [remainingRetries, setRemainingRetries] = useState<number>(5);
-  const [isWatchdogActive, setIsWatchdogActive] = useState<boolean>(false);
-
   const [disabledHeartbeat, setDisabledHeartbeat] = useState<boolean>(true);
 
-  // Refs para los timers
-  const heartbeatTimeoutRef = useRef<number | null>(null);
+  // Refs para el timer del parpadeo
   const blinkIntervalRef = useRef<number | null>(null);
 
-  const CMD_HEARTBEAT = 0xa2; // <-- cambiar a 0xA2 si tu firmware lo usa así
+  const CMD_HEARTBEAT = 0xa2;
 
-  // Función que se ejecuta cuando se agotan los intentos
-  const onHeartbeatTimeout = () => {
-    console.log(
-      "⚠️ [HEARTBEAT WATCHDOG] Se terminaron los intentos de heartbeat!"
-    );
-    console.log(
-      `💀 [HEARTBEAT WATCHDOG] No se recibió heartbeat después de ${maxRetries} intentos`
-    );
-    // Aquí puedes agregar más lógica como desconectar, mostrar alerta, etc.
-  };
-
-  // Función para iniciar el watchdog
-  const startHeartbeatWatchdog = () => {
-    if (heartbeatTimeoutRef.current) {
-      clearTimeout(heartbeatTimeoutRef.current);
-    }
-
-    if (connected && isWatchdogActive) {
-      heartbeatTimeoutRef.current = setTimeout(() => {
-        setRemainingRetries((prev) => {
-          const newValue = prev - 1;
-          console.log(
-            `⏰ [WATCHDOG] Timeout! Decrementando contador: ${prev} -> ${newValue}`
-          );
-
-          if (newValue <= 0) {
-            onHeartbeatTimeout();
-            setIsWatchdogActive(false);
-            return 0;
-          } else {
-            // Continuar con el siguiente timeout
-            startHeartbeatWatchdog();
-            return newValue;
-          }
-        });
-      }, heartbeatMs * 1.5); // Dar un margen del 50% sobre el intervalo esperado
-    }
-  };
-
-  // Función para resetear el watchdog cuando llega un heartbeat
-  const resetHeartbeatWatchdog = () => {
-    console.log(
-      `🔄 [WATCHDOG] Heartbeat recibido! Reseteando contador a ${maxRetries}`
-    );
-
-    // Limpiar timeout anterior si existe
-    if (heartbeatTimeoutRef.current) {
-      clearTimeout(heartbeatTimeoutRef.current);
-    }
-
-    // Resetear contador
-    setRemainingRetries(maxRetries);
-
-    // Iniciar nuevo ciclo de watchdog
-    startHeartbeatWatchdog();
-  };
-
-  // Activar/desactivar el watchdog
-  const toggleWatchdog = () => {
-    if (!connected) return;
-
-    if (isWatchdogActive) {
-      // Desactivar watchdog
-      setIsWatchdogActive(false);
-      if (heartbeatTimeoutRef.current) {
-        clearTimeout(heartbeatTimeoutRef.current);
-        heartbeatTimeoutRef.current = null;
-      }
-      setRemainingRetries(maxRetries);
-    } else {
-      // Activar watchdog
-      setIsWatchdogActive(true);
-      setRemainingRetries(maxRetries);
-      startHeartbeatWatchdog();
-    }
-  };
-
+  // Suscribirse a heartbeats recibidos
   useEffect(() => {
     const off = subscribe(0xa2, (p) => {
       const ms = readLe16(p.payload);
       console.log("[UNER] RX heartbeat:", ms, "ms");
 
-      // Resetear el watchdog cuando llega un heartbeat
-      if (isWatchdogActive) {
-        resetHeartbeatWatchdog();
-      }
+      // Notificar al contexto que se recibió un heartbeat
+      onHeartbeatReceived();
     });
     return off;
-  }, [subscribe, maxRetries, heartbeatMs, connected, isWatchdogActive]);
-
-  // Efecto para actualizar el watchdog cuando cambian los parámetros
-  useEffect(() => {
-    if (isWatchdogActive && connected) {
-      console.log(
-        `⚙️ [WATCHDOG] Actualizando parámetros: maxRetries=${maxRetries}, heartbeatMs=${heartbeatMs}`
-      );
-      setRemainingRetries(maxRetries);
-      startHeartbeatWatchdog();
-    }
-  }, [maxRetries, heartbeatMs, isWatchdogActive]);
-
-  // Cleanup cuando se desmonta el componente o se desconecta
-  useEffect(() => {
-    return () => {
-      if (heartbeatTimeoutRef.current) {
-        clearTimeout(heartbeatTimeoutRef.current);
-      }
-      if (blinkIntervalRef.current) {
-        clearInterval(blinkIntervalRef.current);
-      }
-    };
-  }, []);
+  }, [subscribe, onHeartbeatReceived]);
 
   const toControl = useViewTransitionState("/control");
 
@@ -154,14 +53,37 @@ const Home: React.FC = () => {
     if (!connected) return; // si no hay conexión → no titila
 
     setOn(true); // arranca encendido
-    blinkIntervalRef.current = setInterval(() => setOn((v) => !v), heartbeatMs);
+    blinkIntervalRef.current = setInterval(
+      () => setOn((v) => !v),
+      heartbeatConfig.intervalMs
+    );
 
     return () => {
       if (blinkIntervalRef.current) {
         clearInterval(blinkIntervalRef.current);
       }
     };
-  }, [connected, heartbeatMs]);
+  }, [connected, heartbeatConfig.intervalMs]);
+
+  // Cleanup cuando se desmonta el componente
+  useEffect(() => {
+    return () => {
+      if (blinkIntervalRef.current) {
+        clearInterval(blinkIntervalRef.current);
+      }
+    };
+  }, []);
+
+  // Manejar envío de heartbeat manual
+  const handleSendHeartbeat = async () => {
+    await send(CMD_HEARTBEAT, le16(heartbeatConfig.intervalMs)).then(() => {
+      setDisabledHeartbeat(true);
+      // Si el contador está en 0, resetear el watchdog
+      if (heartbeatConfig.remainingRetries === 0) {
+        onHeartbeatReceived();
+      }
+    });
+  };
 
   return (
     <div
@@ -205,7 +127,7 @@ const Home: React.FC = () => {
               >
                 <span
                   className={`h-[14px] w-[14px] rounded-full shadow transition-colors duration-${
-                    heartbeatMs > 500 ? "500" : "100"
+                    heartbeatConfig.intervalMs > 500 ? "500" : "100"
                   } ${
                     connected
                       ? on
@@ -224,28 +146,29 @@ const Home: React.FC = () => {
                 <div className="flex items-center gap-3">
                   <p className="text-sm text-slate-300">Watchdog:</p>
                   <button
-                    onClick={toggleWatchdog}
+                    onClick={toggleHeartbeatWatchdog}
                     className={`px-3 py-1 rounded-full text-sm font-semibold transition-colors ${
-                      isWatchdogActive
+                      heartbeatConfig.isActive
                         ? "bg-green-600 text-white hover:bg-green-700"
                         : "bg-slate-600 text-slate-200 hover:bg-slate-500"
                     }`}
                   >
-                    {isWatchdogActive ? "Activo" : "Inactivo"}
+                    {heartbeatConfig.isActive ? "Activo" : "Inactivo"}
                   </button>
                 </div>
                 <div className="flex items-center gap-3">
                   <p className="text-sm text-slate-400">Intentos restantes:</p>
                   <span
                     className={`font-bold text-lg ${
-                      remainingRetries === 0
+                      heartbeatConfig.remainingRetries === 0
                         ? "text-red-400"
-                        : remainingRetries <= 2
+                        : heartbeatConfig.remainingRetries <= 2
                         ? "text-yellow-400"
                         : "text-green-400"
                     }`}
                   >
-                    {remainingRetries}/{maxRetries}
+                    {heartbeatConfig.remainingRetries}/
+                    {heartbeatConfig.maxRetries}
                   </span>
                 </div>
               </div>
@@ -256,14 +179,7 @@ const Home: React.FC = () => {
           <div className="flex flex-col items-center gap-4">
             <button
               disabled={!connected || disabledHeartbeat}
-              onClick={async () => {
-                await send(CMD_HEARTBEAT, le16(heartbeatMs)).then(()=>{
-                  setDisabledHeartbeat(true);
-                  if(remainingRetries === 0){
-                    resetHeartbeatWatchdog();
-                  }
-                }) // arma frame UNER y lo manda por WS binario
-              }}
+              onClick={handleSendHeartbeat}
               className="refresh-btn group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold text-white transition-all duration-300 hover:text-slate-900 hover:shadow-[inset_0_0_0_2px_theme('colors.cyan.400')] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <svg
@@ -274,7 +190,7 @@ const Home: React.FC = () => {
               >
                 <path
                   fillRule="evenodd"
-                  d="M4.755 10.059a7.5 7.5 0 0 1 12.548-3.364l1.903 1.903h-3.183a.75.75 0 1 0 0 1.5h4.992a.75.75 0 0 0 .75-.75V4.356a.75.75 0 0 0-1.5 0v3.18l-1.9-1.9A9 9 0 0 0 3.306 9.67a.75.75 0 1 0 1.45.388Zm15.408 3.352a.75.75 0 0 0-.919.53 7.5 7.5 0 0 1-12.548 3.364l-1.902-1.903h3.183a.75.75 0 0 0 0-1.5H2.984a.75.75 0 0 0-.75.75v4.992a.75.75 0 0 0 1.5 0v-3.18l1.9 1.9a9 9 0 0 0 15.059-4.035.75.75 0 0 0-.53-.918Z"
+                  d="M4.755 10.059a7.5 7.5 0 0 1 12.548-3.364l1.903 1.903h-3.183a.75.75 0 1 0 0 1.5h4.992a.75.75 0 0 0 .75-.75V4.356a.75.75 0 0 0-1.5 0v3.18l-1.9-1.9A9 9 0 0 0 3.306 9.67a.75.75 0 1 0 1.45.388Zm15.408 3.352a.75.75 0 0 0-.919.53 7.5 7.5 0 0 1-12.548 3.364l-1.902-1.903h3.183a.75.75 0 0 0 0-1.5H2.984a.75.75 0 0 0-.75.75v4.992a.75.75 0 0 0 1.5 0v-3.18l1.9 1.9a9 9 0 0 0 15.059-4.035.75.75 0 0 0-.30-.918Z"
                   clipRule="evenodd"
                 />
               </svg>
@@ -287,7 +203,7 @@ const Home: React.FC = () => {
             <div className="flex flex-col gap-4">
               <div className="flex flex-col">
                 <label htmlFor="hb-slider" className="text-sm text-slate-400">
-                  {`Intervalo heartbeat (${heartbeatMs} ms)`}
+                  {`Intervalo heartbeat (${heartbeatConfig.intervalMs} ms)`}
                 </label>
                 <div className="flex items-center gap-3">
                   <input
@@ -296,9 +212,9 @@ const Home: React.FC = () => {
                     min={50}
                     max={10000}
                     step={50}
-                    value={heartbeatMs}
+                    value={heartbeatConfig.intervalMs}
                     onChange={(e) => {
-                      setHeartbeatMs(Number(e.target.value))
+                      setHeartbeatInterval(Number(e.target.value));
                       setDisabledHeartbeat(false);
                     }}
                     className="w-56 accent-cyan-400"
@@ -311,7 +227,7 @@ const Home: React.FC = () => {
                   htmlFor="retry-slider"
                   className="text-sm text-slate-400"
                 >
-                  {`Intentos máximos (${maxRetries})`}
+                  {`Intentos máximos (${heartbeatConfig.maxRetries})`}
                 </label>
                 <div className="flex items-center gap-3">
                   <input
@@ -320,8 +236,10 @@ const Home: React.FC = () => {
                     min={1}
                     max={10}
                     step={1}
-                    value={maxRetries}
-                    onChange={(e) => setMaxRetries(Number(e.target.value))}
+                    value={heartbeatConfig.maxRetries}
+                    onChange={(e) =>
+                      setHeartbeatMaxRetries(Number(e.target.value))
+                    }
                     className="w-56 accent-yellow-400"
                   />
                 </div>

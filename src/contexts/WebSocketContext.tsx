@@ -11,6 +11,13 @@ import React, {
 type WSMessageHandler = (data: any) => void;
 type WSRawHandler = (data: ArrayBuffer | Uint8Array) => void;
 
+interface HeartbeatConfig {
+  intervalMs: number;
+  maxRetries: number;
+  isActive: boolean;
+  remainingRetries: number;
+}
+
 interface WebSocketContextType {
   connected: boolean;
   setConnected: (state: boolean) => void;
@@ -23,9 +30,15 @@ interface WebSocketContextType {
 
   disconnect: () => void;
   mockMessage: (type: string, payload?: any) => void;
-
-  // 👇 NUEVO: inyectar binario en modo mock
   mockRaw: (data: Uint8Array) => void;
+
+  // Heartbeat watchdog
+  heartbeatConfig: HeartbeatConfig;
+  setHeartbeatInterval: (ms: number) => void;
+  setHeartbeatMaxRetries: (retries: number) => void;
+  toggleHeartbeatWatchdog: () => void;
+  resetHeartbeatWatchdog: () => void;
+  onHeartbeatReceived: () => void;
 }
 
 export const WebSocketContext = createContext<WebSocketContextType | undefined>(
@@ -45,10 +58,214 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
   const wsRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState<boolean>(false);
 
+  // Estados del heartbeat watchdog
+  const [heartbeatConfig, setHeartbeatConfig] = useState<HeartbeatConfig>({
+    intervalMs: 500,
+    maxRetries: 5,
+    isActive: false,
+    remainingRetries: 5,
+  });
+
   const jsonListeners = useRef(new Map<string, Set<WSMessageHandler>>());
   const rawListeners = useRef(new Set<WSRawHandler>());
 
-  // 1) Abrir WS al montarconnection
+  // Refs para los timers del heartbeat
+  const heartbeatTimeoutRef = useRef<number | null>(null);
+
+  // Función que se ejecuta cuando se agotan los intentos
+  const onHeartbeatTimeout = useCallback(() => {
+    console.log(
+      "⚠️ [HEARTBEAT WATCHDOG] Se terminaron los intentos de heartbeat!"
+    );
+    console.log(
+      `💀 [HEARTBEAT WATCHDOG] No se recibió heartbeat después de ${heartbeatConfig.maxRetries} intentos`
+    );
+
+    // Desconectar automáticamente
+    setConnected(false);
+
+    // Desactivar watchdog
+    setHeartbeatConfig((prev) => ({
+      ...prev,
+      isActive: false,
+      remainingRetries: 0,
+    }));
+
+    // Limpiar timeout
+    if (heartbeatTimeoutRef.current) {
+      clearTimeout(heartbeatTimeoutRef.current);
+      heartbeatTimeoutRef.current = null;
+    }
+  }, [heartbeatConfig.maxRetries]);
+
+  // Función para iniciar el watchdog
+  const startHeartbeatWatchdog = useCallback(() => {
+    if (heartbeatTimeoutRef.current) {
+      clearTimeout(heartbeatTimeoutRef.current);
+    }
+
+    if (connected && heartbeatConfig.isActive) {
+      heartbeatTimeoutRef.current = setTimeout(() => {
+        setHeartbeatConfig((prev) => {
+          const newRetries = prev.remainingRetries - 1;
+          console.log(
+            `⏰ [WATCHDOG] Timeout! Decrementando contador: ${prev.remainingRetries} -> ${newRetries}`
+          );
+
+          if (newRetries <= 0) {
+            onHeartbeatTimeout();
+            return {
+              ...prev,
+              remainingRetries: 0,
+              isActive: false,
+            };
+          } else {
+            // Continuar con el siguiente timeout
+            setTimeout(startHeartbeatWatchdog, 0);
+            return {
+              ...prev,
+              remainingRetries: newRetries,
+            };
+          }
+        });
+      }, heartbeatConfig.intervalMs * 1.5); // Dar un margen del 50% sobre el intervalo esperado
+    }
+  }, [
+    connected,
+    heartbeatConfig.isActive,
+    heartbeatConfig.intervalMs,
+    onHeartbeatTimeout,
+  ]);
+
+  // Función para resetear el watchdog cuando llega un heartbeat
+  const resetHeartbeatWatchdog = useCallback(() => {
+    console.log(
+      `🔄 [WATCHDOG] Heartbeat recibido! Reseteando contador a ${heartbeatConfig.maxRetries}`
+    );
+
+    // Limpiar timeout anterior si existe
+    if (heartbeatTimeoutRef.current) {
+      clearTimeout(heartbeatTimeoutRef.current);
+    }
+
+    // Resetear contador
+    setHeartbeatConfig((prev) => ({
+      ...prev,
+      remainingRetries: prev.maxRetries,
+    }));
+
+    // Iniciar nuevo ciclo de watchdog si está activo
+    if (heartbeatConfig.isActive && connected) {
+      setTimeout(startHeartbeatWatchdog, 0);
+    }
+  }, [
+    heartbeatConfig.maxRetries,
+    heartbeatConfig.isActive,
+    connected,
+    startHeartbeatWatchdog,
+  ]);
+
+  // Función pública para notificar que se recibió un heartbeat
+  const onHeartbeatReceived = useCallback(() => {
+    if (heartbeatConfig.isActive) {
+      resetHeartbeatWatchdog();
+    }
+  }, [heartbeatConfig.isActive, resetHeartbeatWatchdog]);
+
+  // Función para activar/desactivar el watchdog
+  const toggleHeartbeatWatchdog = useCallback(() => {
+    if (!connected) return;
+
+    setHeartbeatConfig((prev) => {
+      const newIsActive = !prev.isActive;
+
+      if (newIsActive) {
+        // Activar watchdog
+        console.log("🟢 [WATCHDOG] Activando watchdog");
+        setTimeout(startHeartbeatWatchdog, 0);
+        return {
+          ...prev,
+          isActive: true,
+          remainingRetries: prev.maxRetries,
+        };
+      } else {
+        // Desactivar watchdog
+        console.log("🔴 [WATCHDOG] Desactivando watchdog");
+        if (heartbeatTimeoutRef.current) {
+          clearTimeout(heartbeatTimeoutRef.current);
+          heartbeatTimeoutRef.current = null;
+        }
+        return {
+          ...prev,
+          isActive: false,
+          remainingRetries: prev.maxRetries,
+        };
+      }
+    });
+  }, [connected, startHeartbeatWatchdog]);
+
+  // Función para cambiar el intervalo de heartbeat
+  const setHeartbeatInterval = useCallback((ms: number) => {
+    console.log(`⚙️ [WATCHDOG] Cambiando intervalo a ${ms}ms`);
+    setHeartbeatConfig((prev) => ({
+      ...prev,
+      intervalMs: ms,
+    }));
+  }, []);
+
+  // Función para cambiar el máximo de reintentos
+  const setHeartbeatMaxRetries = useCallback((retries: number) => {
+    console.log(`⚙️ [WATCHDOG] Cambiando máximo reintentos a ${retries}`);
+    setHeartbeatConfig((prev) => ({
+      ...prev,
+      maxRetries: retries,
+      remainingRetries: prev.isActive ? retries : prev.remainingRetries,
+    }));
+  }, []);
+
+  // Efecto para reiniciar watchdog cuando cambian parámetros
+  useEffect(() => {
+    if (heartbeatConfig.isActive && connected) {
+      console.log(
+        `⚙️ [WATCHDOG] Reiniciando por cambio de parámetros: interval=${heartbeatConfig.intervalMs}ms, maxRetries=${heartbeatConfig.maxRetries}`
+      );
+
+      // Limpiar timeout anterior
+      if (heartbeatTimeoutRef.current) {
+        clearTimeout(heartbeatTimeoutRef.current);
+      }
+
+      // Resetear contador y reiniciar
+      setHeartbeatConfig((prev) => ({
+        ...prev,
+        remainingRetries: prev.maxRetries,
+      }));
+
+      setTimeout(startHeartbeatWatchdog, 0);
+    }
+  }, [
+    heartbeatConfig.intervalMs,
+    heartbeatConfig.maxRetries,
+    heartbeatConfig.isActive,
+    connected,
+    startHeartbeatWatchdog,
+  ]);
+
+  // Efecto para limpiar watchdog cuando se desconecta
+  useEffect(() => {
+    if (!connected && heartbeatTimeoutRef.current) {
+      console.log("🔌 [WATCHDOG] Desconexión detectada, limpiando watchdog");
+      clearTimeout(heartbeatTimeoutRef.current);
+      heartbeatTimeoutRef.current = null;
+      setHeartbeatConfig((prev) => ({
+        ...prev,
+        isActive: false,
+        remainingRetries: prev.maxRetries,
+      }));
+    }
+  }, [connected]);
+
+  // 1) Abrir WS al montar conexión
   useEffect(() => {
     const mockMode = url.includes("mock");
 
@@ -58,6 +275,9 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
       return () => {
         jsonListeners.current.clear();
         rawListeners.current.clear();
+        if (heartbeatTimeoutRef.current) {
+          clearTimeout(heartbeatTimeoutRef.current);
+        }
       };
     }
 
@@ -100,6 +320,9 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
       jsonListeners.current.clear();
       rawListeners.current.clear();
       wsRef.current = null;
+      if (heartbeatTimeoutRef.current) {
+        clearTimeout(heartbeatTimeoutRef.current);
+      }
     };
   }, [url]);
 
@@ -128,7 +351,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     };
   }, []);
 
-  // 4) === NUEVO === Enviar binario
+  // 4) Enviar binario
   const sendRaw = useCallback((data: Uint8Array) => {
     const ws = wsRef.current;
     if (ws?.readyState === WebSocket.OPEN) {
@@ -141,7 +364,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     }
   }, []);
 
-  // 5) === NUEVO === Suscribirse a binario
+  // 5) Suscribirse a binario
   const subscribeRaw = useCallback((handler: WSRawHandler) => {
     rawListeners.current.add(handler);
     return () => {
@@ -175,6 +398,12 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
         disconnect,
         mockMessage,
         mockRaw,
+        heartbeatConfig,
+        setHeartbeatInterval,
+        setHeartbeatMaxRetries,
+        toggleHeartbeatWatchdog,
+        resetHeartbeatWatchdog,
+        onHeartbeatReceived,
       }}
     >
       {children}
