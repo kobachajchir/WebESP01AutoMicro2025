@@ -1,10 +1,11 @@
 // src/pages/Control.tsx
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ToggleButton from "../components/toggleButton";
 import MotorBlock, { type BlockKind } from "../components/MotorBlock";
 import PageHeader from "../components/PageHeader";
 import TimelineRow from "../components/TimelineRow";
 import type { Block, Dir, TrackKey } from "../types/MotorTypes";
+import Modal from "../components/modal";
 
 const uid = () => Math.random().toString(36).slice(2);
 
@@ -127,6 +128,9 @@ export default function ControlSection() {
   const [isPlayingLeft, setIsPlayingLeft] = useState(false);
   const [isPlayingRight, setIsPlayingRight] = useState(false);
   const [isPlayingDual, setIsPlayingDual] = useState(false);
+
+  const [openSettingsModal, setOpenSettingsModal] = useState(false);
+  const [openInfoModal, setOpenInfoModal] = useState(false);
 
   // Timers
   const timerLeftRef = useRef<number | null>(null);
@@ -588,6 +592,74 @@ export default function ControlSection() {
     ]
   );
 
+  const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
+  const [editLabelValue, setEditLabelValue] = useState("");
+
+  const updateBlockLabelAdvanced = useCallback(
+    (blockId: string, newLabel: string) => {
+      const trimmedLabel = newLabel.trim();
+      if (!trimmedLabel) return;
+
+      console.log(`Updating block ${blockId} label to: ${trimmedLabel}`);
+
+      // Buscar en qué track está el bloque
+      const leftBlockIndex = blocksLeft.findIndex((b) => b.id === blockId);
+      const rightBlockIndex = blocksRight.findIndex((b) => b.id === blockId);
+      const dualBlockIndex = blocksDual.findIndex((b) => b.id === blockId);
+
+      // Función auxiliar para actualizar etiqueta
+      const updateInTrack = (
+        setter: React.Dispatch<React.SetStateAction<Block[]>>,
+        blockIndex: number
+      ) => {
+        setter((prevBlocks) =>
+          prevBlocks.map((block, index) =>
+            index === blockIndex ? { ...block, label: trimmedLabel } : block
+          )
+        );
+      };
+
+      if (leftBlockIndex !== -1) {
+        updateInTrack(setBlocksLeft, leftBlockIndex);
+
+        // Si es un pivot pareado, también actualizar el par en el otro track
+        const block = blocksLeft[leftBlockIndex];
+        if (block.kind === "pivot" && !dualMode) {
+          const pairId = blockProps[blockId]?.pivotPairId;
+          if (pairId) {
+            const rightPairIndex = blocksRight.findIndex(
+              (b) => blockProps[b.id]?.pivotPairId === pairId
+            );
+            if (rightPairIndex !== -1) {
+              updateInTrack(setBlocksRight, rightPairIndex);
+            }
+          }
+        }
+      } else if (rightBlockIndex !== -1) {
+        updateInTrack(setBlocksRight, rightBlockIndex);
+
+        // Si es un pivot pareado, también actualizar el par en el otro track
+        const block = blocksRight[rightBlockIndex];
+        if (block.kind === "pivot" && !dualMode) {
+          const pairId = blockProps[blockId]?.pivotPairId;
+          if (pairId) {
+            const leftPairIndex = blocksLeft.findIndex(
+              (b) => blockProps[b.id]?.pivotPairId === pairId
+            );
+            if (leftPairIndex !== -1) {
+              updateInTrack(setBlocksLeft, leftPairIndex);
+            }
+          }
+        }
+      } else if (dualBlockIndex !== -1) {
+        updateInTrack(setBlocksDual, dualBlockIndex);
+      } else {
+        console.warn(`Block with id ${blockId} not found in any track`);
+      }
+    },
+    [blocksLeft, blocksRight, blocksDual, blockProps, dualMode]
+  );
+
   // === UI ===
   return (
     <div
@@ -597,7 +669,10 @@ export default function ControlSection() {
     >
       <style>{`@keyframes gradient-move{0%{background-position:0% 50%}100%{background-position:200% 50%}}`}</style>
 
-      <PageHeader setOpenSettingsModal={() => {}} setOpenInfoModal={() => {}} />
+      <PageHeader
+        setOpenSettingsModal={setOpenSettingsModal}
+        setOpenInfoModal={setOpenInfoModal}
+      />
 
       {/* Timeline + controles */}
       <div className="rounded-2xl bg-white/5 backdrop-blur ring-1 ring-white/10 shadow-sm p-6 mb-6 w-full lg:max-w-10/12">
@@ -648,6 +723,10 @@ export default function ControlSection() {
                 blockProps={blockPropsDual}
                 onReorder={handleReorder("dual")}
                 dndDisabled={isPlayingDual}
+                onUpdateLabel={(blockId, newLabel) => {
+                  // Actualizar el bloque en tu estado
+                  updateBlockLabelAdvanced(blockId, newLabel);
+                }}
               />
               <div className="flex justify-end -mt-2">
                 <button
@@ -716,6 +795,10 @@ export default function ControlSection() {
                   blockProps={blockPropsLeft}
                   onReorder={handleReorder("left")}
                   dndDisabled={isPlayingLeft}
+                  onUpdateLabel={(blockId, newLabel) => {
+                    // Actualizar el bloque en tu estado
+                    updateBlockLabelAdvanced(blockId, newLabel);
+                  }}
                 />
                 <div className="flex justify-center lg:justify-end">
                   <button
@@ -787,6 +870,10 @@ export default function ControlSection() {
                   blockProps={blockPropsRight}
                   onReorder={handleReorder("right")}
                   dndDisabled={isPlayingRight}
+                  onUpdateLabel={(blockId, newLabel) => {
+                    // Actualizar el bloque en tu estado
+                    updateBlockLabelAdvanced(blockId, newLabel);
+                  }}
                 />
                 <div className="flex justify-center lg:justify-end">
                   <button
@@ -1234,6 +1321,125 @@ export default function ControlSection() {
           </div>
         </div>
       </div>
+      {openInfoModal && (
+        <Modal
+          isOpen={openInfoModal}
+          onClose={() => setOpenInfoModal(false)}
+          closeOnOverlayClick={false}
+        >
+          <h2 className="text-2xl font-bold mb-4 text-slate-900">
+            Control de Motores
+          </h2>
+
+          <p className="mb-3 text-black leading-relaxed">
+            Desde esta sección podés diseñar y probar rutinas de movimiento para
+            los motores. La línea de tiempo se compone de{" "}
+            <strong>bloques</strong> (Ramp, Hold, Arc, Pivot, Stop) que se
+            reproducen de izquierda a derecha. Cada bloque tiene propiedades
+            propias (duración, velocidad, dirección y parámetros específicos)
+            que podés ajustar en el panel lateral.
+          </p>
+
+          <ul className="mb-4 space-y-2 text-black">
+            <li>
+              <span className="font-semibold">Modos:</span>{" "}
+              <span
+                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs
+                     bg-indigo-500 text-white ring-1 ring-indigo-500/20"
+              >
+                Simple
+              </span>{" "}
+              control independiente (izquierdo / derecho), y{" "}
+              <span
+                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs
+                     bg-emerald-600 text-white ring-1 ring-emerald-500/20"
+              >
+                Dual
+              </span>{" "}
+              para accionar ambos motores con la misma secuencia.
+            </li>
+            <li>
+              <span className="font-semibold">Línea de tiempo:</span> cada
+              bloque muestra su duración relativa como ancho. El progreso de
+              reproducción se visualiza con una barra inferior y un indicador en
+              el bloque activo.
+            </li>
+            <li>
+              <span className="font-semibold">Edición de bloques:</span>{" "}
+              seleccioná un bloque para editar sus propiedades. La vista se
+              actualiza en vivo (ancho por duración y altura por
+              velocidad/forma).
+            </li>
+            <li>
+              <span className="font-semibold">Selector de tipos:</span> elegí el
+              tipo en la paleta; el botón <em>Agregar</em> inserta un nuevo
+              bloque del tipo seleccionado. En modo Dual no se muestran opciones
+              no compatibles (p. ej. Pivot pareado).
+            </li>
+            <li>
+              <span className="font-semibold">Reordenar:</span> arrastrá y soltá
+              bloques para reordenarlos en la línea de tiempo. El ancho relativo
+              se conserva según la duración actual de cada bloque.
+            </li>
+            <li>
+              <span className="font-semibold">Reproducción:</span> podés
+              reproducir por track (Izquierdo, Derecho) o en Dual. Cambiar de
+              modo detiene la reproducción activa para evitar estados
+              inconsistentes.
+            </li>
+          </ul>
+
+          <div
+            className="rounded-xl bg-white/70 dark:bg-neutral-900/50
+             ring-1 ring-black/5 dark:ring-white/10 shadow-sm backdrop-blur p-3
+             text-xs text-black"
+          >
+            <p className="m-0">
+              <span className="font-semibold">Tip:</span> usá valores de
+              duración razonables para mantener la vista fluida (p. ej. 300 -
+              1500&nbsp;ms por bloque). Si editás “Ramp”, definí <em>Desde</em>{" "}
+              y <em>Hasta</em> en % (0 - 100). En “Hold/Arc/Pivot”, la velocidad
+              escala la altura del bloque.
+            </p>
+          </div>
+        </Modal>
+      )}
+
+      {openSettingsModal && (
+        <Modal
+          isOpen={openSettingsModal}
+          onClose={() => setOpenSettingsModal(false)}
+          closeOnOverlayClick={false}
+        >
+          <h2 className="text-2xl font-bold mb-4 text-black">Configuración</h2>
+
+          <div className="flex flex-row gap-4 text-black w-full items-center justify-center my-4">
+            <p className="text-lg">Reiniciar ESP01</p>
+            <button
+              className="btn-indigo group relative inline-flex items-center gap-2 rounded-xl py-2 font-medium text-white
+                               transition-all duration-300 hover:text-slate-900
+                               hover:shadow-[inset_0_0_0_1px_theme('colors.indigo.400')]
+                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40 estado-btn px-5"
+              onClick={() => console.log("Reiniciar ESP01")}
+            >
+              Enviar
+            </button>
+          </div>
+
+          <div className="flex flex-row gap-4 text-black w-full items-center justify-center my-4">
+            <p className="text-lg">Resetear configuración</p>
+            <button
+              className="btn-danger group relative inline-flex items-center gap-2 rounded-xl py-2 font-medium text-white
+                               transition-all duration-300 hover:text-slate-900
+                               hover:shadow-[inset_0_0_0_1px_theme('colors.red.400')]
+                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40 estado-btn px-5"
+              onClick={() => console.log("Resetear configuracion")}
+            >
+              Enviar
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

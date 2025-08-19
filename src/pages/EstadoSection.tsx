@@ -8,12 +8,17 @@ import ToggleButton from "../components/toggleButton";
 import PageHeader from "../components/PageHeader";
 import RealtimeEulerPanel from "../components/RealTimeEulerPanel";
 import MockEulerGenerator from "../components/MockEulerGenerator";
+import Modal from "../components/modal";
 
 export default function EstadoSection() {
   // @ts-ignore
   const [e, setE] = useState({ yaw: 0, pitch: 0, roll: 0 });
   const [mockActive, setMockActive] = useState(true);
   const [mockMs, setMockMs] = useState(120);
+
+  const [openSettingsModal, setOpenSettingsModal] = useState(false);
+  const [openInfoModal, setOpenInfoModal] = useState(false);
+
   const base = import.meta.env.BASE_URL || "/";
 
   const rigRef = useRef<CameraRigHandle>(null);
@@ -35,8 +40,8 @@ export default function EstadoSection() {
     >
       <div className="flex flex-col gap-4 p-6 w-full mx-auto max-w-7xl">
         <PageHeader
-          setOpenSettingsModal={() => {}}
-          setOpenInfoModal={() => {}}
+          setOpenSettingsModal={setOpenSettingsModal}
+          setOpenInfoModal={setOpenInfoModal}
         />
 
         <div className="flex flex-col lg:flex-row gap-6 w-full h-[calc(100vh-7rem)] items-stretch justify-stretch">
@@ -89,6 +94,7 @@ export default function EstadoSection() {
               <ToggleButton
                 checked={isEmu}
                 onChange={(checked) => setIsEmu(checked)}
+                onDeactivate={() => setMockActive(false)}
                 labels
                 labelOn="Emulado"
                 labelOff="Real"
@@ -134,6 +140,121 @@ export default function EstadoSection() {
           </div>
         </div>
       </div>
+      {openInfoModal && (
+        <Modal
+          isOpen={openInfoModal}
+          onClose={() => setOpenInfoModal(false)}
+          closeOnOverlayClick={false}
+        >
+          <h2 className="text-2xl font-bold mb-4 text-slate-900">
+            Visor 3D y Datos del MPU6050
+          </h2>
+
+          <p className="mb-3 text-black leading-relaxed">
+            En esta sección podés visualizar el modelo 3D del vehículo, rotarlo
+            según la orientación medida por el <strong>MPU6050</strong> y
+            alternar entre un
+            <strong> modo Real</strong> (datos del sensor) y un
+            <strong> modo Emulado</strong> (sliders de yaw/pitch/roll). El visor
+            usa <em>Three.js / React Three Fiber</em>, con fondo transparente y
+            auto-encuadre del modelo.
+          </p>
+
+          <ul className="mb-4 space-y-2 text-black">
+            <li>
+              <span className="font-semibold">Modos:</span>{" "}
+              <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs bg-emerald-600 text-white ring-1 ring-emerald-500/20">
+                Real
+              </span>{" "}
+              toma datos del MPU6050 (giroscopio+acelerómetro, filtrado
+              complementario) y{" "}
+              <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs bg-indigo-500 text-white ring-1 ring-indigo-500/20">
+                Emulado
+              </span>{" "}
+              habilita sliders para yaw/pitch/roll en grados.
+            </li>
+
+            <li>
+              <span className="font-semibold">Orientación:</span> el modelo
+              aplica Euler en orden <code>YXZ</code> (yaw→pitch→roll). Asegurate
+              de mapear correctamente ejes del sensor con el chasis (marcar eje
+              +X, +Y, +Z en el PCB).
+            </li>
+
+            <li>
+              <span className="font-semibold">Cámara y controles:</span>{" "}
+              OrbitControls con presets (Frente, Izq/Der, Arriba/Abajo, ISO). El
+              visor auto–encuadra el modelo al cargar y mantiene el foco en el
+              origen.
+            </li>
+
+            <li>
+              <span className="font-semibold">Carga de modelo:</span> se soporta{" "}
+              <code>.glb/.gltf</code> (opcional Draco). Ubicá el archivo en{" "}
+              <code>public/models/</code>. El fondo del canvas es transparente
+              para integrarlo con el resto de la UI.
+            </li>
+
+            <li>
+              <span className="font-semibold">Datos en tiempo real:</span> el
+              backend PC recibe paquetes del MPU6050 (ej. vía ESP‑01/WebSocket o
+              Serial), publica
+              <code> yaw/pitch/roll</code> en ° y los graficamos en una
+              tabla/serie de tendencias (últimos N segundos).
+            </li>
+
+            <li>
+              <span className="font-semibold">Calibración:</span> offset de
+              giroscopio en reposo, nivelación inicial (pitch/roll) y ajuste de
+              signo por eje. Guardar en EEPROM/LocalStorage.
+            </li>
+          </ul>
+
+          <div className="rounded-xl bg-white/70 dark:bg-neutral-900/50 ring-1 ring-black/5 dark:ring-white/10 shadow-sm backdrop-blur p-3 text-xs text-black">
+            <p className="m-0">
+              <span className="font-semibold">Tip:</span> publicá los ángulos ya
+              en grados. Si leés crudos <code>INT16</code> del giroscopio,
+              escalá a°/s (LSB según el rango) y aplicá un filtro complementario
+              típico:
+              <code>
+                {" "}
+                angle = α·(angle + gyro·dt) + (1-α)·accAngle
+              </code> con <code>α≈0.98</code> y <code>dt</code> en s. Frecuencia
+              sugerida: <code>50-100&nbsp;Hz</code>. Limita jitter con una
+              ventana móvil o <code>median</code> sobre 3-5 muestras.
+            </p>
+          </div>
+        </Modal>
+      )}
+      {openSettingsModal && (
+        <Modal
+          isOpen={openSettingsModal}
+          onClose={() => setOpenSettingsModal(false)}
+          closeOnOverlayClick={false}
+        >
+          <div className="flex w-full lg:w-1/2 flex-col gap-4 p-3 items-center justify-center rounded-lg bg-slate-600/80 border-slate-700">
+            <div className="flex flex-col">
+              <label htmlFor="hb-slider" className="text-sm text-white">
+                {`Intervalo refresco de datos (5 ms)`}
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  id="hb-slider"
+                  type="range"
+                  min={50}
+                  max={10000}
+                  step={50}
+                  value={100}
+                  onChange={(e) => {
+                    //setHeartbeatInterval(Number(e.target.value));
+                  }}
+                  className="w-56 accent-cyan-400"
+                />
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
     </section>
   );
 }

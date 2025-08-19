@@ -45,6 +45,8 @@ interface TimelineRowProps {
   onReorder: (newOrder: Block[]) => void;
   /** Deshabilita DnD (ej: cuando se está reproduciendo) */
   dndDisabled?: boolean;
+  /** Callback para actualizar el label de un bloque */
+  onUpdateLabel?: (blockId: string, newLabel: string) => void;
 }
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
@@ -140,6 +142,7 @@ function SortableBlock({
   shapeStyles,
   title,
   disabled,
+  onUpdateLabel,
 }: {
   b: Block;
   wPct: string;
@@ -153,9 +156,14 @@ function SortableBlock({
   shapeStyles: React.CSSProperties;
   title: string;
   disabled: boolean;
+  onUpdateLabel?: (newLabel: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id: b.id, disabled });
+
+  // Estado local para la edición de labels
+  const [isEditingLabel, setIsEditingLabel] = useState(false);
+  const [editValue, setEditValue] = useState("");
 
   const wrapperStyle: React.CSSProperties = {
     width: wPct,
@@ -168,13 +176,49 @@ function SortableBlock({
     height: "100%",
   };
 
+  const handleStartEdit = () => {
+    setEditValue(b.label);
+    setIsEditingLabel(true);
+  };
+
+  const handleFinishEdit = () => {
+    if (editValue !== b.label) {
+      onUpdateLabel?.(editValue);
+    }
+    setIsEditingLabel(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleFinishEdit();
+    } else if (e.key === "Escape") {
+      setEditValue(b.label); // Revertir cambios
+      setIsEditingLabel(false);
+    }
+  };
+
   return (
     <div ref={setNodeRef} style={wrapperStyle} className="group">
       {/* Cabecera */}
       <div className="flex flex-col items-center mb-1 select-none">
-        <div className="text-xs text-slate-300 truncate w-full text-center">
-          {b.label}
-        </div>
+        {isEditingLabel ? (
+          <input
+            type="text"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={handleFinishEdit}
+            onKeyDown={handleKeyDown}
+            className="text-xs bg-slate-700 text-white w-full text-center px-1 rounded"
+            autoFocus
+          />
+        ) : (
+          <div
+            className="text-xs text-slate-300 truncate w-full text-center cursor-pointer hover:bg-slate-700/50 rounded px-1"
+            onClick={handleStartEdit}
+          >
+            {b.label}
+          </div>
+        )}
         <div className="text-[11px] text-slate-400">{b.durationMs} ms</div>
       </div>
 
@@ -272,6 +316,7 @@ function TimelineRow({
   blockProps = {},
   onReorder,
   dndDisabled = false,
+  onUpdateLabel,
 }: TimelineRowProps) {
   const sensors = useSensors(
     useSensor(MouseSensor, {
@@ -283,7 +328,6 @@ function TimelineRow({
   );
 
   const [activeId, setActiveId] = useState<string | null>(null);
-  //@ts-ignore
   const [overlaySize, setOverlaySize] = useState<{
     w: number;
     h: number;
@@ -362,7 +406,6 @@ function TimelineRow({
           setActiveId(String(e.active.id));
           const r = e.active.rect.current?.initial;
           if (r) setOverlaySize({ w: r.width, h: r.height });
-          // si ya tenés esta función, la seguimos llamando
           handleDragStart?.(e);
         }}
         onDragEnd={(e) => {
@@ -413,6 +456,9 @@ function TimelineRow({
                   shapeStyles={getBlockStyles(b, p)}
                   title={`${b.kind} (${b.durationMs} ms)`}
                   disabled={!!dndDisabled}
+                  onUpdateLabel={(newLabel: string) =>
+                    onUpdateLabel?.(b.id, newLabel)
+                  }
                 />
               );
             })}
@@ -425,55 +471,7 @@ function TimelineRow({
             ? (() => {
                 const ab = blocks.find((x) => x.id === activeId);
                 if (!ab) return null;
-                //const p = blockProps[ab.id];
-                return null
-                {/*return (
-                  <div
-                    style={{
-                      width: overlaySize?.w,
-                      height: overlaySize?.h,
-                    }}
-                    className="relative h-16 flex items-end"
-                  >
-                    <div
-                      className={`w-full flex items-center justify-center ${
-                        kindColor[ab.kind]
-                      } ring-1 ring-white/10 shadow-sm`}
-                      style={getBlockStyles(ab, p)}
-                    >
-}
-                      {ab.kind === "pivot" ? (
-                        ab.direction === 1 ? (
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 24 24"
-                            fill="currentColor"
-                            className="size-4"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M9.53 2.47a.75.75 0 0 1 0 1.06L4.81 8.25H15a6.75 6.75 0 0 1 0 13.5h-3a.75.75 0 0 1 0-1.5h3a5.25 5.25 0 1 0 0-10.5H4.81l4.72 4.72a.75.75 0 1 1-1.06 1.06l-6-6a.75.75 0 0 1 0-1.06l6-6a.75.75 0 0 1 1.06 0Z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                        ) : (
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 24 24"
-                            fill="currentColor"
-                            className="size-4"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M14.47 2.47a.75.75 0 0 1 1.06 0l6 6a.75.75 0 0 1 0 1.06l-6 6a.75.75 0 1 1-1.06-1.06l4.72-4.72H9a5.25 5.25 0 1 0 0 10.5h3a.75.75 0 0 1 0 1.5H9a6.75 6.75 0 0 1 0-13.5h10.19l-4.72-4.72a.75.75 0 0 1 0-1.06Z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                        )
-                      ) : null}
-                    </div>
-                  </div>
-                );*/}
+                return null;
               })()
             : null}
         </DragOverlay>

@@ -1,12 +1,15 @@
 /* eslint-disable no-bitwise */
 
+import { CMD, PayloadBuilder, type U16, type U8 } from "../types/UnerProtocolCMDTypes";
+
 /**
- * UNERProtocol (TypeScript)
+ * UNERProtocol (TypeScript) - Enhanced
  * - Espejo de la versión C (STM32/HAL)
  * - Protocolo binario:
  *   HEADER "UNER" (4B), LENGTH (1B), TOKEN ':' (1B), CMD (1B), PAYLOAD (N), CHKSUM (1B)
  * - LENGTH = 1 (CMD) + N (PAY) + 1 (CHK) -> [2..32], N <= 30
  * - CHECKSUM = XOR(HEADER..PAYLOAD)  // incluye header, length y token
+ * - Soporte para construcción automática de payloads por comando
  *
  * Compatibilidad opcional (legacy):
  * - UNER_ENABLE_LEGACY_HEADER_UNER_COLON: si true, acepta/emite header "UNER:" (5B) sin token aparte
@@ -68,6 +71,21 @@ const enum ParserState {
 }
 
 export type OnPacketFn = (p: UNERPacket) => void;
+
+// Tipos para comandos específicos
+export type HeartbeatSetParams = { periodMs: U16 };
+export type WifiSetAPParams = {
+  ssid: string;
+  password: string;
+  ip: [U8, U8, U8, U8];
+};
+export type WifiSetSTAParams = {
+  ssid: string;
+  password: string;
+  fixedIp: boolean;
+  ip?: [U8, U8, U8, U8];
+};
+export type TelemetrySetRateParams = { periodMs: U16 };
 
 /* =================== Implementación =================== */
 export class UNERProtocol {
@@ -300,7 +318,9 @@ export class UNERProtocol {
     this._packetReady = false;
   }
 
-  /** Construye un paquete binario listo para enviar (Uint8Array). */
+  /* =================== Métodos de construcción de comandos específicos =================== */
+
+  /** Comando genérico con payload manual */
   buildPacket(cmd: number, payload?: Uint8Array): Uint8Array {
     const n = payload ? payload.length : 0;
     if (n > UNER.PCK_MAX_PAYLOAD) {
@@ -342,11 +362,55 @@ export class UNERProtocol {
     return buf;
   }
 
+  /* =================== Métodos helper para comandos específicos =================== */
+
+  /** Construye comando HEARTBEAT_SET */
+  buildHeartbeatSet(params: HeartbeatSetParams): Uint8Array {
+    const payload = PayloadBuilder.heartbeatSet(params.periodMs);
+    return this.buildPacket(CMD.HEARTBEAT_SET, payload);
+  }
+
+  /** Construye comando WIFI_GET_MODE (sin payload) */
+  buildWifiGetMode(): Uint8Array {
+    return this.buildPacket(CMD.WIFI_GET_MODE);
+  }
+
+  /** Construye comando WIFI_GET_SCAN (sin payload) */
+  buildWifiGetScan(): Uint8Array {
+    return this.buildPacket(CMD.WIFI_GET_SCAN);
+  }
+
+  /** Construye comando WIFI_SET_AP */
+  buildWifiSetAP(params: WifiSetAPParams): Uint8Array {
+    const payload = PayloadBuilder.wifiSetAP(
+      params.ssid,
+      params.password,
+      params.ip
+    );
+    return this.buildPacket(CMD.WIFI_SET_AP, payload);
+  }
+
+  /** Construye comando WIFI_SET_STA */
+  buildWifiSetSTA(params: WifiSetSTAParams): Uint8Array {
+    const payload = PayloadBuilder.wifiSetSTA(
+      params.ssid,
+      params.password,
+      params.fixedIp,
+      params.ip
+    );
+    return this.buildPacket(CMD.WIFI_SET_STA, payload);
+  }
+
+  /** Construye comando TELEMETRY_SET_RATE */
+  buildTelemetrySetRate(params: TelemetrySetRateParams): Uint8Array {
+    const payload = PayloadBuilder.telemetrySetRate(params.periodMs);
+    return this.buildPacket(CMD.TELEMETRY_SET_RATE, payload);
+  }
+
   /** XOR de todos los bytes del header hasta el último byte del payload. */
   static calcChecksum(data: Uint8Array): number {
     let x = 0;
     for (let i = 0; i < data.length; i++) x ^= data[i];
     return x & 0xff;
   }
-
 }
