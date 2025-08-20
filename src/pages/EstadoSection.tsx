@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ThreeModelViewer from "../components/ThreeModelViewer";
 import OrientationControls from "../components/OrientationControls";
 import type { CameraRigHandle, PresetKey } from "../components/CameraRig";
@@ -9,11 +9,15 @@ import PageHeader from "../components/PageHeader";
 import RealtimeEulerPanel from "../components/RealTimeEulerPanel";
 import MockEulerGenerator from "../components/MockEulerGenerator";
 import Modal from "../components/modal";
+import { UNER, UNERProtocol, type TelemetrySetRateParams } from "../api/UnerProtocol";
+import { useWebSocket } from "../hooks/useWebSocket";
+import { CMD, type U16 } from "../types/UnerProtocolCMDTypes";
 
 export default function EstadoSection() {
   // @ts-ignore
+  const { mockRaw, setSensorRefreshInterval, sensorRefreshInterval } = useWebSocket();
   const [e, setE] = useState({ yaw: 0, pitch: 0, roll: 0 });
-  const [mockActive, setMockActive] = useState(true);
+  const [mockActive, setMockActive] = useState(false);
   const [mockMs, setMockMs] = useState(120);
 
   const [openSettingsModal, setOpenSettingsModal] = useState(false);
@@ -28,6 +32,12 @@ export default function EstadoSection() {
   }
 
   const [isEmu, setIsEmu] = useState(false);
+
+  const sensorValue = useRef<HTMLInputElement>(null);
+
+  const [sensorSliderValue, setSensorSliderValue] = useState<number>(
+    sensorRefreshInterval
+  );
 
   return (
     <section
@@ -136,7 +146,10 @@ export default function EstadoSection() {
               </>
             )}
             {/* Inputs readonly que usan los valores leidos en tiempo real */}
-            <RealtimeEulerPanel eulerDeg={e} />
+            <RealtimeEulerPanel
+              eulerDeg={e}
+              sensorIntervalTime={sensorRefreshInterval}
+            />
           </div>
         </div>
       </div>
@@ -184,7 +197,7 @@ export default function EstadoSection() {
             <li>
               <span className="font-semibold">Cámara y controles:</span>{" "}
               OrbitControls con presets (Frente, Izq/Der, Arriba/Abajo, ISO). El
-              visor auto–encuadra el modelo al cargar y mantiene el foco en el
+              visor auto-encuadra el modelo al cargar y mantiene el foco en el
               origen.
             </li>
 
@@ -231,26 +244,58 @@ export default function EstadoSection() {
           isOpen={openSettingsModal}
           onClose={() => setOpenSettingsModal(false)}
           closeOnOverlayClick={false}
+          containerClassnames="flex flex-col items-center justify-center"
         >
-          <div className="flex w-full lg:w-1/2 flex-col gap-4 p-3 items-center justify-center rounded-lg bg-slate-600/80 border-slate-700">
-            <div className="flex flex-col">
-              <label htmlFor="hb-slider" className="text-sm text-white">
-                {`Intervalo refresco de datos (5 ms)`}
-              </label>
-              <div className="flex items-center gap-3">
-                <input
-                  id="hb-slider"
-                  type="range"
-                  min={50}
-                  max={10000}
-                  step={50}
-                  value={100}
-                  onChange={(e) => {
-                    //setHeartbeatInterval(Number(e.target.value));
-                  }}
-                  className="w-56 accent-cyan-400"
-                />
+          <h2 className="text-2xl font-bold mb-4 text-slate-900 w-full">
+            Configuracion
+          </h2>
+          <div className="flex w-full lg:w-2/3 flex-col gap-4 p-3 items-center justify-center rounded-lg bg-slate-600/80 border-slate-700">
+            <div className="flex flex-col w-full items-center justify-center">
+              <div className="flex flex-col lg:flex-row gap-3 w-full items-center justify-center">
+                <div className="flex flex-col w-2/3 lg:w-1/2 items-center justify-center">
+                  <p className="text-sm text-white">
+                    Intervalo refresco de datos actual
+                  </p>
+                  <p className="text-sm text-white">
+                    {sensorRefreshInterval}ms
+                  </p>
+                </div>
+                <div className="flex flex-col ">
+                  <input
+                    id="sensor-slider"
+                    type="range"
+                    min={50}
+                    max={10000}
+                    step={50}
+                    defaultValue={sensorRefreshInterval}
+                    className="w-56 accent-cyan-400"
+                    ref={sensorValue}
+                    onInput={(e) => {
+                      // Actualizar solo el texto del label
+                      const label = document.querySelector(
+                        'label[for="sensor-slider"]'
+                      );
+                      if (label) {
+                        //@ts-ignore
+                        label.textContent = `${e.target.value}ms`;
+                      }
+                    }}
+                  />
+                  <label htmlFor="sensor-slider" className="text-sm text-white">
+                    {sensorRefreshInterval}ms
+                  </label>
+                </div>
               </div>
+              <button
+                onClick={() => {
+                  if(sensorValue){
+                    setSensorRefreshInterval(Number(sensorValue.current?.value)); // Usa el valor del estado
+                  }
+                }}
+                className="mt-3 px-4 py-2 bg-cyan-400 text-slate-900 rounded hover:bg-cyan-300 transition-colors"
+              >
+                Enviar
+              </button>
             </div>
           </div>
         </Modal>

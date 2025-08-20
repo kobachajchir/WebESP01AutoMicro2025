@@ -10,6 +10,7 @@ interface RealtimeEulerPanelProps {
   sampleMs?: number;
   /** alto del gráfico en px */
   heightPx?: number;
+  sensorIntervalTime: number;
 }
 
 /**
@@ -23,6 +24,7 @@ export default function RealtimeEulerPanel({
   maxPoints = 80,
   sampleMs = 250,
   heightPx = 130,
+  sensorIntervalTime
 }: RealtimeEulerPanelProps) {
   const [series, setSeries] = useState<{
     yaw: number[];
@@ -90,7 +92,7 @@ export default function RealtimeEulerPanel({
                  p-4 transition-shadow hover:shadow-md"
     >
       <h3 className="text-sm font-semibold text-slate-200 mb-3">
-        Lecturas en tiempo real
+        Lecturas en tiempo real ({sensorIntervalTime} ms)
       </h3>
 
       {/* Filas de inputs readonly */}

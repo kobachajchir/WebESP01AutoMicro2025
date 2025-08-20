@@ -43,6 +43,8 @@ interface WebSocketContextType {
   retrying: boolean;
   setRetrying: (newVal: boolean) => void;
   setShowRetryModal: (newVal: boolean) => void;
+  sensorRefreshInterval: number;
+  setSensorRefreshInterval: (newVal: number) => void;
 }
 
 export const WebSocketContext = createContext<WebSocketContextType | undefined>(
@@ -71,6 +73,8 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     isActive: false,
     remainingRetries: 5,
   });
+
+  const [sensorRefreshInterval, setSensorRefreshInterval] = useState<number>(500);
 
   const jsonListeners = useRef(new Map<string, Set<WSMessageHandler>>());
   const rawListeners = useRef(new Set<WSRawHandler>());
@@ -393,6 +397,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
   const mockRaw = useCallback((data: Uint8Array) => {
     rawListeners.current.forEach((h) => h(data));
   }, []);
+  
 
   return (
     <WebSocketContext.Provider
@@ -415,6 +420,8 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
         retrying,
         setRetrying,
         setShowRetryModal,
+        sensorRefreshInterval,
+        setSensorRefreshInterval
       }}
     >
       {children}

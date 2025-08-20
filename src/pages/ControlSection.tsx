@@ -749,12 +749,15 @@ export default function ControlSection() {
                     <>
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
-                        className="size-5"
                         viewBox="0 0 24 24"
                         fill="currentColor"
+                        className="size-6"
                       >
-                        <path d="M6.75 5.25A.75.75 0 0 0 6 6v12a.75.75 0 0 0 1.5 0V6a.75.75 0 0 0-.75-.75Z" />
-                        <path d="M15 5.25a.75.75 0 0 1 .75.75v12a.75.75 0 0 1-1.5 0V6a.75.75 0 0 1 .75-.75Z" />
+                        <path
+                          fillRule="evenodd"
+                          d="M4.5 7.5a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9Z"
+                          clipRule="evenodd"
+                        />
                       </svg>
                       Stop
                     </>
@@ -823,12 +826,15 @@ export default function ControlSection() {
                       <>
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
-                          className="size-5"
                           viewBox="0 0 24 24"
                           fill="currentColor"
+                          className="size-6"
                         >
-                          <path d="M6.75 5.25A.75.75 0 0 0 6 6v12a.75.75 0 0 0 1.5 0V6a.75.75 0 0 0-.75-.75Z" />
-                          <path d="M15 5.25a.75.75 0 0 1 .75.75v12a.75.75 0 0 1-1.5 0V6a.75.75 0 0 1 .75-.75Z" />
+                          <path
+                            fillRule="evenodd"
+                            d="M4.5 7.5a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9Z"
+                            clipRule="evenodd"
+                          />
                         </svg>
                         Stop
                       </>
@@ -898,12 +904,15 @@ export default function ControlSection() {
                       <>
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
-                          className="size-5"
                           viewBox="0 0 24 24"
                           fill="currentColor"
+                          className="size-6"
                         >
-                          <path d="M6.75 5.25A.75.75 0 0 0 6 6v12a.75.75 0 0 0 1.5 0V6a.75.75 0 0 0-.75-.75Z" />
-                          <path d="M15 5.25a.75.75 0 0 1 .75.75v12a.75.75 0 0 1-1.5 0V6a.75.75 0 0 1 .75-.75Z" />
+                          <path
+                            fillRule="evenodd"
+                            d="M4.5 7.5a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9Z"
+                            clipRule="evenodd"
+                          />
                         </svg>
                         Stop
                       </>

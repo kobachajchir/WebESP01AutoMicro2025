@@ -6,6 +6,7 @@ import { useUNERProtocol } from "../hooks/useUnerProtocol";
 import { le16, readLe16 } from "../api/UnerProtocolUtils";
 import PageHeader from "../components/PageHeader";
 import Modal from "../components/modal";
+import { CMD } from "../types/UnerProtocolCMDTypes";
 
 const Home: React.FC = () => {
   const {
@@ -30,7 +31,7 @@ const Home: React.FC = () => {
 
   // Suscribirse a heartbeats recibidos
   useEffect(() => {
-    const off = subscribe(0xa2, (p) => {
+    const off = subscribe(CMD.HEARTBEAT_BEAT, (p) => {
       const ms = readLe16(p.payload);
       console.log("[UNER] RX heartbeat:", ms, "ms");
 
