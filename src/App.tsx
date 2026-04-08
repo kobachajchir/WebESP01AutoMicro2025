@@ -16,6 +16,7 @@ import ControlSection from "./pages/ControlSection";
 import EstadoSection from "./pages/EstadoSection";
 import { useWebSocket } from "./hooks/useWebSocket";
 import ConnectingScreen from "./components/ConnectingScreen";
+import ProtocolSection from "./pages/ProtocolSection";
 
 const App: React.FC = () => {
   const { user } = useUser();
@@ -65,6 +66,14 @@ const App: React.FC = () => {
           element: (
             <ProtectedRoute>
               <ControlSection />
+            </ProtectedRoute>
+          ),
+        },
+        {
+          path: "protocol",
+          element: (
+            <ProtectedRoute>
+              <ProtocolSection />
             </ProtectedRoute>
           ),
         },

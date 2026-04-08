@@ -78,7 +78,7 @@ const Modal: React.FC<ModalProps> = ({
         {/* Botón cerrar */}
         <button
           onClick={onClose}
-          className="absolute top-3 right-3 rounded-xl p-2 text-slate-500 transition-all duration-300 hover:text-red-400 hover:shadow-[inset_0_0_0_1px_theme('colors.red.400')] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40 flex items-center justify-center"
+          className="absolute top-3 right-3 rounded-xl p-2 text-slate-200 transition-all duration-300 hover:text-red-400 hover:shadow-[inset_0_0_0_1px_theme('colors.red.400')] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40 flex items-center justify-center"
           aria-label="Cerrar"
         >
           <svg

@@ -427,7 +427,7 @@ function TimelineRow({
             <div className="pointer-events-none absolute -left-6 top-6 text-[10px] text-slate-400">
               100%
             </div>
-            <div className="pointer-events-none absolute w-full top-8 text-slate-500/10 border-1" />
+            <div className="pointer-events-none absolute w-full top-8 text-slate-200/10 border-1" />
             <div className="pointer-events-none absolute -left-6 bottom-0 text-[10px] text-slate-400">
               0%
             </div>

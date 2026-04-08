@@ -273,6 +273,7 @@ const Home: React.FC = () => {
             </p>
           </div>
         </button>
+
       </div>
       {openInfoModal && (
         <Modal
