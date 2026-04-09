@@ -1,388 +1,349 @@
-import { useEffect, useRef, useState } from "react";
-import { useMockFirmware } from "../hooks/useMockFirmware";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import ToggleButton from "../components/toggleButton";
 import Modal from "../components/modal";
 import type { WifiMode } from "../types/WifiTypes";
 import PageHeader from "../components/PageHeader";
 import { useWebSocket } from "../hooks/useWebSocket";
-import { CMD } from "../types/UnerProtocolCMDTypes";
+import { useUNERProtocol } from "../hooks/useUnerProtocol";
+import { UNERProtocol } from "../api/UnerProtocol";
+import {
+  CMD,
+  PayloadBuilder,
+  ipStringToBytes,
+  isValidIPv4String,
+} from "../types/UnerProtocolCMDTypes";
+
+type StationInfo = {
+  ssid: string;
+  ip: string;
+  password: string;
+  fixedIp: boolean;
+};
+
+type AvailableNetwork = {
+  ssid: string;
+  rssi: number;
+  security: number;
+};
+
+const DEFAULT_AP_IP = "192.168.4.1";
+const DHCP_IP = "0.0.0.0";
+const MOCK_NETWORKS: AvailableNetwork[] = [
+  { ssid: "Home_Network", rssi: -45, security: 3 },
+  { ssid: "Office_WiFi", rssi: -61, security: 4 },
+  { ssid: "CoffeeShop_Guest", rssi: -72, security: 0 },
+  { ssid: "Neighbor_WiFi", rssi: -81, security: 3 },
+];
+
+function securityLabel(security: number) {
+  if (security === 0) return "Abierta";
+  if (security === 1) return "WEP";
+  if (security === 3) return "WPA/WPA2";
+  if (security === 4) return "WPA2/WPA3";
+  return "Desconocida";
+}
+
+function buildScanListPayload(networks: AvailableNetwork[]) {
+  const encodedNetworks = networks.map((network) => {
+    const ssidBytes = new TextEncoder().encode(network.ssid);
+    const payload = new Uint8Array(1 + ssidBytes.length + 1 + 1);
+    let offset = 0;
+
+    payload[offset++] = ssidBytes.length;
+    payload.set(ssidBytes, offset);
+    offset += ssidBytes.length;
+    payload[offset++] = network.rssi < 0 ? 256 + network.rssi : network.rssi;
+    payload[offset] = network.security;
+
+    return payload;
+  });
+
+  const totalLength =
+    1 + encodedNetworks.reduce((sum, network) => sum + network.length, 0);
+  const payload = new Uint8Array(totalLength);
+  let offset = 0;
+
+  payload[offset++] = encodedNetworks.length;
+  for (const network of encodedNetworks) {
+    payload.set(network, offset);
+    offset += network.length;
+  }
+
+  return payload;
+}
+
+function decodeScanListPayload(payload: Uint8Array): AvailableNetwork[] {
+  if (payload.length < 1) {
+    return [];
+  }
+
+  const networks: AvailableNetwork[] = [];
+  const count = payload[0];
+  let offset = 1;
+
+  for (let index = 0; index < count && offset < payload.length; index++) {
+    const ssidLen = payload[offset++];
+    if (offset + ssidLen + 2 > payload.length) {
+      break;
+    }
+
+    const ssidBytes = payload.slice(offset, offset + ssidLen);
+    const ssid = new TextDecoder().decode(ssidBytes);
+    offset += ssidLen;
+
+    const rawRssi = payload[offset++];
+    const rssi = rawRssi > 127 ? rawRssi - 256 : rawRssi;
+    const security = payload[offset++];
+
+    networks.push({ ssid, rssi, security });
+  }
+
+  return networks;
+}
+
+function buildAckPayload(cmdRef: number, code = 0) {
+  return new Uint8Array([cmdRef & 0xff, code & 0xff]);
+}
 
 export default function WifiSection() {
-  const { send, subscribe, connected, sendRaw, subscribeRaw, mockRaw } =
-    useWebSocket();
+  const { connected, mockMode, mockRaw } = useWebSocket();
+  const { send, subscribe } = useUNERProtocol();
+  const protocol = useMemo(() => new UNERProtocol(), []);
+
   const [mode, setMode] = useState<WifiMode | null>(null);
   const [changesMade, setChangesMade] = useState(false);
   const [fixedIPStation, setFixedIPStation] = useState(false);
-
-  // --- AP state ---
   const [apSsid, setApSsid] = useState("");
   const [apPass, setApPass] = useState("");
-  const [apIP, setApIP] = useState("192.168.1.1");
-
-  // --- STATION state (editable form) ---
+  const [apIP, setApIP] = useState(DEFAULT_AP_IP);
   const [stationSsid, setStationSsid] = useState("");
   const [stationPass, setStationPass] = useState("");
-  const [stationIP, setStationIP] = useState("");
-
+  const [stationIP, setStationIP] = useState(DHCP_IP);
   const [seePass, setSeePass] = useState(false);
-
   const [openInfoModal, setOpenInfoModal] = useState(false);
   const [openSettingsModal, setOpenSettingsModal] = useState(false);
-
-  // Estados para datos fetcheados
-  const [initialStationInfo, setInitialStationInfo] = useState<{
-    ssid: string;
-    ip: string;
-    password: string;
-  } | null>(null);
-
-  const [availableNetworks, setAvailableNetworks] = useState<
-    Array<{
-      ssid: string;
-      rssi: number;
-      security: number;
-    }>
-  >([]);
-
-  // Refs para "linkear" inputs (STATION)
-  const stationSsidRef = useRef<HTMLInputElement>(null);
-  const stationPassRef = useRef<HTMLInputElement>(null);
-  const stationIpRef = useRef<HTMLInputElement>(null);
-
-  // Defaults iniciales obtenidos al principio (para Restablecer)
-  const stationDefaultsRef = useRef<{
-    ssid: string;
-    ip: string;
-    password: string;
-  } | null>(null);
-
   const [valid, setValid] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [stationDefaults, setStationDefaults] = useState<StationInfo | null>(
+    null
+  );
+  const [apDefaults, setApDefaults] = useState<{
+    ssid: string;
+    password: string;
+    ip: string;
+  } | null>(null);
+  const [availableNetworks, setAvailableNetworks] = useState<AvailableNetwork[]>(
+    []
+  );
 
-  // Hook useMockFirmware actualizado
-  function useMockFirmware(mode: WifiMode, delay: number = 1000) {
-    useEffect(() => {
-      // Mock para WIFI_MODE
-      const modeTimeout = setTimeout(() => {
-        console.log("Mock: inyectando WIFI_MODE response", mode);
-        const modeValue = mode === "AP" ? 0 : 1;
-        const response = new Uint8Array([CMD.WIFI_MODE, modeValue]);
-        mockRaw(response);
-      }, delay);
+  const emitMockPacket = useCallback((
+    cmd: number,
+    payload?: Uint8Array,
+    delayMs = 120
+  ) => {
+    window.setTimeout(() => {
+      mockRaw(protocol.buildPacket(cmd, payload));
+    }, delayMs);
+  }, [mockRaw, protocol]);
 
-      // Mock para WIFI_SCAN_LIST (después del modo)
-      const scanTimeout = setTimeout(() => {
-        console.log("Mock: inyectando WIFI_SCAN_LIST response");
+  const requestScan = useCallback(() => {
+    void send(CMD.WIFI_GET_SCAN);
 
-        // Simular redes disponibles
-        const mockNetworks = [
-          { ssid: "Home_Network", rssi: -45, security: 3 },
-          { ssid: "Office_WiFi", rssi: -67, security: 4 },
-          { ssid: "CoffeeShop_Guest", rssi: -72, security: 0 },
-          { ssid: "Neighbor_WiFi", rssi: -81, security: 3 },
-          { ssid: "Public_Hotspot", rssi: -88, security: 1 },
-        ];
-
-        // Construir payload para WIFI_SCAN_LIST
-        const buffers: Uint8Array[] = [
-          new Uint8Array([CMD.WIFI_SCAN_LIST, mockNetworks.length]),
-        ];
-
-        for (const network of mockNetworks) {
-          const ssidBytes = new TextEncoder().encode(network.ssid);
-          const rssiValue =
-            network.rssi < 0 ? 256 + network.rssi : network.rssi; // Convertir signed a unsigned
-
-          const networkBuffer = new Uint8Array([
-            ssidBytes.length,
-            ...ssidBytes,
-            rssiValue,
-            network.security,
-          ]);
-          buffers.push(networkBuffer);
-        }
-
-        // Combinar todos los buffers
-        const totalLength = buffers.reduce((sum, buf) => sum + buf.length, 0);
-        const response = new Uint8Array(totalLength);
-        let offset = 0;
-        for (const buf of buffers) {
-          response.set(buf, offset);
-          offset += buf.length;
-        }
-
-        mockRaw(response);
-      }, delay + 200);
-
-      // Mock para datos iniciales de STATION (si aplica)
-      if (mode === "STATION") {
-        setTimeout(() => {
-          setInitialStationInfo({
-            ssid: "Home_Network",
-            ip: "192.168.1.100",
-            password: "password123",
-          });
-          console.log("Mock: Setting initial station info");
-        }, delay + 300);
-      }
-
-      return () => {
-        clearTimeout(modeTimeout);
-        clearTimeout(scanTimeout);
-      };
-    }, [mode, delay]);
-  }
-
-  // Mockea que la placa está en STATION
-  useMockFirmware("STATION", 1500);
-
-  const encodeString = (str: string): Uint8Array => {
-    const encoder = new TextEncoder();
-    const encoded = encoder.encode(str);
-    const buffer = new Uint8Array(1 + encoded.length);
-    buffer[0] = encoded.length; // longitud como u8
-    buffer.set(encoded, 1);
-    return buffer;
-  };
-
-  const combineBuffers = (...buffers: Uint8Array[]): Uint8Array => {
-    const totalLength = buffers.reduce((sum, buf) => sum + buf.length, 0);
-    const result = new Uint8Array(totalLength);
-    let offset = 0;
-    for (const buf of buffers) {
-      result.set(buf, offset);
-      offset += buf.length;
+    if (mockMode) {
+      emitMockPacket(CMD.WIFI_SCAN_LIST, buildScanListPayload(MOCK_NETWORKS), 180);
     }
-    return result;
-  };
+  }, [emitMockPacket, mockMode, send]);
 
-  // Función para decodificar WIFI_SCAN_LIST
-  const decodeScanList = (
-    bytes: Uint8Array
-  ): Array<{ ssid: string; rssi: number; security: number }> => {
-    if (bytes.length < 2) return [];
-
-    const networks: Array<{ ssid: string; rssi: number; security: number }> =
-      [];
-    const count = bytes[1]; // N = número de redes
-    let offset = 2;
-
-    for (let i = 0; i < count && offset < bytes.length; i++) {
-      if (offset >= bytes.length) break;
-
-      const ssidLen = bytes[offset];
-      offset++;
-
-      if (offset + ssidLen + 2 > bytes.length) break;
-
-      // Extraer SSID
-      const ssidBytes = bytes.slice(offset, offset + ssidLen);
-      const ssid = new TextDecoder().decode(ssidBytes);
-      offset += ssidLen;
-
-      // Extraer RSSI (i8, signed)
-      const rssi = bytes[offset] > 127 ? bytes[offset] - 256 : bytes[offset];
-      offset++;
-
-      // Extraer security (u8)
-      const security = bytes[offset];
-      offset++;
-
-      networks.push({ ssid, rssi, security });
-    }
-
-    return networks;
-  };
-
-  // Conexión y suscripciones actualizadas
   useEffect(() => {
-    if (!connected) return;
+    const offMode = subscribe(CMD.WIFI_MODE, (packet) => {
+      const nextMode = packet.payload[0] === 0 ? "AP" : "STATION";
+      setMode(nextMode);
+      requestScan();
+    });
 
-    // Suscribirse a múltiples comandos usando subscribeRaw
-    const offRaw = subscribeRaw((data) => {
-      // Convertir ArrayBuffer a Uint8Array si es necesario
-      const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : data;
+    const offScanList = subscribe(CMD.WIFI_SCAN_LIST, (packet) => {
+      setAvailableNetworks(decodeScanListPayload(packet.payload));
+    });
 
-      if (bytes.length < 1) return;
+    const offAck = subscribe(CMD.WIFI_ACK, (packet) => {
+      const cmdRef = packet.payload[0];
+      const code = packet.payload[1] ?? 0;
+      const ok = code === 0;
 
-      const command = bytes[0];
-
-      switch (command) {
-        case CMD.WIFI_MODE:
-          if (bytes.length >= 2) {
-            const mode = bytes[1] === 0 ? "AP" : "STATION";
-            setMode(mode);
-            console.log("Received WIFI_MODE:", mode);
-
-            // Después de obtener el modo, pedir scan de redes
-            setTimeout(() => {
-              const getScanCmd = new Uint8Array([CMD.WIFI_GET_SCAN]);
-              sendRaw(getScanCmd);
-              console.log("Requesting WiFi scan...");
-            }, 100);
-          }
-          break;
-
-        case CMD.WIFI_SCAN_LIST:
-          if (bytes.length >= 2) {
-            const networks = decodeScanList(bytes);
-            setAvailableNetworks(networks);
-            console.log("Received WiFi networks:", networks);
-          }
-          break;
-
-        case CMD.WIFI_ACK:
-          if (bytes.length >= 2) {
-            const code = bytes[1];
-            console.log(
-              "WiFi ACK received:",
-              code === 0 ? "OK" : `Error ${code}`
-            );
-          }
-          break;
-
-        default:
-          // Comando no reconocido
-          break;
+      if (ok) {
+        setStatusMessage(`ACK recibido para 0x${cmdRef.toString(16).toUpperCase()}.`);
+        setChangesMade(false);
+      } else {
+        setStatusMessage(
+          `ACK con error ${code} para 0x${cmdRef.toString(16).toUpperCase()}.`
+        );
       }
     });
 
-    // pedir modo usando sendRaw
-    const getModeCmd = new Uint8Array([CMD.WIFI_GET_MODE]);
-    sendRaw(getModeCmd);
-    console.log("Requesting WiFi mode...");
+    return () => {
+      offMode();
+      offScanList();
+      offAck();
+    };
+  }, [requestScan, subscribe]);
 
-    return () => offRaw();
-  }, [connected, sendRaw, subscribeRaw]);
-
-  // Inicializa los defaults y el formulario STATION cuando el modo cambia a STATION
   useEffect(() => {
-    if (mode !== "STATION" || !initialStationInfo) return;
-
-    // Guarda defaults una sola vez
-    if (!stationDefaultsRef.current) {
-      stationDefaultsRef.current = { ...initialStationInfo };
+    if (!connected) {
+      return;
     }
 
-    // Carga defaults al formulario (refs + state)
-    const d = stationDefaultsRef.current;
-    if (d) {
-      setStationSsid(d.ssid);
-      setStationPass(d.password);
-      setStationIP(d.ip);
+    void send(CMD.WIFI_GET_MODE);
 
-      if (stationSsidRef.current) stationSsidRef.current.value = d.ssid;
-      if (stationPassRef.current) stationPassRef.current.value = d.password;
-      if (stationIpRef.current) stationIpRef.current.value = d.ip;
+    if (mockMode) {
+      const mockStation: StationInfo = {
+        ssid: "Home_Network",
+        password: "password123",
+        ip: DHCP_IP,
+        fixedIp: false,
+      };
+
+      setStationDefaults(mockStation);
+      setStationSsid(mockStation.ssid);
+      setStationPass(mockStation.password);
+      setStationIP(mockStation.ip);
+      setFixedIPStation(mockStation.fixedIp);
+
+      const nextApDefaults = {
+        ssid: "AutoMicro_AP",
+        password: "12345678",
+        ip: DEFAULT_AP_IP,
+      };
+
+      setApDefaults(nextApDefaults);
+      setApSsid(nextApDefaults.ssid);
+      setApPass(nextApDefaults.password);
+      setApIP(nextApDefaults.ip);
+
+      emitMockPacket(CMD.WIFI_MODE, new Uint8Array([1]), 120);
     }
-    setChangesMade(false);
-  }, [mode, initialStationInfo]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [connected, mockMode, protocol, send]);
 
-  // Validación AP
   useEffect(() => {
     if (mode === "AP") {
-      setValid(apSsid.length >= 4 && apPass.length >= 4);
+      const ssidValid = apSsid.length >= 1 && apSsid.length <= 32;
+      const passValid = apPass.length === 0 || apPass.length >= 8;
+      setValid(ssidValid && passValid && isValidIPv4String(apIP));
+      return;
     }
-  }, [mode, apSsid, apPass]);
 
-  // Validación STATION
-  useEffect(() => {
     if (mode === "STATION") {
-      setValid(stationSsid.length >= 1 && stationPass.length >= 4);
+      const ssidValid = stationSsid.length >= 1 && stationSsid.length <= 32;
+      const passValid = stationPass.length >= 8;
+      const ipValid = !fixedIPStation || isValidIPv4String(stationIP);
+      setValid(ssidValid && passValid && ipValid);
+      return;
     }
-  }, [mode, stationSsid, stationPass]);
 
-  // Restablecer credenciales a los valores iniciales
+    setValid(false);
+  }, [mode, apIP, apPass, apSsid, fixedIPStation, stationIP, stationPass, stationSsid]);
+
   function resetCredentials() {
     if (mode === "AP") {
-      setApSsid("");
-      setApPass("");
-      setApIP("192.168.1.1");
-    } else {
-      const d = stationDefaultsRef.current ?? initialStationInfo;
-      if (d) {
-        setStationSsid(d.ssid);
-        setStationPass(d.password);
-        setStationIP(d.ip);
+      const defaults = apDefaults ?? {
+        ssid: "",
+        password: "",
+        ip: DEFAULT_AP_IP,
+      };
 
-        if (stationSsidRef.current) stationSsidRef.current.value = d.ssid;
-        if (stationPassRef.current) stationPassRef.current.value = d.password;
-        if (stationIpRef.current) stationIpRef.current.value = d.ip;
+      setApSsid(defaults.ssid);
+      setApPass(defaults.password);
+      setApIP(defaults.ip);
+      setChangesMade(false);
+      setStatusMessage("Configuracion AP restablecida.");
+      return;
+    }
+
+    const defaults = stationDefaults ?? {
+      ssid: "",
+      password: "",
+      ip: DHCP_IP,
+      fixedIp: false,
+    };
+
+    setStationSsid(defaults.ssid);
+    setStationPass(defaults.password);
+    setStationIP(defaults.ip);
+    setFixedIPStation(defaults.fixedIp);
+    setChangesMade(false);
+    setStatusMessage("Configuracion STATION restablecida.");
+  }
+
+  async function sendCredentials() {
+    try {
+      if (mode === "AP") {
+        const payload = PayloadBuilder.wifiSetAP(
+          apSsid,
+          apPass,
+          ipStringToBytes(apIP)
+        );
+
+        await send(CMD.WIFI_SET_AP, payload);
+        setApDefaults({ ssid: apSsid, password: apPass, ip: apIP });
+
+        if (mockMode) {
+          emitMockPacket(CMD.WIFI_ACK, buildAckPayload(CMD.WIFI_SET_AP), 180);
+        }
+
+        return;
       }
-    }
-    setChangesMade(false);
-    console.log("Credenciales restablecidas a valores iniciales");
-  }
 
-  // Enviar credenciales según modo usando sendRaw
-  function sendCredentials() {
-    if (mode === "AP") {
-      // Construir payload para WIFI_SET_AP: APCreds
-      const ssidEncoded = encodeString(apSsid);
-      const passEncoded = encodeString(apPass);
-      const ipEncoded = encodeString(apIP);
+      if (mode === "STATION") {
+        const nextIp = fixedIPStation ? stationIP : DHCP_IP;
+        const payload = PayloadBuilder.wifiSetSTA(
+          stationSsid,
+          stationPass,
+          fixedIPStation,
+          ipStringToBytes(nextIp)
+        );
 
-      const payload = combineBuffers(ssidEncoded, passEncoded, ipEncoded);
-      const command = new Uint8Array([CMD.WIFI_SET_AP]);
-      const fullMessage = combineBuffers(command, payload);
+        await send(CMD.WIFI_SET_STA, payload);
+        setStationDefaults({
+          ssid: stationSsid,
+          password: stationPass,
+          ip: nextIp,
+          fixedIp: fixedIPStation,
+        });
 
-      sendRaw(fullMessage);
-    } else {
-      // Construir payload para WIFI_SET_STA: STACreds
-      const ssidEncoded = encodeString(stationSsid);
-      const passEncoded = encodeString(stationPass);
-      const ipEncoded = encodeString(stationIP);
-      const fixedIpFlag = new Uint8Array([fixedIPStation ? 1 : 0]);
-
-      const payload = combineBuffers(
-        ssidEncoded,
-        passEncoded,
-        ipEncoded,
-        fixedIpFlag
+        if (mockMode) {
+          emitMockPacket(CMD.WIFI_ACK, buildAckPayload(CMD.WIFI_SET_STA), 180);
+        }
+      }
+    } catch (error) {
+      setStatusMessage(
+        error instanceof Error
+          ? error.message
+          : "No se pudieron enviar las credenciales."
       );
-      const command = new Uint8Array([CMD.WIFI_SET_STA]);
-      const fullMessage = combineBuffers(command, payload);
-
-      sendRaw(fullMessage);
     }
-    setChangesMade(false);
-    console.log("Credenciales enviadas:", {
-      mode,
-      ssid: mode === "AP" ? apSsid : stationSsid,
-      password: mode === "AP" ? apPass : stationPass,
-      ip: mode === "AP" ? apIP : stationIP,
-    });
   }
 
-  // Click en red disponible
-  function handleSelectNetwork(net: string) {
-    if (stationSsidRef.current) stationSsidRef.current.value = net;
-    if (stationPassRef.current) stationPassRef.current.value = "";
-
-    setStationSsid(net);
+  function handleSelectNetwork(ssid: string) {
+    setStationSsid(ssid);
     setStationPass("");
     setChangesMade(true);
-
-    // Focus en contraseña para que el usuario la complete
-    stationPassRef.current?.focus();
+    setStatusMessage(`SSID seleccionado: ${ssid}.`);
   }
 
-  // Refrescar redes disponibles usando sendRaw
   function refreshNetworks() {
-    const getScanCmd = new Uint8Array([CMD.WIFI_GET_SCAN]);
-    sendRaw(getScanCmd);
-    console.log("Redes disponibles actualizadas");
+    requestScan();
+    setStatusMessage("Solicitud de scan enviada.");
   }
 
   if (mode === null) {
     return (
-      <div className="flex flex-col h-full w-full items-center justify-center p-6 relative bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-slate-100 selection:bg-cyan-500/30">
+      <div className="relative flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-6 text-slate-100 selection:bg-cyan-500/30">
         <svg
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
           strokeWidth={1.5}
           stroke="currentColor"
-          className="size-24 mb-2 animate-pulse"
+          className="mb-2 size-24 animate-pulse"
         >
           <path
             strokeLinecap="round"
@@ -390,7 +351,7 @@ export default function WifiSection() {
             d="M8.288 15.038a5.25 5.25 0 0 1 7.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 0 1 1.06 0Z"
           />
         </svg>
-        <h1 className="text-4xl md:text-6xl font-extrabold uppercase tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-cyan-300 via-indigo-400 to-fuchsia-400 bg-[length:200%_100%] motion-safe:animate-[gradient-move_6s_linear_infinite] drop-shadow-sm">
+        <h1 className="bg-gradient-to-r from-cyan-300 via-indigo-400 to-fuchsia-400 bg-[length:200%_100%] bg-clip-text text-4xl font-extrabold uppercase tracking-tight text-transparent drop-shadow-sm motion-safe:animate-[gradient-move_6s_linear_infinite] md:text-6xl">
           Consultando modo Wi-Fi
         </h1>
       </div>
@@ -398,74 +359,80 @@ export default function WifiSection() {
   }
 
   return (
-    <div className="flex flex-col h-full w-full items-center justify-start p-6 space-y-6 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-slate-100 relative selection:bg-cyan-500/30">
-      {/* Acciones superiores */}
+    <div className="relative flex h-full w-full flex-col items-center justify-start space-y-6 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-6 text-slate-100 selection:bg-cyan-500/30">
       <PageHeader
         setOpenSettingsModal={setOpenSettingsModal}
         setOpenInfoModal={setOpenInfoModal}
       />
 
+      <div className="flex w-full max-w-6xl items-center justify-between rounded-2xl bg-white/5 px-5 py-3 ring-1 ring-white/10 backdrop-blur">
+        <div className="flex items-center gap-3">
+          <span className="text-sm uppercase tracking-[0.18em] text-slate-300">
+            Modo actual
+          </span>
+          <span className="rounded-full bg-cyan-500/15 px-3 py-1 text-sm font-semibold text-cyan-200 ring-1 ring-cyan-400/30">
+            {mode}
+          </span>
+        </div>
+
+        <button
+          className="refresh-btn group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold text-white transition-all duration-300 hover:text-slate-900 hover:shadow-[inset_0_0_0_2px_theme('colors.cyan.400')] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+          onClick={refreshNetworks}
+        >
+          Actualizar redes
+        </button>
+      </div>
+
+      {statusMessage && (
+        <div className="w-full max-w-6xl rounded-2xl bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100 ring-1 ring-cyan-400/20">
+          {statusMessage}
+        </div>
+      )}
+
       {mode === "AP" ? (
-        <div className="flex flex-col w-full h-full items-center justify-start bg-white/5 rounded-2xl ring-1 ring-white/10 shadow-sm backdrop-blur p-6">
-          <h1 className="text-3xl md:text-4xl font-extrabold uppercase tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-r from-cyan-300 via-indigo-400 to-fuchsia-400 bg-[length:200%_100%] motion-safe:animate-[gradient-move_6s_linear_infinite] drop-shadow-sm">
+        <div className="flex h-full w-full flex-col items-center justify-start rounded-2xl bg-white/5 p-6 shadow-sm ring-1 ring-white/10 backdrop-blur">
+          <h1 className="mb-6 bg-gradient-to-r from-cyan-300 via-indigo-400 to-fuchsia-400 bg-[length:200%_100%] bg-clip-text text-3xl font-extrabold uppercase tracking-tight text-transparent drop-shadow-sm motion-safe:animate-[gradient-move_6s_linear_infinite] md:text-4xl">
             Modo AP
           </h1>
 
-          {/* SSID AP */}
-          <div className="flex flex-col justify-start items-start mb-4 w-full max-w-xl">
-            <label
-              htmlFor="ap-ssid"
-              className="mb-2 text-sm font-medium text-slate-200"
-            >
+          <div className="mb-4 flex w-full max-w-xl flex-col items-start justify-start">
+            <label htmlFor="ap-ssid" className="mb-2 text-sm font-medium text-slate-200">
               SSID
             </label>
             <input
-              type="text"
-              name="ap-ssid"
               id="ap-ssid"
-              className="w-full rounded-xl bg-white/10 text-slate-100 placeholder-slate-400 ring-1 ring-white/10 p-2.5
-                         focus:outline-none focus:ring-2 focus:ring-cyan-400/40 transition duration-300"
+              type="text"
+              className="w-full rounded-xl bg-white/10 p-2.5 text-slate-100 ring-1 ring-white/10 transition duration-300 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/40"
               placeholder="Nombre de la red AP"
               value={apSsid}
-              onChange={(e) => {
-                setApSsid(e.target.value);
+              onChange={(event) => {
+                setApSsid(event.target.value);
                 setChangesMade(true);
               }}
             />
           </div>
 
-          {/* Pass AP */}
-          <div className="flex flex-col justify-start items-start mb-4 w-full max-w-xl">
-            <label
-              htmlFor="ap-password"
-              className="mb-2 text-sm font-medium text-slate-200"
-            >
+          <div className="mb-4 flex w-full max-w-xl flex-col items-start justify-start">
+            <label htmlFor="ap-password" className="mb-2 text-sm font-medium text-slate-200">
               Contraseña
             </label>
             <div className="relative w-full">
               <input
-                type={seePass ? "text" : "password"}
-                name="ap-password"
                 id="ap-password"
-                className="w-full rounded-xl bg-white/10 text-slate-100 placeholder-slate-400 ring-1 ring-white/10 p-2.5
-                           focus:outline-none focus:ring-2 focus:ring-cyan-400/40 transition duration-300"
-                placeholder="Contraseña del AP"
+                type={seePass ? "text" : "password"}
+                className="w-full rounded-xl bg-white/10 p-2.5 text-slate-100 ring-1 ring-white/10 transition duration-300 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/40"
+                placeholder="Vacío para AP abierto, o mínimo 8 caracteres"
                 value={apPass}
-                onChange={(e) => {
-                  setApPass(e.target.value);
+                onChange={(event) => {
+                  setApPass(event.target.value);
                   setChangesMade(true);
                 }}
               />
               <button
                 type="button"
-                aria-label={
-                  seePass ? "Ocultar contraseña" : "Mostrar contraseña"
-                }
-                className="group absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center rounded-xl px-2 py-1
-                           font-medium text-white transition-all duration-300 hover:text-slate-900
-                           hover:shadow-[inset_0_0_0_1px_theme('colors.slate.400')]
-                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40"
-                onClick={() => setSeePass(!seePass)}
+                aria-label={seePass ? "Ocultar contraseña" : "Mostrar contraseña"}
+                className="group absolute right-2 top-1/2 inline-flex -translate-y-1/2 items-center justify-center rounded-xl px-2 py-1 font-medium text-white transition-all duration-300 hover:text-slate-900 hover:shadow-[inset_0_0_0_1px_theme('colors.slate.400')] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40"
+                onClick={() => setSeePass((value) => !value)}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -479,149 +446,106 @@ export default function WifiSection() {
             </div>
           </div>
 
-          {/* IP AP */}
-          <div className="flex flex-col justify-start items-start mb-4 w-full max-w-xl">
-            <label
-              htmlFor="ap-ip"
-              className="mb-2 text-sm font-medium text-slate-200"
-            >
-              IP de la placa
+          <div className="mb-4 flex w-full max-w-xl flex-col items-start justify-start">
+            <label htmlFor="ap-ip" className="mb-2 text-sm font-medium text-slate-200">
+              IP del AP
             </label>
             <input
-              type="text"
-              name="ap-ip"
               id="ap-ip"
-              className="w-full rounded-xl bg-white/10 text-slate-100 placeholder-slate-400 ring-1 ring-white/10 p-2.5
-                         focus:outline-none focus:ring-2 focus:ring-cyan-400/40 transition duration-300"
+              type="text"
+              className="w-full rounded-xl bg-white/10 p-2.5 text-slate-100 ring-1 ring-white/10 transition duration-300 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/40"
+              placeholder="192.168.4.1 o 0.0.0.0 para usar default"
               value={apIP}
-              onChange={(e) => {
-                if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(e.target.value)) {
-                  return;
-                }
-                setApIP(e.target.value);
+              onChange={(event) => {
+                setApIP(event.target.value);
                 setChangesMade(true);
               }}
             />
           </div>
 
           <button
-            onClick={sendCredentials}
+            onClick={() => void sendCredentials()}
             disabled={!valid || !changesMade}
-            className="btn-success group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold text-white
-                       transition-all duration-300 hover:text-slate-900
-                       hover:shadow-[inset_0_0_0_2px_theme('colors.emerald.400')]
-                       disabled:opacity-50 disabled:cursor-not-allowed mt-4
-                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/40"
+            className="btn-success group relative mt-4 inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold text-white transition-all duration-300 hover:text-slate-900 hover:shadow-[inset_0_0_0_2px_theme('colors.emerald.400')] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/40 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Guardar configuración
           </button>
         </div>
       ) : (
-        <div className="h-full w-3/4 flex flex-col lg:flex-row lg:w-full gap-4 items-center justify-center">
-          {/* Card STATION */}
-          <div className="flex flex-col w-full h-3/4 bg-white/5 rounded-2xl ring-1 ring-white/10 shadow-sm backdrop-blur justify-center items-center p-6">
-            <h1 className="text-3xl md:text-4xl font-extrabold uppercase tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-r from-cyan-300 via-indigo-400 to-fuchsia-400 bg-[length:200%_100%] motion-safe:animate-[gradient-move_6s_linear_infinite] drop-shadow-sm">
+        <div className="flex h-full w-3/4 flex-col items-center justify-center gap-4 lg:w-full lg:flex-row">
+          <div className="flex h-3/4 w-full flex-col items-center justify-center rounded-2xl bg-white/5 p-6 shadow-sm ring-1 ring-white/10 backdrop-blur">
+            <h1 className="mb-6 bg-gradient-to-r from-cyan-300 via-indigo-400 to-fuchsia-400 bg-[length:200%_100%] bg-clip-text text-3xl font-extrabold uppercase tracking-tight text-transparent drop-shadow-sm motion-safe:animate-[gradient-move_6s_linear_infinite] md:text-4xl">
               Modo STATION
             </h1>
 
-            {/* SSID */}
-            <div className="flex flex-col justify-start items-start mb-4 w-full max-w-xl">
-              <label
-                htmlFor="station-ssid"
-                className="mb-2 text-sm font-medium text-slate-200"
-              >
+            <div className="mb-4 flex w-full max-w-xl flex-col items-start justify-start">
+              <label htmlFor="station-ssid" className="mb-2 text-sm font-medium text-slate-200">
                 Red actual
               </label>
               <input
-                ref={stationSsidRef}
-                type="text"
-                name="station-ssid"
                 id="station-ssid"
-                className="w-full rounded-xl bg-white/10 text-slate-100 placeholder-slate-400 ring-1 ring-white/10 p-2.5
-                           focus:outline-none focus:ring-2 focus:ring-cyan-400/40 transition duration-300"
+                type="text"
+                className="w-full rounded-xl bg-white/10 p-2.5 text-slate-100 ring-1 ring-white/10 transition duration-300 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/40"
                 value={stationSsid}
-                onChange={(e) => {
-                  setStationSsid(e.target.value);
+                onChange={(event) => {
+                  setStationSsid(event.target.value);
                   setChangesMade(true);
                 }}
               />
             </div>
 
-            {/* IP fija toggle + IP */}
-            <div className="flex flex-col justify-start items-start mb-4 w-full max-w-xl">
-              <label
-                htmlFor="station-ip"
-                className="mb-2 text-sm font-medium text-slate-200"
-              >
-                IP fija?
+            <div className="mb-4 flex w-full max-w-xl flex-col items-start justify-start">
+              <label htmlFor="station-ip" className="mb-2 text-sm font-medium text-slate-200">
+                IP fija
               </label>
-              <div className="flex flex-row w-full items-center gap-4">
+              <div className="flex w-full items-center gap-4">
                 <ToggleButton
-                  onActivate={() => setFixedIPStation(true)}
-                  onDeactivate={() => {
-                    setFixedIPStation(false);
-                    if (stationIpRef.current && initialStationInfo) {
-                      stationIpRef.current.value = initialStationInfo.ip;
-                      setStationIP(initialStationInfo.ip);
-                      setChangesMade(true);
+                  checked={fixedIPStation}
+                  onChange={(checked) => {
+                    setFixedIPStation(checked);
+                    if (!checked) {
+                      setStationIP(DHCP_IP);
                     }
+                    setChangesMade(true);
                   }}
                 />
                 <input
-                  ref={stationIpRef}
-                  type="text"
-                  name="station-ip"
                   id="station-ip"
-                  className={`flex-1 rounded-xl bg-white/10 text-slate-100 placeholder-slate-400 ring-1 ring-white/10 p-2.5
-                             focus:outline-none focus:ring-2 focus:ring-cyan-400/40 transition duration-300
-                             disabled:opacity-50 ${
-                               fixedIPStation ? "" : "input-disabled"
-                             }`}
-                  value={fixedIPStation ? stationIP : "Asignada por DHCP"}
+                  type="text"
+                  className="flex-1 rounded-xl bg-white/10 p-2.5 text-slate-100 ring-1 ring-white/10 transition duration-300 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/40 disabled:opacity-50"
+                  value={fixedIPStation ? stationIP : DHCP_IP}
                   readOnly={!fixedIPStation}
-                  onChange={(e) => {
-                    if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(e.target.value)) {
-                      return;
-                    }
-                    setStationIP(e.target.value);
+                  onChange={(event) => {
+                    setStationIP(event.target.value);
                     setChangesMade(true);
                   }}
                 />
               </div>
+              <p className="mt-2 text-xs text-slate-400">
+                Si el toggle está apagado, se envía `fixedIp=0` e IP `0.0.0.0`.
+              </p>
             </div>
 
-            {/* Password */}
-            <div className="flex flex-col justify-start items-start w-full max-w-xl">
-              <label
-                htmlFor="station-password"
-                className="mb-2 text-sm font-medium text-slate-200"
-              >
+            <div className="flex w-full max-w-xl flex-col items-start justify-start">
+              <label htmlFor="station-password" className="mb-2 text-sm font-medium text-slate-200">
                 Contraseña
               </label>
               <div className="relative w-full">
                 <input
-                  ref={stationPassRef}
-                  type={seePass ? "text" : "password"}
-                  name="station-password"
                   id="station-password"
-                  className="w-full rounded-xl bg-white/10 text-slate-100 placeholder-slate-400 ring-1 ring-white/10 p-2.5
-                             focus:outline-none focus:ring-2 focus:ring-cyan-400/40 transition duration-300"
+                  type={seePass ? "text" : "password"}
+                  className="w-full rounded-xl bg-white/10 p-2.5 text-slate-100 ring-1 ring-white/10 transition duration-300 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/40"
                   value={stationPass}
-                  onChange={(e) => {
-                    setStationPass(e.target.value);
+                  onChange={(event) => {
+                    setStationPass(event.target.value);
                     setChangesMade(true);
                   }}
                 />
                 <button
                   type="button"
-                  aria-label={
-                    seePass ? "Ocultar contraseña" : "Mostrar contraseña"
-                  }
-                  className="group absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center rounded-xl px-2 py-1
-                             font-medium text-white transition-all duration-300 hover:text-slate-900
-                             hover:shadow-[inset_0_0_0_1px_theme('colors.slate.400')]
-                             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40"
-                  onClick={() => setSeePass(!seePass)}
+                  aria-label={seePass ? "Ocultar contraseña" : "Mostrar contraseña"}
+                  className="group absolute right-2 top-1/2 inline-flex -translate-y-1/2 items-center justify-center rounded-xl px-2 py-1 font-medium text-white transition-all duration-300 hover:text-slate-900 hover:shadow-[inset_0_0_0_1px_theme('colors.slate.400')] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40"
+                  onClick={() => setSeePass((value) => !value)}
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -635,25 +559,17 @@ export default function WifiSection() {
               </div>
             </div>
 
-            <div className="flex flex-row justify-evenly items-center w-full max-w-xl mt-6 gap-4">
+            <div className="mt-6 flex w-full max-w-xl flex-row items-center justify-evenly gap-4">
               <button
-                className="btn-danger group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold text-white
-                           transition-all duration-300 hover:text-slate-900
-                           hover:shadow-[inset_0_0_0_2px_theme('colors.white')]
-                           disabled:opacity-50 disabled:cursor-not-allowed hover:bg-red-400"
+                className="btn-danger group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold text-white transition-all duration-300 hover:bg-red-400 hover:text-slate-900 hover:shadow-[inset_0_0_0_2px_theme('colors.white')] disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={resetCredentials}
                 disabled={!changesMade}
               >
                 Restablecer
               </button>
               <button
-                className="btn-success group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold text-white
-                           transition-all duration-300
-                           hover:shadow-[inset_0_0_0_2px_theme('colors.white')]
-                           hover:bg-emerald-400
-                           hover:text-slate-900
-                           disabled:opacity-50 disabled:cursor-not-allowed"
-                onClick={sendCredentials}
+                className="btn-success group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold text-white transition-all duration-300 hover:bg-emerald-400 hover:text-slate-900 hover:shadow-[inset_0_0_0_2px_theme('colors.white')] disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => void sendCredentials()}
                 disabled={!valid || !changesMade}
               >
                 Enviar cambios
@@ -661,9 +577,8 @@ export default function WifiSection() {
             </div>
           </div>
 
-          {/* Card Redes disponibles */}
-          <div className="flex flex-col w-full h-3/4 bg-white/5 rounded-2xl ring-1 ring-white/10 shadow-sm backdrop-blur justify-center items-center p-6">
-            <div className="flex flex-row items-center justify-between gap-2 mb-6 w-full max-w-xl">
+          <div className="flex h-3/4 w-full flex-col items-center justify-center rounded-2xl bg-white/5 p-6 shadow-sm ring-1 ring-white/10 backdrop-blur">
+            <div className="mb-6 flex w-full max-w-xl flex-row items-center justify-between gap-2">
               <div className="flex flex-row items-center gap-2">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -677,94 +592,33 @@ export default function WifiSection() {
               </div>
 
               <button
-                className="refresh-btn group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold text-white
-                           transition-all duration-300 hover:text-slate-900
-                           hover:shadow-[inset_0_0_0_2px_theme('colors.cyan.400')]
-                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+                className="refresh-btn group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold text-white transition-all duration-300 hover:text-slate-900 hover:shadow-[inset_0_0_0_2px_theme('colors.cyan.400')] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
                 onClick={refreshNetworks}
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  className="size-5 transition-transform duration-300 group-hover:rotate-180"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M4.755 10.059a7.5 7.5 0 0 1 12.548-3.364l1.903 1.903h-3.183a.75.75 0 1 0 0 1.5h4.992a.75.75 0 0 0 .75-.75V4.356a.75.75 0 0 0-1.5 0v3.18l-1.9-1.9A9 9 0 0 0 3.306 9.67a.75.75 0 1 0 1.45.388Zm15.408 3.352a.75.75 0 0 0-.919.53 7.5 7.5 0 0 1-12.548 3.364l-1.902-1.903h3.183a.75.75 0 0 0 0-1.5H2.984a.75.75 0 0 0-.75.75v4.992a.75.75 0 0 0 1.5 0v-3.18l1.9 1.9a9 9 0 0 0 15.059-4.035.75.75 0 0 0-.53-.918Z"
-                    clipRule="evenodd"
-                  />
-                </svg>
                 Actualizar redes
               </button>
             </div>
 
-            <ul className="space-y-2 w-full max-w-xl overflow-y-auto max-h-96">
+            <ul className="max-h-96 w-full max-w-xl space-y-2 overflow-y-auto">
               {availableNetworks.map((network, index) => (
                 <li
                   key={`${network.ssid}-${index}`}
-                  className="w-full cursor-pointer rounded-xl px-3 py-2
-                             bg-white/10 text-slate-100 ring-1 ring-white/10
-                             transition-all duration-300
-                             hover:bg-white hover:text-slate-900
-                             hover:shadow-[inset_0_0_0_1px_theme('colors.cyan.400')]
-                             flex flex-row items-center justify-between"
+                  className="flex w-full cursor-pointer flex-row items-center justify-between rounded-xl bg-white/10 px-3 py-2 text-slate-100 ring-1 ring-white/10 transition-all duration-300 hover:bg-white hover:text-slate-900 hover:shadow-[inset_0_0_0_1px_theme('colors.cyan.400')]"
                   onClick={() => handleSelectNetwork(network.ssid)}
-                  title="Seleccionar red (rellena SSID y vacía la contraseña)"
+                  title="Seleccionar red"
                 >
                   <div className="flex flex-col">
                     <span className="font-medium">{network.ssid}</span>
                     <span className="text-xs opacity-75">
                       RSSI: {network.rssi}dBm | Seguridad:{" "}
-                      {network.security === 0
-                        ? "Abierta"
-                        : network.security === 1
-                        ? "WEP"
-                        : network.security === 3
-                        ? "WPA/WPA2"
-                        : network.security === 4
-                        ? "WPA2/WPA3"
-                        : "Desconocida"}
+                      {securityLabel(network.security)}
                     </span>
-                  </div>
-                  <div className="flex items-center">
-                    {/* Icono de señal WiFi basado en RSSI */}
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="currentColor"
-                      viewBox="0 0 24 24"
-                      className={`size-5 ${
-                        network.rssi >= -50
-                          ? "text-green-400"
-                          : network.rssi >= -70
-                          ? "text-yellow-400"
-                          : network.rssi >= -80
-                          ? "text-orange-400"
-                          : "text-red-400"
-                      }`}
-                    >
-                      <path d="M8.288 15.038a5.25 5.25 0 0 1 7.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 0 1 1.06 0Z" />
-                    </svg>
-                    {/* Icono de candado si tiene seguridad */}
-                    {network.security > 0 && (
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="currentColor"
-                        viewBox="0 0 24 24"
-                        className="size-4 ml-1 text-slate-400"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M12 1.5a5.25 5.25 0 0 0-5.25 5.25v3a3 3 0 0 0-3 3v6.75a3 3 0 0 0 3 3h10.5a3 3 0 0 0 3-3v-6.75a3 3 0 0 0-3-3v-3c0-2.9-2.35-5.25-5.25-5.25Zm3.75 8.25v-3a3.75 3.75 0 1 0-7.5 0v3h7.5Z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    )}
                   </div>
                 </li>
               ))}
+
               {availableNetworks.length === 0 && (
-                <li className="w-full rounded-xl px-3 py-4 bg-white/5 text-slate-400 text-center">
+                <li className="w-full rounded-xl bg-white/5 px-3 py-4 text-center text-slate-400">
                   No se encontraron redes disponibles
                 </li>
               )}
@@ -779,19 +633,23 @@ export default function WifiSection() {
           onClose={() => setOpenInfoModal(false)}
           closeOnOverlayClick={false}
         >
-          <h2 className="text-2xl font-bold mb-4 text-black">
-            Información del Modo Wi-Fi
+          <h2 className="mb-4 text-2xl font-bold text-black">
+            Contrato Wi-Fi con firmware
           </h2>
           <p className="mb-3 text-black">
-            El modo AP permite que el dispositivo cree su propia red Wi-Fi a la
-            que puedes conectarte directamente. El modo STATION permite que el
-            dispositivo se conecte a una red Wi-Fi existente.
+            Esta pantalla ahora arma los payloads igual que el parser del
+            firmware.
+          </p>
+          <p className="mb-3 text-black">
+            AP usa `WIFI_SET_AP (0x14)` con:
+            <code> [ssidLen][ssid][passLen][pass][ip0][ip1][ip2][ip3] </code>
           </p>
           <p className="text-black">
-            En el modo STATION, puedes seleccionar una red disponible y
-            configurar sus credenciales. Si seleccionas una red, el SSID se
-            rellenará automáticamente y la contraseña quedará vacía para que la
-            ingreses.
+            STATION usa `WIFI_SET_STA (0x15)` con:
+            <code>
+              {" "}
+              [ssidLen][ssid][passLen][pass][fixedIp][ip0][ip1][ip2][ip3]
+            </code>
           </p>
         </Modal>
       )}
@@ -802,32 +660,18 @@ export default function WifiSection() {
           onClose={() => setOpenSettingsModal(false)}
           closeOnOverlayClick={false}
         >
-          <h2 className="text-2xl font-bold mb-4 text-black">Configuración</h2>
+          <h2 className="mb-4 text-2xl font-bold text-black">Configuración</h2>
 
-          <div className="flex flex-row gap-4 text-black w-full items-center justify-center my-4">
-            <p className="text-lg">Reiniciar ESP01</p>
-            <button
-              className="btn-indigo group relative inline-flex items-center gap-2 rounded-xl py-2 font-medium text-white
-                         transition-all duration-300 hover:text-slate-900
-                         hover:shadow-[inset_0_0_0_1px_theme('colors.indigo.400')]
-                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40 estado-btn px-5"
-              onClick={() => console.log("Reiniciar ESP01")}
-            >
-              Enviar
-            </button>
+          <div className="my-4 flex w-full flex-row items-center justify-center gap-4 text-black">
+            <p className="text-lg">El payload se construye con UNERProtocol</p>
           </div>
 
-          <div className="flex flex-row gap-4 text-black w-full items-center justify-center my-4">
-            <p className="text-lg">Resetear configuración</p>
-            <button
-              className="btn-danger group relative inline-flex items-center gap-2 rounded-xl py-2 font-medium text-white
-                         transition-all duration-300 hover:text-slate-900
-                         hover:shadow-[inset_0_0_0_1px_theme('colors.red.400')]
-                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40 estado-btn px-5"
-              onClick={() => console.log("Resetear configuracion")}
-            >
-              Enviar
-            </button>
+          <div className="my-4 flex w-full flex-row items-center justify-center gap-4 text-black">
+            <p className="text-lg">{`AP admite password vacio o >= 8 bytes`}</p>
+          </div>
+
+          <div className="my-4 flex w-full flex-row items-center justify-center gap-4 text-black">
+            <p className="text-lg">STA siempre envía los 4 bytes de IP</p>
           </div>
         </Modal>
       )}

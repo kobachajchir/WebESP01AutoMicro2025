@@ -155,6 +155,8 @@ export function useProtocolStudioState() {
         order: item.offset,
         label: `Frame ${index + 1} @${item.offset} - ${item.analysis.cmdHex} ${item.analysis.name}`,
         bytes: item.frame,
+        frameOffset: item.offset,
+        frameName: item.analysis.name,
         tone: FRAME_SEGMENT_COLORS[index % FRAME_SEGMENT_COLORS.length],
       })),
     ].sort((left, right) => left.order - right.order);

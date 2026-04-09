@@ -32,7 +32,7 @@ export function Panel({ title, children, className = "", headerRight }: PanelPro
   return (
     <section className={`${PANEL_CLASS} ${className}`}>
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-200">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-100">
           {title}
         </h2>
         {headerRight}
@@ -53,8 +53,8 @@ export function InfoCell({ label, value, tone = "cyan", className = "" }: InfoCe
       : "text-cyan-300";
 
   return (
-    <div className={`rounded-xl border border-white/10 bg-slate-950/50 p-3 text-center ${className}`}>
-      <div className="text-[10px] uppercase tracking-[0.2em] text-slate-200">{label}</div>
+    <div className={`rounded-xl border border-sky-300/12 bg-gradient-to-br from-slate-950/80 to-rose-950/20 p-3 text-center ${className}`}>
+      <div className="text-[10px] uppercase tracking-[0.2em] text-slate-100">{label}</div>
       <div className={`mt-1 font-mono text-sm font-bold ${toneClass}`}>{value}</div>
     </div>
   );
@@ -62,8 +62,8 @@ export function InfoCell({ label, value, tone = "cyan", className = "" }: InfoCe
 
 export function DetailItem({ label, value, className = "" }: DetailItemProps) {
   return (
-    <div className={`rounded-xl border border-white/10 bg-slate-950/50 p-3 ${className}`}>
-      <div className="text-[10px] uppercase tracking-[0.2em] text-slate-200">{label}</div>
+    <div className={`rounded-xl border border-sky-300/12 bg-gradient-to-br from-slate-950/85 to-rose-950/20 p-3 ${className}`}>
+      <div className="text-[10px] uppercase tracking-[0.2em] text-slate-100">{label}</div>
       <div className="mt-2 break-words font-mono text-sm text-slate-100">{value}</div>
     </div>
   );
@@ -90,24 +90,24 @@ export function ColoredFrame({ bytes }: { bytes: number[] }) {
   }
 
   return (
-    <div className="flex min-h-14 flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-slate-950/50 p-3">
+    <div className="flex min-h-14 flex-wrap items-center gap-2 rounded-xl border border-sky-300/12 bg-gradient-to-br from-slate-950/85 to-rose-950/15 p-3">
       {bytes.map((byte, index) => {
-        let colorClass = "bg-slate-500/15 text-slate-300 ring-slate-400/20";
+        let colorClass = "bg-slate-500/15 text-slate-200 ring-slate-300/20";
 
         if (index < 4) {
-          colorClass = "bg-cyan-500/15 text-cyan-200 ring-cyan-400/20";
+          colorClass = "bg-sky-400/18 text-sky-100 ring-sky-300/25";
         } else if (index === 4) {
-          colorClass = "bg-emerald-500/15 text-emerald-200 ring-emerald-400/20";
+          colorClass = "bg-indigo-400/18 text-indigo-100 ring-indigo-300/25";
         } else if (index === 5 || index === 6) {
-          colorClass = "bg-amber-500/15 text-amber-200 ring-amber-400/20";
+          colorClass = "bg-fuchsia-400/18 text-fuchsia-100 ring-fuchsia-300/25";
         } else if (index === 7) {
-          colorClass = "bg-violet-500/15 text-violet-200 ring-violet-400/20";
+          colorClass = "bg-rose-400/18 text-rose-100 ring-rose-300/25";
         } else if (index === 8) {
-          colorClass = "bg-rose-500/15 text-rose-200 ring-rose-400/20";
+          colorClass = "bg-pink-400/18 text-pink-100 ring-pink-300/25";
         } else if (index === bytes.length - 1) {
-          colorClass = "bg-slate-500/15 text-slate-300 ring-slate-400/20";
+          colorClass = "bg-slate-500/15 text-slate-200 ring-slate-300/20";
         } else {
-          colorClass = "bg-sky-500/15 text-sky-200 ring-sky-400/20";
+          colorClass = "bg-blue-400/18 text-blue-100 ring-blue-300/25";
         }
 
         return (
@@ -130,7 +130,7 @@ export function ValidationRow({ item }: { item: ValidationItem }) {
     item.tone === "ok" ? "text-emerald-300" : item.tone === "warn" ? "text-amber-300" : "text-rose-300";
 
   return (
-    <div className="rounded-xl border border-white/10 bg-slate-950/50 p-3 text-sm text-slate-200">
+    <div className="rounded-xl border border-sky-300/12 bg-gradient-to-r from-slate-950/85 to-rose-950/15 p-3 text-sm text-slate-100">
       <span className={`mr-2 inline-flex min-w-6 justify-center font-bold ${textClass}`}>{icon}</span>
       <span>{item.message}</span>
     </div>

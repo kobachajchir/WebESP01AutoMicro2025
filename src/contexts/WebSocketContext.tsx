@@ -22,6 +22,7 @@ interface HeartbeatConfig {
 interface WebSocketContextType {
   connected: boolean;
   setConnected: (state: boolean) => void;
+  mockMode: boolean;
 
   send: (type: string, payload?: any) => void;
   subscribe: (type: string, handler: WSMessageHandler) => () => void;
@@ -61,6 +62,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
   url,
   children,
 }) => {
+  const mockMode = url.includes("mock");
   const wsRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState<boolean>(false);
   const [retrying, setRetrying] = useState<boolean>(false);
@@ -279,8 +281,6 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 
   // 1) Abrir WS al montar conexión
   useEffect(() => {
-    const mockMode = url.includes("mock");
-
     if (mockMode) {
       setConnected(true);
       wsRef.current = null; // no abrimos un WS real
@@ -356,8 +356,13 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     }
     jsonListeners.current.get(type)!.add(handler);
     return () => {
-      jsonListeners.current.get(type)!.delete(handler);
-      if (jsonListeners.current.get(type)!.size === 0) {
+      const listeners = jsonListeners.current.get(type);
+      if (!listeners) {
+        return;
+      }
+
+      listeners.delete(handler);
+      if (listeners.size === 0) {
         jsonListeners.current.delete(type);
       }
     };
@@ -404,6 +409,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
       value={{
         connected,
         setConnected,
+        mockMode,
         send,
         subscribe,
         sendRaw,

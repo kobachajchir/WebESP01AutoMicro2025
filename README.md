@@ -1,5 +1,11 @@
 # React + TypeScript + Vite
 
+## Documentacion del protocolo usada en esta app
+
+- Contrato completo WebSocket app <-> firmware: `docs/websocket-firmware-contract.md`
+- Telemetria MPU6050 temporizada/constante: `docs/telemetry-session-protocol.md`
+- Payloads Wi-Fi alineados con firmware ESP: `docs/wifi-firmware-payloads.md`
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:
