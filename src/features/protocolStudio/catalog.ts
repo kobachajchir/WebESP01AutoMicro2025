@@ -513,25 +513,25 @@ export const FRAME_COMMANDS: Record<string, CommandDefinition> = {
 };
 
 export const PANEL_CLASS =
-  "rounded-2xl bg-white/5 ring-1 ring-white/10 shadow-sm backdrop-blur p-4";
+  "rounded-2xl border border-sky-300/12 bg-gradient-to-br from-slate-950/90 via-slate-900/80 to-rose-950/25 p-4 shadow-[0_20px_50px_rgba(15,23,42,0.35)] backdrop-blur";
 export const INPUT_CLASS =
-  "w-full rounded-xl bg-slate-950/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-200 ring-1 ring-white/10 transition focus:outline-none focus:ring-2 focus:ring-cyan-400/40";
+  "w-full rounded-xl border border-sky-300/12 bg-slate-950/75 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-400 ring-1 ring-transparent transition focus:outline-none focus:ring-2 focus:ring-sky-300/35";
 export const SMALL_LABEL_CLASS =
-  "mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-slate-200";
+  "mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-slate-100";
 export const NOTE_CLASS =
-  "rounded-xl border-l-2 border-cyan-400 bg-slate-950/50 p-3 text-sm text-slate-300";
+  "rounded-xl border border-sky-300/12 bg-gradient-to-r from-sky-400/10 via-slate-950/70 to-rose-400/10 p-3 text-sm text-slate-200";
 export const BUTTON_CLASS =
   "inline-flex items-center justify-center rounded-2xl px-4 py-2 text-sm font-semibold text-white transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40";
 export const GHOST_BUTTON_CLASS =
-  "inline-flex items-center justify-center rounded-2xl px-4 py-2 text-sm font-semibold text-slate-100 ring-1 ring-white/10 transition-all duration-300 hover:bg-white hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40";
+  "inline-flex items-center justify-center rounded-2xl border border-sky-300/12 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 transition-all duration-300 hover:border-rose-300/20 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/35";
 
 export const FRAME_SEGMENT_COLORS = [
-  "bg-cyan-500/10 ring-cyan-400/45 text-cyan-100",
-  "bg-emerald-500/10 ring-emerald-400/45 text-emerald-100",
-  "bg-amber-500/10 ring-amber-400/45 text-amber-100",
-  "bg-violet-500/10 ring-violet-400/45 text-violet-100",
-  "bg-sky-500/10 ring-sky-400/45 text-sky-100",
-  "bg-rose-500/10 ring-rose-400/45 text-rose-100",
-  "bg-indigo-500/10 ring-indigo-400/45 text-indigo-100",
-  "bg-lime-500/10 ring-lime-400/45 text-lime-100",
+  "bg-sky-400/12 ring-sky-300/45 text-sky-100",
+  "bg-rose-400/12 ring-rose-300/45 text-rose-100",
+  "bg-indigo-400/12 ring-indigo-300/45 text-indigo-100",
+  "bg-fuchsia-400/12 ring-fuchsia-300/45 text-fuchsia-100",
+  "bg-cyan-400/12 ring-cyan-300/45 text-cyan-100",
+  "bg-pink-400/12 ring-pink-300/45 text-pink-100",
+  "bg-blue-400/12 ring-blue-300/45 text-blue-100",
+  "bg-violet-400/12 ring-violet-300/45 text-violet-100",
 ];

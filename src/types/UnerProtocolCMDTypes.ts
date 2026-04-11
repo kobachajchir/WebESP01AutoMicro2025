@@ -20,6 +20,70 @@ export const CMD = {
   TELEMETRY_DATA: 0x22, // payload: u8 schema, u16 seq, i16[6] imu_data, i16 tempRaw
 } as const;
 
+function assertWifiSsidLength(ssidBytes: Uint8Array, allowEmpty = false) {
+  if (!allowEmpty && ssidBytes.length < 1) {
+    throw new Error("SSID debe tener al menos 1 caracter.");
+  }
+  if (ssidBytes.length > 32) {
+    throw new Error("SSID no puede superar 32 bytes.");
+  }
+}
+
+function assertWifiPasswordLength(
+  passBytes: Uint8Array,
+  { allowOpenAp = false }: { allowOpenAp?: boolean } = {}
+) {
+  if (allowOpenAp && passBytes.length === 0) {
+    return;
+  }
+  if (passBytes.length < 8) {
+    throw new Error("Password debe tener al menos 8 caracteres.");
+  }
+}
+
+function ensureIPv4Bytes(ip: readonly number[]): [number, number, number, number] {
+  if (ip.length !== 4) {
+    throw new Error("La IP debe tener exactamente 4 bytes.");
+  }
+
+  const normalized = ip.map((part) => {
+    if (!Number.isInteger(part) || part < 0 || part > 255) {
+      throw new Error("Cada byte de IP debe ser un entero entre 0 y 255.");
+    }
+    return part;
+  }) as [number, number, number, number];
+
+  return normalized;
+}
+
+export function isValidIPv4String(value: string): boolean {
+  const parts = value.trim().split(".");
+  if (parts.length !== 4) {
+    return false;
+  }
+
+  return parts.every((part) => {
+    if (part === "") {
+      return false;
+    }
+    const numeric = Number(part);
+    return Number.isInteger(numeric) && numeric >= 0 && numeric <= 255;
+  });
+}
+
+export function ipStringToBytes(value: string): [number, number, number, number] {
+  if (!isValidIPv4String(value)) {
+    throw new Error("La IP debe tener formato IPv4 valido.");
+  }
+
+  return ensureIPv4Bytes(value.trim().split(".").map((part) => Number(part)));
+}
+
+export function ipBytesToString(value: readonly number[]): string {
+  const [a, b, c, d] = ensureIPv4Bytes(value);
+  return `${a}.${b}.${c}.${d}`;
+}
+
 // Helper para construir payloads específicos
 export const PayloadBuilder = {
   // Heartbeat
@@ -38,6 +102,11 @@ export const PayloadBuilder = {
   ): Uint8Array => {
     const ssidBytes = new TextEncoder().encode(ssid);
     const passBytes = new TextEncoder().encode(password);
+    const ipBytes = ensureIPv4Bytes(ip);
+
+    assertWifiSsidLength(ssidBytes);
+    assertWifiPasswordLength(passBytes, { allowOpenAp: true });
+
     const totalLen = 1 + ssidBytes.length + 1 + passBytes.length + 4;
 
     const buf = new Uint8Array(totalLen);
@@ -51,7 +120,7 @@ export const PayloadBuilder = {
     buf.set(passBytes, offset);
     offset += passBytes.length;
 
-    buf.set(ip, offset);
+    buf.set(ipBytes, offset);
 
     return buf;
   },
@@ -65,6 +134,14 @@ export const PayloadBuilder = {
   ): Uint8Array => {
     const ssidBytes = new TextEncoder().encode(ssid);
     const passBytes = new TextEncoder().encode(password);
+    const ipBytes = ensureIPv4Bytes(ip ?? [0, 0, 0, 0]);
+
+    assertWifiSsidLength(ssidBytes);
+    assertWifiPasswordLength(passBytes);
+    if (fixedIp && !ip) {
+      throw new Error("Para IP fija debe enviarse una IPv4 explicita.");
+    }
+
     const totalLen = 1 + ssidBytes.length + 1 + passBytes.length + 1 + 4;
 
     const buf = new Uint8Array(totalLen);
@@ -79,7 +156,7 @@ export const PayloadBuilder = {
     offset += passBytes.length;
 
     buf[offset++] = fixedIp ? 1 : 0;
-    buf.set(ip || [0, 0, 0, 0], offset);
+    buf.set(ipBytes, offset);
 
     return buf;
   },
