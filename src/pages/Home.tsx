@@ -6,7 +6,29 @@ import { useUNERProtocol } from "../hooks/useUnerProtocol";
 import { le16, readLe16 } from "../api/UnerProtocolUtils";
 import PageHeader from "../components/PageHeader";
 import Modal from "../components/modal";
-import { CMD } from "../types/UnerProtocolCMDTypes";
+import {
+  APP_PIN_ACTION,
+  CMD,
+  PayloadBuilder,
+  SETTINGS_ACK_CODES,
+} from "../types/UnerProtocolCMDTypes";
+import {
+  applyThemeColors,
+  buildThemePayload,
+  DEFAULT_THEME_COLORS,
+  isHexColor,
+  loadThemeColors,
+  normalizeHexColor,
+  saveThemeColors,
+  type ThemeColors,
+} from "../utils/theme";
+
+type RequestStatus = {
+  tone: "idle" | "loading" | "success" | "error";
+  message: string;
+};
+
+type PinStep = "validate" | "change";
 
 const Home: React.FC = () => {
   const {
@@ -23,9 +45,28 @@ const Home: React.FC = () => {
   const [on, setOn] = useState(false);
   const [openInfoModal, setOpenInfoModal] = useState(false);
   const [openSettingsModal, setOpenSettingsModal] = useState(false);
+  const [openPinModal, setOpenPinModal] = useState(false);
+  const [pinStep, setPinStep] = useState<PinStep>("validate");
+  const [currentPin, setCurrentPin] = useState("");
+  const [newPin, setNewPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [pinStatus, setPinStatus] = useState<RequestStatus>({
+    tone: "idle",
+    message: "Primero validamos el PIN actual contra el ESP.",
+  });
+  const [themeDraft, setThemeDraft] = useState<ThemeColors>(() => loadThemeColors());
+  const [themeStatus, setThemeStatus] = useState<RequestStatus>({
+    tone: "idle",
+    message: "Elegí color base y acento, y guardalos en el ESP.",
+  });
 
   // Refs para el timer del parpadeo
   const blinkIntervalRef = useRef<number | null>(null);
+  const activePinRequestRef = useRef<PinStep | null>(null);
+  const activeThemeRequestRef = useRef(false);
+  const pendingThemeRequestRef = useRef<ThemeColors | null>(null);
+  const pinAckTimeoutRef = useRef<number | null>(null);
+  const themeAckTimeoutRef = useRef<number | null>(null);
 
   const CMD_HEARTBEAT = 0xa2;
 
@@ -40,6 +81,116 @@ const Home: React.FC = () => {
     });
     return off;
   }, [subscribe, onHeartbeatReceived]);
+
+  useEffect(() => {
+    const off = subscribe(CMD.APP_PIN_CONFIG, (p) => {
+      const payload = p.payload;
+      const activeRequest = activePinRequestRef.current;
+      if (!activeRequest || payload.length === 0) return;
+
+      if (payload.length === 2) {
+        const [action, code] = payload;
+        const isOk = code === SETTINGS_ACK_CODES.OK;
+
+        if (action === APP_PIN_ACTION.VALIDATE && activeRequest === "validate") {
+          clearPinAckTimeout();
+          activePinRequestRef.current = null;
+          if (isOk) {
+            setPinStep("change");
+            setPinStatus({
+              tone: "success",
+              message: "PIN validado. Ahora elegí el nuevo PIN y confirmalo.",
+            });
+          } else {
+            setPinStatus({ tone: "error", message: settingsAckMessage(code) });
+          }
+        }
+
+        if (action === APP_PIN_ACTION.CHANGE && activeRequest === "change") {
+          clearPinAckTimeout();
+          activePinRequestRef.current = null;
+          if (isOk) {
+            setPinStatus({
+              tone: "success",
+              message: "Cambio de PIN enviado y confirmado por el ESP.",
+            });
+            setCurrentPin("");
+            setNewPin("");
+            setConfirmPin("");
+          } else {
+            setPinStatus({ tone: "error", message: settingsAckMessage(code) });
+          }
+        }
+        return;
+      }
+
+      // En modo mock, el transporte hace eco del paquete original. Lo tratamos como OK
+      // para poder probar la interfaz sin firmware conectado.
+      if (activeRequest === "validate" && payload.length === 5) {
+        clearPinAckTimeout();
+        activePinRequestRef.current = null;
+        setPinStep("change");
+        setPinStatus({
+          tone: "success",
+          message: "PIN validado en modo mock. El firmware real debe responder [0x01, code].",
+        });
+      }
+
+      if (activeRequest === "change" && payload.length === 9) {
+        clearPinAckTimeout();
+        activePinRequestRef.current = null;
+        setPinStatus({
+          tone: "success",
+          message: "Cambio de PIN enviado en modo mock. Esperar ACK real del ESP en firmware.",
+        });
+        setCurrentPin("");
+        setNewPin("");
+        setConfirmPin("");
+      }
+    });
+
+    return off;
+  }, [subscribe]);
+
+  useEffect(() => {
+    const off = subscribe(CMD.APP_THEME_CONFIG, (p) => {
+      if (!activeThemeRequestRef.current || p.payload.length === 0) return;
+
+      if (p.payload.length === 1) {
+        clearThemeAckTimeout();
+        activeThemeRequestRef.current = false;
+        const code = p.payload[0];
+        const pendingTheme = pendingThemeRequestRef.current;
+        pendingThemeRequestRef.current = null;
+        if (code === SETTINGS_ACK_CODES.OK && pendingTheme) {
+          saveThemeColors(pendingTheme);
+        }
+        setThemeStatus({
+          tone: code === SETTINGS_ACK_CODES.OK ? "success" : "error",
+          message:
+            code === SETTINGS_ACK_CODES.OK
+              ? "Tema guardado en NVS por el ESP."
+              : settingsAckMessage(code),
+        });
+        return;
+      }
+
+      if (p.payload.length === 6) {
+        clearThemeAckTimeout();
+        activeThemeRequestRef.current = false;
+        if (pendingThemeRequestRef.current) {
+          saveThemeColors(pendingThemeRequestRef.current);
+          pendingThemeRequestRef.current = null;
+        }
+        setThemeStatus({
+          tone: "success",
+          message: "Tema aplicado en modo mock. El firmware real debe responder [code].",
+        });
+      }
+    });
+
+    return off;
+  }, [subscribe]);
 
   const toControl = useViewTransitionState("/control");
 
@@ -74,6 +225,12 @@ const Home: React.FC = () => {
       if (blinkIntervalRef.current) {
         clearInterval(blinkIntervalRef.current);
       }
+      if (pinAckTimeoutRef.current) {
+        window.clearTimeout(pinAckTimeoutRef.current);
+      }
+      if (themeAckTimeoutRef.current) {
+        window.clearTimeout(themeAckTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -87,23 +244,166 @@ const Home: React.FC = () => {
     });
   };
 
+  const normalizedThemeDraft: ThemeColors = {
+    base: normalizeHexColor(themeDraft.base, DEFAULT_THEME_COLORS.base),
+    accent: normalizeHexColor(themeDraft.accent, DEFAULT_THEME_COLORS.accent),
+  };
+  const themeDraftIsValid =
+    isHexColor(toHexCandidate(themeDraft.base)) &&
+    isHexColor(toHexCandidate(themeDraft.accent));
+
+  function clearPinAckTimeout() {
+    if (pinAckTimeoutRef.current) {
+      window.clearTimeout(pinAckTimeoutRef.current);
+      pinAckTimeoutRef.current = null;
+    }
+  }
+
+  function clearThemeAckTimeout() {
+    if (themeAckTimeoutRef.current) {
+      window.clearTimeout(themeAckTimeoutRef.current);
+      themeAckTimeoutRef.current = null;
+    }
+  }
+
+  function updateThemeDraft(key: keyof ThemeColors, value: string) {
+    setThemeStatus({ tone: "idle", message: "Cambios listos para guardar." });
+    setThemeDraft((prev) => ({ ...prev, [key]: toHexCandidate(value).slice(0, 7) }));
+  }
+
+  async function handleSaveTheme() {
+    if (!themeDraftIsValid) {
+      setThemeStatus({
+        tone: "error",
+        message: "Usa valores hexadecimales completos, por ejemplo #22d3ee.",
+      });
+      return;
+    }
+
+    const nextTheme = {
+      base: normalizeHexColor(themeDraft.base, DEFAULT_THEME_COLORS.base),
+      accent: normalizeHexColor(themeDraft.accent, DEFAULT_THEME_COLORS.accent),
+    };
+
+    applyThemeColors(nextTheme);
+    activeThemeRequestRef.current = true;
+    pendingThemeRequestRef.current = nextTheme;
+    setThemeStatus({ tone: "loading", message: "Enviando tema al ESP..." });
+    clearThemeAckTimeout();
+    themeAckTimeoutRef.current = window.setTimeout(() => {
+      activeThemeRequestRef.current = false;
+      pendingThemeRequestRef.current = null;
+      setThemeStatus({
+        tone: "error",
+        message: "El ESP no respondio el ACK de APP_THEME_CONFIG.",
+      });
+    }, 10000);
+
+    try {
+      await send(CMD.APP_THEME_CONFIG, buildThemePayload(nextTheme));
+    } catch {
+      clearThemeAckTimeout();
+      activeThemeRequestRef.current = false;
+      pendingThemeRequestRef.current = null;
+      setThemeStatus({ tone: "error", message: "No se pudo enviar APP_THEME_CONFIG." });
+    }
+  }
+
+  function resetThemeDraft() {
+    clearThemeAckTimeout();
+    activeThemeRequestRef.current = false;
+    pendingThemeRequestRef.current = null;
+    setThemeDraft(DEFAULT_THEME_COLORS);
+    saveThemeColors(DEFAULT_THEME_COLORS);
+    applyThemeColors(DEFAULT_THEME_COLORS);
+    setThemeStatus({
+      tone: "idle",
+      message: "Tema restaurado localmente. Guardalo para persistirlo en el ESP.",
+    });
+  }
+
+  function openPinEditor() {
+    clearPinAckTimeout();
+    activePinRequestRef.current = null;
+    setOpenPinModal(true);
+    setPinStep("validate");
+    setCurrentPin("");
+    setNewPin("");
+    setConfirmPin("");
+    setPinStatus({
+      tone: "idle",
+      message: "Ingresa el PIN actual para pedir validacion al ESP.",
+    });
+  }
+
+  async function requestPinValidation() {
+    if (!/^\d{4}$/.test(currentPin)) {
+      setPinStatus({ tone: "error", message: "El PIN actual debe tener 4 digitos." });
+      return;
+    }
+
+    activePinRequestRef.current = "validate";
+    setPinStatus({ tone: "loading", message: "Validando PIN actual con el ESP..." });
+    clearPinAckTimeout();
+    pinAckTimeoutRef.current = window.setTimeout(() => {
+      activePinRequestRef.current = null;
+      setPinStatus({
+        tone: "error",
+        message: "El ESP no respondio la validacion de PIN.",
+      });
+    }, 10000);
+
+    try {
+      await send(
+        CMD.APP_PIN_CONFIG,
+        PayloadBuilder.appPinConfig(APP_PIN_ACTION.VALIDATE, currentPin)
+      );
+    } catch {
+      clearPinAckTimeout();
+      activePinRequestRef.current = null;
+      setPinStatus({ tone: "error", message: "No se pudo enviar la validacion de PIN." });
+    }
+  }
+
+  async function requestPinChange() {
+    if (!/^\d{4}$/.test(newPin)) {
+      setPinStatus({ tone: "error", message: "El nuevo PIN debe tener 4 digitos." });
+      return;
+    }
+    if (newPin !== confirmPin) {
+      setPinStatus({ tone: "error", message: "La confirmacion no coincide con el nuevo PIN." });
+      return;
+    }
+
+    activePinRequestRef.current = "change";
+    setPinStatus({ tone: "loading", message: "Enviando cambio de PIN al ESP..." });
+    clearPinAckTimeout();
+    pinAckTimeoutRef.current = window.setTimeout(() => {
+      activePinRequestRef.current = null;
+      setPinStatus({
+        tone: "error",
+        message: "El ESP no respondio el ACK de cambio de PIN.",
+      });
+    }, 10000);
+
+    try {
+      await send(
+        CMD.APP_PIN_CONFIG,
+        PayloadBuilder.appPinConfig(APP_PIN_ACTION.CHANGE, currentPin, newPin)
+      );
+    } catch {
+      clearPinAckTimeout();
+      activePinRequestRef.current = null;
+      setPinStatus({ tone: "error", message: "No se pudo enviar el cambio de PIN." });
+    }
+  }
+
   return (
     <div
       className="flex flex-col h-full w-full items-center p-6 relative
                  bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-slate-100
                  selection:bg-cyan-500/30"
     >
-      <style>{`
-        @keyframes gradient-move {
-          0% { background-position: 0% 50%; }
-          100% { background-position: 200% 50%; }
-        }
-        @keyframes border-move {
-          0% { background-position: 0% 50%; }
-          100% { background-position: 200% 50%; }
-        }
-      `}</style>
-
       {/* Header */}
       <div className="flex flex-col h-1/3 w-full items-center justify-center p-4">
         <PageHeader
@@ -304,87 +604,377 @@ const Home: React.FC = () => {
           closeOnOverlayClick={false}
           containerClassnames="flex-col"
         >
-          <h2 className="text-2xl font-bold mb-4 text-black">Configuración</h2>
-          <div className="flex flex-col lg:flex-row gap-3">
-            {/* Watchdog Status */}
-            <div className="flex w-full lg:w-1/2 flex-col items-center justify-center gap-2 p-3 rounded-lg bg-slate-600/80 border border-slate-700">
-              <div className="flex items-center gap-3">
-                <p className="text-sm text-white">Watchdog:</p>
+          <div className="mb-6">
+            <div className="app-kicker mb-3">Configuracion</div>
+            <h2 className="text-3xl font-black text-white">Centro de ajustes</h2>
+            <p className="mt-2 text-sm text-slate-300">
+              Personaliza la interfaz y envia los cambios persistentes al ESP.
+            </p>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <section className="app-panel-strong p-4">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-white">Enlace y watchdog</h3>
+                  <p className="text-sm text-slate-400">Supervision de heartbeat.</p>
+                </div>
                 <button
                   onClick={toggleHeartbeatWatchdog}
-                  className={`px-3 py-1 rounded-full text-sm font-semibold transition-colors ${
-                    heartbeatConfig.isActive
-                      ? "bg-green-600 text-white hover:bg-green-700"
-                      : "bg-slate-600 text-slate-200 hover:bg-slate-900"
+                  className={`px-3 py-1 text-sm font-semibold ${
+                    heartbeatConfig.isActive ? "btn-success" : "app-button--ghost"
                   }`}
                   disabled={!connected}
                 >
                   {heartbeatConfig.isActive ? "Activo" : "Inactivo"}
                 </button>
               </div>
-              <div className="flex items-center gap-3">
-                <p className="text-sm text-white">Intentos restantes:</p>
-                <span
-                  className={`font-bold text-lg ${
-                    heartbeatConfig.remainingRetries === 0
-                      ? "text-red-400"
-                      : heartbeatConfig.remainingRetries <= 2
-                      ? "text-yellow-400"
-                      : "text-green-400"
-                  }`}
-                >
-                  {heartbeatConfig.remainingRetries} de{" "}
-                  {heartbeatConfig.maxRetries}
+
+              <div className="app-panel mb-4 p-3 text-sm text-slate-300">
+                Intentos restantes:{" "}
+                <span className="font-bold text-emerald-300">
+                  {heartbeatConfig.remainingRetries} de {heartbeatConfig.maxRetries}
                 </span>
               </div>
-            </div>
-            {/* Sliders de configuración */}
-            <div className="flex w-full lg:w-1/2 flex-col gap-4 p-3 items-center justify-center rounded-lg bg-slate-600/80 border-slate-700">
-              <div className="flex flex-col">
-                <label htmlFor="hb-slider" className="text-sm text-white">
-                  {`Intervalo heartbeat (${heartbeatConfig.intervalMs} ms)`}
-                </label>
-                <div className="flex items-center gap-3">
-                  <input
-                    id="hb-slider"
-                    type="range"
-                    min={50}
-                    max={10000}
-                    step={50}
-                    value={heartbeatConfig.intervalMs}
-                    onChange={(e) => {
-                      setHeartbeatInterval(Number(e.target.value));
-                    }}
-                    className="w-56 accent-cyan-400"
-                  />
-                </div>
+
+              <label htmlFor="hb-slider" className="mb-2 block text-sm text-slate-200">
+                {`Intervalo heartbeat (${heartbeatConfig.intervalMs} ms)`}
+              </label>
+              <input
+                id="hb-slider"
+                type="range"
+                min={50}
+                max={10000}
+                step={50}
+                value={heartbeatConfig.intervalMs}
+                onChange={(e) => setHeartbeatInterval(Number(e.target.value))}
+                className="mb-4 w-full"
+              />
+
+              <label htmlFor="retry-slider" className="mb-2 block text-sm text-slate-200">
+                {`Intentos maximos (${heartbeatConfig.maxRetries})`}
+              </label>
+              <input
+                id="retry-slider"
+                type="range"
+                min={1}
+                max={10}
+                step={1}
+                value={heartbeatConfig.maxRetries}
+                onChange={(e) => setHeartbeatMaxRetries(Number(e.target.value))}
+                className="w-full"
+              />
+            </section>
+
+            <section className="app-panel-strong p-4">
+              <div className="mb-4">
+                <h3 className="font-bold text-white">Personalizar tema</h3>
+                <p className="text-sm text-slate-400">
+                  El base tiñe la atmósfera. El acento guía foco, botones y estados activos.
+                </p>
               </div>
 
-              <div className="flex flex-col">
-                <label htmlFor="retry-slider" className="text-sm text-white">
-                  {`Intentos máximos (${heartbeatConfig.maxRetries})`}
-                </label>
-                <div className="flex items-center gap-3">
-                  <input
-                    id="retry-slider"
-                    type="range"
-                    min={1}
-                    max={10}
-                    step={1}
-                    value={heartbeatConfig.maxRetries}
-                    onChange={(e) =>
-                      setHeartbeatMaxRetries(Number(e.target.value))
-                    }
-                    className="w-56 accent-yellow-400"
-                  />
+              <div
+                className="theme-role-preview mb-4"
+                style={{
+                  "--theme-base": normalizedThemeDraft.base,
+                  "--theme-accent": normalizedThemeDraft.accent,
+                } as React.CSSProperties}
+              >
+                <div className="theme-role-preview__surface">
+                  <span className="theme-role-preview__signal" aria-hidden="true" />
+                  <div>
+                    <p className="text-xs font-bold uppercase text-slate-400">Base</p>
+                    <p className="font-mono text-sm text-white">{normalizedThemeDraft.base}</p>
+                  </div>
+                  <button type="button" className="theme-role-preview__button">
+                    Acento
+                  </button>
                 </div>
+                <p className="mt-3 font-mono text-xs text-slate-400">
+                  Acento: {normalizedThemeDraft.accent}
+                </p>
+              </div>
+
+              <ColorPickerRow
+                id="base-color"
+                label="Color base"
+                value={themeDraft.base}
+                fallback={DEFAULT_THEME_COLORS.base}
+                onChange={(value) => updateThemeDraft("base", value)}
+              />
+              <ColorPickerRow
+                id="accent-color"
+                label="Color acento"
+                value={themeDraft.accent}
+                fallback={DEFAULT_THEME_COLORS.accent}
+                onChange={(value) => updateThemeDraft("accent", value)}
+              />
+
+              <StatusNote status={themeStatus} />
+
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  className="app-button px-4 py-2 font-semibold"
+                  onClick={handleSaveTheme}
+                  disabled={!themeDraftIsValid || themeStatus.tone === "loading"}
+                >
+                  Guardar tema
+                </button>
+                <button
+                  type="button"
+                  className="app-button--ghost px-4 py-2 font-semibold"
+                  onClick={resetThemeDraft}
+                >
+                  Restaurar tema
+                </button>
+              </div>
+            </section>
+          </div>
+
+          <section className="app-panel-strong mt-4 p-4">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h3 className="font-bold text-white">PIN de acceso</h3>
+                <p className="mt-1 max-w-2xl text-sm text-slate-400">
+                  Para cambiarlo se valida primero el PIN actual con el ESP. Despues
+                  se envia el nuevo PIN y se espera ACK de guardado en NVS.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="app-button px-4 py-2 font-semibold"
+                onClick={openPinEditor}
+              >
+                Modificar PIN
+              </button>
+            </div>
+          </section>
+        </Modal>
+      )}
+      {openPinModal && (
+        <Modal
+          isOpen={openPinModal}
+          onClose={() => setOpenPinModal(false)}
+          closeOnOverlayClick={false}
+          containerClassnames="flex-col"
+        >
+          <div className="mb-6">
+            <div className="app-kicker mb-3">PIN</div>
+            <h2 className="text-3xl font-black text-white">
+              {pinStep === "validate" ? "Validar PIN actual" : "Confirmar nuevo PIN"}
+            </h2>
+            <p className="mt-2 text-sm text-slate-300">
+              {pinStep === "validate"
+                ? "El ESP debe confirmar que el PIN actual es correcto antes de permitir el cambio."
+                : "Ingresa el nuevo PIN dos veces. El cambio se envia al ESP y debe volver con ACK."}
+            </p>
+          </div>
+
+          {pinStep === "validate" ? (
+            <div className="space-y-5">
+              <PinDigitField
+                label="PIN actual"
+                value={currentPin}
+                onChange={setCurrentPin}
+                autoFocus
+              />
+              <StatusNote status={pinStatus} />
+              <button
+                type="button"
+                className="app-button w-full px-4 py-3 font-bold"
+                onClick={requestPinValidation}
+                disabled={!/^\d{4}$/.test(currentPin) || pinStatus.tone === "loading"}
+              >
+                {pinStatus.tone === "loading" ? "Validando..." : "Validar PIN"}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              <PinDigitField
+                label="Nuevo PIN"
+                value={newPin}
+                onChange={setNewPin}
+                autoFocus
+              />
+              <PinDigitField
+                label="Confirmar nuevo PIN"
+                value={confirmPin}
+                onChange={setConfirmPin}
+              />
+              <StatusNote status={pinStatus} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  className="app-button--ghost px-4 py-3 font-bold"
+                  onClick={() => {
+                    setPinStep("validate");
+                    setNewPin("");
+                    setConfirmPin("");
+                    setPinStatus({
+                      tone: "idle",
+                      message: "Volvemos a validar el PIN actual.",
+                    });
+                  }}
+                >
+                  Volver
+                </button>
+                <button
+                  type="button"
+                  className="app-button px-4 py-3 font-bold"
+                  onClick={requestPinChange}
+                  disabled={
+                    !/^\d{4}$/.test(newPin) ||
+                    newPin !== confirmPin ||
+                    pinStatus.tone === "loading"
+                  }
+                >
+                  {pinStatus.tone === "loading" ? "Enviando..." : "Confirmar cambio"}
+                </button>
               </div>
             </div>
-          </div>
+          )}
         </Modal>
       )}
     </div>
   );
 };
+
+function toHexCandidate(value: string) {
+  const trimmed = value.trim();
+  return trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+}
+
+function settingsAckMessage(code: number) {
+  switch (code) {
+    case SETTINGS_ACK_CODES.OK:
+      return "Operacion confirmada por el ESP.";
+    case SETTINGS_ACK_CODES.INVALID_PIN:
+      return "PIN incorrecto. El ESP rechazo la validacion.";
+    case SETTINGS_ACK_CODES.ARG:
+      return "Argumentos invalidos para el firmware.";
+    case SETTINGS_ACK_CODES.SAVE_FAIL:
+      return "El ESP no pudo guardar el cambio en NVS.";
+    case SETTINGS_ACK_CODES.BUSY:
+      return "El ESP esta ocupado. Intenta nuevamente.";
+    default:
+      return `ACK desconocido del ESP: ${code}`;
+  }
+}
+
+function StatusNote({ status }: { status: RequestStatus }) {
+  const toneClass =
+    status.tone === "success"
+      ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
+      : status.tone === "error"
+      ? "border-rose-400/30 bg-rose-500/10 text-rose-200"
+      : status.tone === "loading"
+      ? "border-cyan-400/30 bg-cyan-500/10 text-cyan-200"
+      : "border-white/10 bg-white/5 text-slate-300";
+
+  return (
+    <p className={`mt-4 rounded-xl border p-3 text-sm ${toneClass}`}>
+      {status.message}
+    </p>
+  );
+}
+
+function ColorPickerRow({
+  id,
+  label,
+  value,
+  fallback,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  fallback: string;
+  onChange: (value: string) => void;
+}) {
+  const safeValue = normalizeHexColor(value, fallback);
+
+  return (
+    <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-center">
+      <label htmlFor={id} className="text-sm font-semibold text-slate-200">
+        {label}
+      </label>
+      <input
+        id={id}
+        type="text"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="px-3 py-2 font-mono text-sm"
+        aria-label={`${label} hexadecimal`}
+      />
+      <input
+        type="color"
+        value={safeValue}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-10 w-full cursor-pointer p-1 sm:w-14"
+        aria-label={`${label} selector`}
+      />
+    </div>
+  );
+}
+
+function PinDigitField({
+  label,
+  value,
+  onChange,
+  autoFocus = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  autoFocus?: boolean;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (autoFocus) {
+      window.setTimeout(() => inputRef.current?.focus(), 60);
+    }
+  }, [autoFocus]);
+
+  function handleChange(nextValue: string) {
+    onChange(nextValue.replace(/\D/g, "").slice(0, 4));
+  }
+
+  return (
+    <div>
+      <label className="mb-3 block text-sm font-semibold text-slate-200">
+        {label}
+      </label>
+      <input
+        ref={inputRef}
+        value={value}
+        onChange={(event) => handleChange(event.target.value)}
+        inputMode="numeric"
+        pattern="[0-9]*"
+        maxLength={4}
+        autoComplete="one-time-code"
+        className="sr-only"
+      />
+      <button
+        type="button"
+        className="grid w-full grid-cols-4 gap-3"
+        onClick={() => inputRef.current?.focus()}
+        aria-label={label}
+      >
+        {Array.from({ length: 4 }).map((_, index) => (
+          <span
+            key={index}
+            className={`app-panel-strong flex aspect-square items-center justify-center text-3xl font-black ${
+              value[index] ? "text-cyan-200" : "text-slate-500"
+            }`}
+          >
+            {value[index] ? "•" : index + 1}
+          </span>
+        ))}
+      </button>
+    </div>
+  );
+}
 
 export default Home;

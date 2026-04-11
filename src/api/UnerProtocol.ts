@@ -86,6 +86,15 @@ export type WifiSetSTAParams = {
   ip?: [U8, U8, U8, U8];
 };
 export type TelemetrySetRateParams = { periodMs: U16 };
+export type AppPinConfigParams = {
+  action: U8;
+  currentPin: string;
+  newPin?: string;
+};
+export type AppThemeConfigParams = {
+  base: [U8, U8, U8];
+  accent: [U8, U8, U8];
+};
 
 /* =================== Implementación =================== */
 export class UNERProtocol {
@@ -405,6 +414,25 @@ export class UNERProtocol {
   buildTelemetrySetRate(params: TelemetrySetRateParams): Uint8Array {
     const payload = PayloadBuilder.telemetrySetRate(params.periodMs);
     return this.buildPacket(CMD.TELEMETRY_SET_RATE, payload);
+  }
+
+  /** Construye comando APP_PIN_CONFIG */
+  buildAppPinConfig(params: AppPinConfigParams): Uint8Array {
+    const payload = PayloadBuilder.appPinConfig(
+      params.action,
+      params.currentPin,
+      params.newPin
+    );
+    return this.buildPacket(CMD.APP_PIN_CONFIG, payload);
+  }
+
+  /** Construye comando APP_THEME_CONFIG */
+  buildAppThemeConfig(params: AppThemeConfigParams): Uint8Array {
+    const payload = PayloadBuilder.appThemeConfig(
+      params.base,
+      params.accent
+    );
+    return this.buildPacket(CMD.APP_THEME_CONFIG, payload);
   }
 
   /** XOR de todos los bytes del header hasta el último byte del payload. */

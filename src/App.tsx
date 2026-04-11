@@ -17,10 +17,15 @@ import EstadoSection from "./pages/EstadoSection";
 import { useWebSocket } from "./hooks/useWebSocket";
 import ConnectingScreen from "./components/ConnectingScreen";
 import ProtocolSection from "./pages/ProtocolSection";
+import { applyThemeColors, loadThemeColors } from "./utils/theme";
 
 const App: React.FC = () => {
   const { user } = useUser();
   const { connected, setConnected, retrying, setRetrying } = useWebSocket();
+
+  useEffect(() => {
+    applyThemeColors(loadThemeColors());
+  }, []);
 
   const router = createBrowserRouter([
     {

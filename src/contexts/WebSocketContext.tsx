@@ -345,7 +345,17 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
       ws.send(JSON.stringify({ type, payload }));
     } else {
       // modo mock: solo log
-      if (!ws) console.log("[WS mock] send JSON:", { type, payload });
+      if (!ws) {
+        console.log("[WS mock] send JSON:", { type, payload });
+
+        if (type === "verifySession") {
+          window.setTimeout(() => {
+            jsonListeners.current.get("sessionVerifyResponse")?.forEach((handler) =>
+              handler({ success: false })
+            );
+          }, 250);
+        }
+      }
     }
   }, []);
 

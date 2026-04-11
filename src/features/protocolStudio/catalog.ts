@@ -513,17 +513,17 @@ export const FRAME_COMMANDS: Record<string, CommandDefinition> = {
 };
 
 export const PANEL_CLASS =
-  "rounded-2xl bg-white/5 ring-1 ring-white/10 shadow-sm backdrop-blur p-4";
+  "app-panel p-4";
 export const INPUT_CLASS =
-  "w-full rounded-xl bg-slate-950/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-200 ring-1 ring-white/10 transition focus:outline-none focus:ring-2 focus:ring-cyan-400/40";
+  "app-input w-full px-3 py-2 text-sm placeholder:text-slate-200";
 export const SMALL_LABEL_CLASS =
   "mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-slate-200";
 export const NOTE_CLASS =
-  "rounded-xl border-l-2 border-cyan-400 bg-slate-950/50 p-3 text-sm text-slate-300";
+  "app-panel-strong border-l-2 border-cyan-400 p-3 text-sm text-slate-300";
 export const BUTTON_CLASS =
-  "inline-flex items-center justify-center rounded-2xl px-4 py-2 text-sm font-semibold text-white transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40";
+  "app-button inline-flex items-center justify-center px-4 py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40";
 export const GHOST_BUTTON_CLASS =
-  "inline-flex items-center justify-center rounded-2xl px-4 py-2 text-sm font-semibold text-slate-100 ring-1 ring-white/10 transition-all duration-300 hover:bg-white hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40";
+  "app-button--ghost inline-flex items-center justify-center px-4 py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40";
 
 export const FRAME_SEGMENT_COLORS = [
   "bg-cyan-500/10 ring-cyan-400/45 text-cyan-100",

@@ -1,7 +1,7 @@
 export default function ConnectingScreen() {
   return (
           <div
-            className="flex flex-col h-screen w-full items-center justify-center gap-3 p-6 relative
+            className="app-shell flex flex-col h-screen w-full items-center justify-center gap-3 p-6 relative
                           bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-slate-100
                           selection:bg-cyan-500/30"
           >

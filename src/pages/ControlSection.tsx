@@ -667,8 +667,6 @@ export default function ControlSection() {
                     bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-slate-100
                     selection:bg-cyan-500/30"
     >
-      <style>{`@keyframes gradient-move{0%{background-position:0% 50%}100%{background-position:200% 50%}}`}</style>
-
       <PageHeader
         setOpenSettingsModal={setOpenSettingsModal}
         setOpenInfoModal={setOpenInfoModal}

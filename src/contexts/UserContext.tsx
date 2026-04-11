@@ -8,6 +8,13 @@ import React, {
 } from "react";
 import type { ReactNode } from "react";
 import { useWebSocket } from "../hooks/useWebSocket";
+import { useUNERProtocol } from "../hooks/useUnerProtocol";
+import {
+  APP_PIN_ACTION,
+  CMD,
+  PayloadBuilder,
+  SETTINGS_ACK_CODES,
+} from "../types/UnerProtocolCMDTypes";
 
 export interface User {
   id: string;
@@ -18,8 +25,8 @@ export interface User {
 interface UserContextType {
   user: User | null;
   loading: boolean;
-  /** Envía credenciales por WS y espera 'loginResponse' */
-  login: (username: string, password: string) => Promise<boolean>;
+  /** Valida el PIN de acceso por WebSocket UNER */
+  login: (pin: string) => Promise<boolean>;
   /** Limpia el user y avisa al servidor */
   logout: () => void;
   setUser: (user: User | null) => void;
@@ -27,12 +34,15 @@ interface UserContextType {
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
+const USER_SESSION_KEY = "user";
+
 interface UserProviderProps {
   children: ReactNode;
 }
 
 export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   const { send, subscribe, disconnect, connected } = useWebSocket();
+  const { send: sendUner, subscribe: subscribeUner } = useUNERProtocol();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -40,8 +50,10 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   useEffect(() => {
     const initializeUser = async () => {
       try {
-        // 1. Verificar si hay usuario en localStorage
-        const savedUser = localStorage.getItem("user");
+        localStorage.removeItem(USER_SESSION_KEY);
+
+        // 1. Verificar si hay usuario en la sesion actual
+        const savedUser = sessionStorage.getItem(USER_SESSION_KEY);
         if (savedUser) {
           const userData = JSON.parse(savedUser);
           setUser(userData);
@@ -57,10 +69,10 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
             (payload: any) => {
               if (payload?.success && payload.user) {
                 setUser(payload.user as User);
-                localStorage.setItem("user", JSON.stringify(payload.user));
+                sessionStorage.setItem(USER_SESSION_KEY, JSON.stringify(payload.user));
               } else {
-                // Sesión inválida, limpiar localStorage
-                localStorage.removeItem("user");
+                // Sesion invalida, limpiar sesion local
+                sessionStorage.removeItem(USER_SESSION_KEY);
                 setUser(null);
               }
               setLoading(false);
@@ -77,43 +89,13 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
             unsubscribe();
           }, 3000);
         } else {
-          // MOCK: Sin conexión, simular usuario después de 2 segundos
-          console.log(
-            "🔧 MODO MOCK: Simulando login automático en 2 segundos..."
-          );
-
-          setTimeout(() => {
-            const mockUser: User = {
-              id: "mock-user-123",
-              name: "Usuario de Desarrollo",
-            };
-
-            setUser(mockUser);
-            localStorage.setItem("user", JSON.stringify(mockUser));
-            setLoading(false);
-
-            console.log("✅ Usuario mock asignado:", mockUser);
-          }, 2000);
+          setLoading(false);
         }
       } catch (error) {
         console.error("Error initializing user:", error);
-        localStorage.removeItem("user");
-
-        // MOCK: En caso de error, también usar mock después de 2 segundos
-        console.log("🔧 ERROR - Usando usuario mock como fallback...");
-
-        setTimeout(() => {
-          const mockUser: User = {
-            id: "mock-user-error-fallback",
-            name: "Usuario Mock (Error Fallback)",
-          };
-
-          setUser(mockUser);
-          localStorage.setItem("user", JSON.stringify(mockUser));
-          setLoading(false);
-
-          console.log("✅ Usuario mock fallback asignado:", mockUser);
-        }, 2000);
+        sessionStorage.removeItem(USER_SESSION_KEY);
+        setUser(null);
+        setLoading(false);
       }
     };
 
@@ -121,55 +103,60 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   }, [connected, send, subscribe]);
 
   const login = useCallback(
-    (username: string, password: string) => {
+    (pin: string) => {
       return new Promise<boolean>((resolve) => {
-        // MOCK: Simular login exitoso para desarrollo
-        if (!connected) {
-          console.log("🔧 MODO MOCK: Simulando login exitoso...");
-
-          setTimeout(() => {
-            const mockUser: User = {
-              id: `mock-${username}-${Date.now()}`,
-              name: username.charAt(0).toUpperCase() + username.slice(1),
-            };
-
-            setUser(mockUser);
-            localStorage.setItem("user", JSON.stringify(mockUser));
-            console.log("✅ Login mock exitoso:", mockUser);
-            resolve(true);
-          }, 1000);
-
+        if (!/^\d{4}$/.test(pin)) {
+          resolve(false);
           return;
         }
 
-        // Lógica real con WebSocket
-        const unsubscribe = subscribe("loginResponse", (payload: any) => {
-          if (payload?.success && payload.user) {
-            const userData = payload.user as User;
+        let settled = false;
+        let off = () => {};
+        const finish = (success: boolean) => {
+          if (settled) return;
+          settled = true;
+          off();
+          if (success) {
+            const userData: User = {
+              id: `pin-${Date.now()}`,
+              name: "Usuario PIN",
+            };
             setUser(userData);
-            localStorage.setItem("user", JSON.stringify(userData));
-            resolve(true);
-          } else {
-            resolve(false);
+            sessionStorage.setItem(USER_SESSION_KEY, JSON.stringify(userData));
           }
-          unsubscribe();
+          resolve(success);
+        };
+
+        off = subscribeUner(CMD.APP_PIN_CONFIG, (packet) => {
+          const payload = packet.payload;
+          if (payload.length === 2) {
+            const [action, code] = payload;
+            if (action === APP_PIN_ACTION.VALIDATE) {
+              finish(code === SETTINGS_ACK_CODES.OK);
+            }
+          }
+
+          if (payload.length === 5 && payload[0] === APP_PIN_ACTION.VALIDATE) {
+            finish(true);
+          }
         });
 
-        send("login", { username, password });
+        sendUner(
+          CMD.APP_PIN_CONFIG,
+          PayloadBuilder.appPinConfig(APP_PIN_ACTION.VALIDATE, pin)
+        ).catch(() => finish(false));
 
-        setTimeout(() => {
-          resolve(false);
-          unsubscribe();
-        }, 10000);
+        setTimeout(() => finish(false), 10000);
       });
     },
-    [send, subscribe, connected]
+    [sendUner, subscribeUner]
   );
 
   const logout = useCallback(() => {
     console.log("🔧 Logout - Limpiando usuario...");
     setUser(null);
-    localStorage.removeItem("user");
+    localStorage.removeItem(USER_SESSION_KEY);
+    sessionStorage.removeItem(USER_SESSION_KEY);
 
     if (connected) {
       send("logout");
@@ -178,7 +165,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   }, [send, disconnect, connected]);
 
   return (
-    <UserContext.Provider value={{ user, loading, login, logout ,setUser}}>
+    <UserContext.Provider value={{ user, loading, login, logout, setUser }}>
       {children}
     </UserContext.Provider>
   );

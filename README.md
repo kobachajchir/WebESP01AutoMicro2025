@@ -1,5 +1,20 @@
 # React + TypeScript + Vite
 
+## Comandos ESP pendientes de firmware
+
+La web usa dos comandos UNER nuevos para preferencias persistidas en NVS:
+
+- `CMD.APP_PIN_CONFIG = 0x60`
+  - Validar PIN actual: payload `[0x01, pin_ascii_4]`.
+  - Cambiar PIN: payload `[0x02, pin_actual_ascii_4, pin_nuevo_ascii_4]`.
+  - ACK esperado: respuesta con el mismo `CMD.APP_PIN_CONFIG` y payload `[action, code]`.
+
+- `CMD.APP_THEME_CONFIG = 0x61`
+  - Guardar tema: payload `[base_r, base_g, base_b, accent_r, accent_g, accent_b]`.
+  - ACK esperado: respuesta con el mismo `CMD.APP_THEME_CONFIG` y payload `[code]`.
+
+Codigos de ACK usados por la web: `0 = OK`, `1 = INVALID_PIN`, `2 = ARG`, `3 = SAVE_FAIL`, `4 = BUSY`.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

@@ -1,11 +1,13 @@
 // src/components/PageHeader.tsx
 import { useLocation, useNavigate } from "react-router-dom";
+import { useUser } from "../contexts/UserContext";
 
 interface PageHeaderProps {
   setOpenSettingsModal?: (open: boolean) => void;
   setOpenInfoModal?: (open: boolean) => void;
   showSettings?: boolean;
   showInfo?: boolean;
+  showLogout?: boolean;
   className?: string;
   titleOverride?: string;
 }
@@ -26,11 +28,15 @@ export default function PageHeader({
   setOpenInfoModal,
   showSettings = true,
   showInfo = true,
-  className = "flex flex-row items-center justify-between w-full mb-6",
+  showLogout = true,
+  className = "app-page-header",
   titleOverride = ""
 }: PageHeaderProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { logout } = useUser();
+  const toolbarButtonClass =
+    "toolbar-btn group flex items-center justify-center gap-2 py-2 px-3 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40";
 
   // Obtener el título basado en la ruta actual
   const getPageTitle = () => {
@@ -44,15 +50,15 @@ export default function PageHeader({
 
   return (
     <div className={className}>
-      <h1 className="ml-6 text-4xl md:text-6xl font-extrabold uppercase tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-cyan-300 via-indigo-400 to-fuchsia-400 bg-[length:200%_100%] motion-safe:animate-[gradient-move_6s_linear_infinite]">
+      <h1 className="app-title text-3xl md:text-5xl">
         {getPageTitle()}
       </h1>
 
-      <div className="flex flex-row gap-2">
+      <div className="app-page-header__actions">
         {!location.pathname.includes("home") && (
         <button
           aria-label="Ir a Home"
-          className="toolbar-btn group flex items-center justify-center py-2 px-3 rounded-2xl transition-all duration-300 hover:shadow-[inset_0_0_0_2px_theme('colors.cyan.400')] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+          className={toolbarButtonClass}
           onClick={() => navigate("/home", { viewTransition: true })}
         >
           <svg
@@ -70,7 +76,7 @@ export default function PageHeader({
         {!location.pathname.includes("protocol") && (
           <button
             aria-label="Ir a UNER Studio"
-            className="toolbar-btn group flex items-center justify-center py-2 px-3 rounded-2xl transition-all duration-300 hover:shadow-[inset_0_0_0_2px_theme('colors.cyan.400')] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+            className={toolbarButtonClass}
             onClick={() => navigate("/protocol", { viewTransition: true })}
           >
             <svg
@@ -91,7 +97,7 @@ export default function PageHeader({
         {showSettings && setOpenSettingsModal && (
           <button
             aria-label="Configuración"
-            className="toolbar-btn group flex items-center justify-center py-2 px-3 rounded-2xl transition-all duration-300 hover:shadow-[inset_0_0_0_2px_theme('colors.cyan.400')] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+            className={toolbarButtonClass}
             onClick={() => setOpenSettingsModal(true)}
           >
             <svg
@@ -112,7 +118,7 @@ export default function PageHeader({
         {showInfo && setOpenInfoModal && (
           <button
             aria-label="Información"
-            className="toolbar-btn group flex items-center justify-center py-2 px-3 rounded-2xl transition-all duration-300 hover:shadow-[inset_0_0_0_2px_theme('colors.cyan.400')] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+            className={toolbarButtonClass}
             onClick={() => setOpenInfoModal(true)}
           >
             <svg
@@ -127,6 +133,28 @@ export default function PageHeader({
                 clipRule="evenodd"
               />
             </svg>
+          </button>
+        )}
+
+        {showLogout && (
+          <button
+            aria-label="Cerrar sesion"
+            className={`${toolbarButtonClass} text-rose-100 hover:text-white`}
+            onClick={logout}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+              className="size-6 transition-transform duration-300 group-hover:translate-x-0.5"
+            >
+              <path
+                fillRule="evenodd"
+                d="M7.5 3.75A2.25 2.25 0 0 0 5.25 6v12a2.25 2.25 0 0 0 2.25 2.25h4.875a.75.75 0 0 0 0-1.5H7.5A.75.75 0 0 1 6.75 18V6a.75.75 0 0 1 .75-.75h4.875a.75.75 0 0 0 0-1.5H7.5Zm8.47 4.72a.75.75 0 0 1 1.06 0l3 3a.75.75 0 0 1 0 1.06l-3 3a.75.75 0 1 1-1.06-1.06l1.72-1.72H10.5a.75.75 0 0 1 0-1.5h7.19l-1.72-1.72a.75.75 0 0 1 0-1.06Z"
+                clipRule="evenodd"
+              />
+            </svg>
+            <span className="hidden text-sm font-semibold sm:inline">Salir</span>
           </button>
         )}
       </div>

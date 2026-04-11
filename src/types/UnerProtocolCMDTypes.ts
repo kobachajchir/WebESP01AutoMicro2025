@@ -18,6 +18,17 @@ export const CMD = {
   TELEMETRY_SET_RATE: 0x20, // payload: u16 period_ms (0 = desactivar)
   TELEMETRY_ACK: 0x21, // payload: u8 code, u16 period_ms
   TELEMETRY_DATA: 0x22, // payload: u8 schema, u16 seq, i16[6] imu_data, i16 tempRaw
+
+  // Preferencias de aplicacion persistidas en NVS
+  // APP_PIN_CONFIG request:
+  //   validate -> [action=0x01, current_pin_ascii4]
+  //   change   -> [action=0x02, current_pin_ascii4, new_pin_ascii4]
+  // APP_PIN_CONFIG response/ACK: [action, code]
+  APP_PIN_CONFIG: 0x60,
+
+  // APP_THEME_CONFIG request: [base_rgb3, accent_rgb3]
+  // APP_THEME_CONFIG response/ACK: [code]
+  APP_THEME_CONFIG: 0x61,
 } as const;
 
 // Helper para construir payloads específicos
@@ -91,7 +102,33 @@ export const PayloadBuilder = {
     buf[1] = (periodMs >> 8) & 0xff;
     return buf;
   },
+
+  appPinConfig: (
+    action: U8,
+    currentPin: string,
+    newPin?: string
+  ): Uint8Array => {
+    const current = encodePin4(currentPin);
+    const next = newPin ? encodePin4(newPin) : new Uint8Array(0);
+    const buf = new Uint8Array(1 + current.length + next.length);
+    buf[0] = action;
+    buf.set(current, 1);
+    if (next.length) buf.set(next, 1 + current.length);
+    return buf;
+  },
+
+  appThemeConfig: (
+    base: [U8, U8, U8],
+    accent: [U8, U8, U8]
+  ): Uint8Array => new Uint8Array([...base, ...accent]),
 } as const;
+
+function encodePin4(pin: string): Uint8Array {
+  if (!/^\d{4}$/.test(pin)) {
+    throw new Error("PIN invalido: se esperan 4 digitos");
+  }
+  return new TextEncoder().encode(pin);
+}
 
 // Tipos de datos básicos
 export type U8 = number;
@@ -110,6 +147,19 @@ export const ERROR_CODES = {
   SSID_NOT_FOUND: 6, // SSID no encontrado
   TIMEOUT: 7, // Timeout
   APPLY_FAIL: 8, // Fallo al aplicar configuración
+} as const;
+
+export const APP_PIN_ACTION = {
+  VALIDATE: 0x01,
+  CHANGE: 0x02,
+} as const;
+
+export const SETTINGS_ACK_CODES = {
+  OK: 0,
+  INVALID_PIN: 1,
+  ARG: 2,
+  SAVE_FAIL: 3,
+  BUSY: 4,
 } as const;
 
 // Tipos de seguridad Wi-Fi

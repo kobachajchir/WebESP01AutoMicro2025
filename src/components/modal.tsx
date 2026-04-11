@@ -54,9 +54,11 @@ const Modal: React.FC<ModalProps> = ({
       {/* Overlay (fade in/out) */}
       <button
         aria-hidden="true"
+        tabIndex={-1}
+        type="button"
         onClick={closeOnOverlayClick ? onClose : undefined}
         className={[
-          "absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300",
+          "app-dialog__overlay transition-opacity duration-300",
           closing ? "opacity-0" : "opacity-100",
         ].join(" ")}
       />
@@ -66,8 +68,7 @@ const Modal: React.FC<ModalProps> = ({
         role="dialog"
         aria-modal="true"
         className={[
-          "relative z-10 w-11/12 md:w-1/2 max-w-2xl max-h-[80vh]",
-          "rounded-2xl bg-white/90 backdrop-blur ring-1 ring-black/10 shadow-xl",
+          "app-dialog relative z-10",
           "overflow-hidden flex flex-col",
           closing
             ? "motion-safe:animate-[modal-out_200ms_ease-in]"
@@ -77,8 +78,9 @@ const Modal: React.FC<ModalProps> = ({
       >
         {/* Botón cerrar */}
         <button
+          type="button"
           onClick={onClose}
-          className="absolute top-3 right-3 rounded-xl p-2 text-slate-200 transition-all duration-300 hover:text-red-400 hover:shadow-[inset_0_0_0_1px_theme('colors.red.400')] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40 flex items-center justify-center"
+          className="app-dialog__close absolute top-3 right-3 flex items-center justify-center rounded-xl p-2 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40"
           aria-label="Cerrar"
         >
           <svg
@@ -96,24 +98,8 @@ const Modal: React.FC<ModalProps> = ({
         </button>
 
         {/* Contenido */}
-        <div className={`p-6 overflow-auto flex-grow ${containerClassnames}`}>{children}</div>
+        <div className={`app-dialog__content p-6 overflow-auto flex-grow ${containerClassnames}`}>{children}</div>
       </div>
-
-      {/* Keyframes locales */}
-      <style>{`
-        @keyframes modal-in {
-          from { opacity: 0; transform: translateY(8px) scale(0.98); filter: blur(6px); }
-          to   { opacity: 1; transform: translateY(0)   scale(1);    filter: blur(0); }
-        }
-        @keyframes modal-out {
-          from { opacity: 1; transform: translateY(0)   scale(1);    filter: blur(0); }
-          to   { opacity: 0; transform: translateY(8px) scale(0.98); filter: blur(6px); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .motion-safe\\:animate-\\[modal-in_220ms_ease-out\\],
-          .motion-safe\\:animate-\\[modal-out_200ms_ease-in\\] { animation: none !important; }
-        }
-      `}</style>
     </div>
   );
 };
