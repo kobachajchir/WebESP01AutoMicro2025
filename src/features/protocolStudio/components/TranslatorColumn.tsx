@@ -95,6 +95,41 @@ function DetailSectionCard(props: DetailSectionCardProps) {
   );
 }
 
+function CopyPill({
+  copied,
+  onClick,
+  title,
+}: {
+  copied: boolean;
+  onClick: () => void;
+  title: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-2 rounded-full border border-rose-300/20 bg-rose-400/12 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-rose-100 transition-all duration-300 hover:border-rose-300/35 hover:bg-rose-400/18 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/35"
+      title={title}
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        className="size-4"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M15.75 17.25h3a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 18.75 3.75h-9A2.25 2.25 0 0 0 7.5 6v3m8.25 8.25h-9A2.25 2.25 0 0 1 4.5 15v-9a2.25 2.25 0 0 1 2.25-2.25h9A2.25 2.25 0 0 1 18 6v9a2.25 2.25 0 0 1-2.25 2.25Z"
+        />
+      </svg>
+      {copied ? "Copiado" : "Copiar"}
+    </button>
+  );
+}
+
 function FrameDetailCard(props: FrameDetailCardProps) {
   const { item, frameIndex, onClose } = props;
   const frameHex = bytesToHex(item.frame);
@@ -104,7 +139,7 @@ function FrameDetailCard(props: FrameDetailCardProps) {
   const payloadDec = payloadBytes.length > 0 ? payloadBytes.join(" ") : "(vacio)";
   const warningItems = item.analysis.validations.filter((validation) => validation.tone !== "ok");
   const hasWarnings = warningItems.length > 0;
-  const [copied, setCopied] = useState(false);
+  const [copiedTarget, setCopiedTarget] = useState<string | null>(null);
   const [openSections, setOpenSections] = useState({
     analysis: true,
     payloads: true,
@@ -122,18 +157,18 @@ function FrameDetailCard(props: FrameDetailCardProps) {
   }, [item.offset]);
 
   useEffect(() => {
-    if (!copied) {
+    if (!copiedTarget) {
       return;
     }
 
     const timer = window.setTimeout(() => {
-      setCopied(false);
+      setCopiedTarget(null);
     }, 1800);
 
     return () => {
       window.clearTimeout(timer);
     };
-  }, [copied]);
+  }, [copiedTarget]);
 
   function toggleSection(section: keyof typeof openSections) {
     setOpenSections((current) => ({
@@ -142,18 +177,18 @@ function FrameDetailCard(props: FrameDetailCardProps) {
     }));
   }
 
-  async function copyFrameHex() {
+  async function copyText(value: string, target: string) {
     try {
-      await navigator.clipboard.writeText(frameHex);
-      setCopied(true);
+      await navigator.clipboard.writeText(value);
+      setCopiedTarget(target);
     } catch {
       const textarea = document.createElement("textarea");
-      textarea.value = frameHex;
+      textarea.value = value;
       document.body.appendChild(textarea);
       textarea.select();
       document.execCommand("copy");
       document.body.removeChild(textarea);
-      setCopied(true);
+      setCopiedTarget(target);
     }
   }
 
@@ -178,28 +213,11 @@ function FrameDetailCard(props: FrameDetailCardProps) {
           <StatusPill tone={hasWarnings ? "warn" : "ok"}>
             {hasWarnings ? "Valido con advertencias" : "Valido"}
           </StatusPill>
-          <button
-            type="button"
-            onClick={() => void copyFrameHex()}
-            className="inline-flex items-center gap-2 rounded-full border border-rose-300/20 bg-rose-400/12 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-rose-100 transition-all duration-300 hover:border-rose-300/35 hover:bg-rose-400/18 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/35"
+          <CopyPill
+            copied={copiedTarget === "frame"}
+            onClick={() => void copyText(frameHex, "frame")}
             title="Copiar frame en HEX"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              className="size-4"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M15.75 17.25h3a2.25 2.25 0 0 0 2.25-2.25v-9A2.25 2.25 0 0 0 18.75 3.75h-9A2.25 2.25 0 0 0 7.5 6v3m8.25 8.25h-9A2.25 2.25 0 0 1 4.5 15v-9a2.25 2.25 0 0 1 2.25-2.25h9A2.25 2.25 0 0 1 18 6v9a2.25 2.25 0 0 1-2.25 2.25Z"
-              />
-            </svg>
-            {copied ? "Copiado" : "Copiar"}
-          </button>
+          />
           <button
             type="button"
             aria-label="Ocultar analisis detallado"
@@ -256,19 +274,40 @@ function FrameDetailCard(props: FrameDetailCardProps) {
         >
           <div className="grid gap-3 xl:grid-cols-3">
             <div className="rounded-2xl border border-sky-300/12 bg-slate-950/70 p-3">
-              <div className={SMALL_LABEL_CLASS}>Payload HEX</div>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-100">Payload HEX</div>
+                <CopyPill
+                  copied={copiedTarget === "payload-hex"}
+                  onClick={() => void copyText(payloadHex, "payload-hex")}
+                  title="Copiar payload HEX"
+                />
+              </div>
               <div className="rounded-xl border border-white/10 bg-black/20 p-3 font-mono text-sm text-slate-100">
                 {payloadHex}
               </div>
             </div>
             <div className="rounded-2xl border border-sky-300/12 bg-slate-950/70 p-3">
-              <div className={SMALL_LABEL_CLASS}>Payload ASCII</div>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-100">Payload ASCII</div>
+                <CopyPill
+                  copied={copiedTarget === "payload-ascii"}
+                  onClick={() => void copyText(payloadAscii, "payload-ascii")}
+                  title="Copiar payload ASCII"
+                />
+              </div>
               <div className="rounded-xl border border-white/10 bg-black/20 p-3 font-mono text-sm text-slate-100">
                 {payloadAscii}
               </div>
             </div>
             <div className="rounded-2xl border border-sky-300/12 bg-slate-950/70 p-3">
-              <div className={SMALL_LABEL_CLASS}>Payload DEC</div>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-100">Payload DEC</div>
+                <CopyPill
+                  copied={copiedTarget === "payload-dec"}
+                  onClick={() => void copyText(payloadDec, "payload-dec")}
+                  title="Copiar payload DEC"
+                />
+              </div>
               <div className="rounded-xl border border-white/10 bg-black/20 p-3 font-mono text-sm text-slate-100">
                 {payloadDec}
               </div>
