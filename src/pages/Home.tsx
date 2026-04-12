@@ -573,7 +573,6 @@ const Home: React.FC = () => {
             </p>
           </div>
         </button>
-
       </div>
       {openInfoModal && (
         <Modal
@@ -606,7 +605,9 @@ const Home: React.FC = () => {
         >
           <div className="mb-6">
             <div className="app-kicker mb-3">Configuracion</div>
-            <h2 className="text-3xl font-black text-white">Centro de ajustes</h2>
+            <h2 className="text-3xl font-black text-white">
+              Centro de ajustes
+            </h2>
             <p className="mt-2 text-sm text-slate-300">
               Personaliza la interfaz y envia los cambios persistentes al ESP.
             </p>
@@ -616,12 +617,16 @@ const Home: React.FC = () => {
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
                   <h3 className="font-bold text-white">Enlace y watchdog</h3>
-                  <p className="text-sm text-slate-400">Supervision de heartbeat.</p>
+                  <p className="text-sm text-slate-400">
+                    Supervision de heartbeat.
+                  </p>
                 </div>
                 <button
                   onClick={toggleHeartbeatWatchdog}
                   className={`px-3 py-1 text-sm font-semibold ${
-                    heartbeatConfig.isActive ? "btn-success" : "app-button--ghost"
+                    heartbeatConfig.isActive
+                      ? "btn-success"
+                      : "app-button--ghost"
                   }`}
                   disabled={!connected}
                 >
@@ -632,11 +637,15 @@ const Home: React.FC = () => {
               <div className="app-panel mb-4 p-3 text-sm text-slate-300">
                 Intentos restantes:{" "}
                 <span className="font-bold text-emerald-300">
-                  {heartbeatConfig.remainingRetries} de {heartbeatConfig.maxRetries}
+                  {heartbeatConfig.remainingRetries} de{" "}
+                  {heartbeatConfig.maxRetries}
                 </span>
               </div>
 
-              <label htmlFor="hb-slider" className="mb-2 block text-sm text-slate-200">
+              <label
+                htmlFor="hb-slider"
+                className="mb-2 block text-sm text-slate-200"
+              >
                 {`Intervalo heartbeat (${heartbeatConfig.intervalMs} ms)`}
               </label>
               <input
@@ -650,7 +659,10 @@ const Home: React.FC = () => {
                 className="mb-4 w-full"
               />
 
-              <label htmlFor="retry-slider" className="mb-2 block text-sm text-slate-200">
+              <label
+                htmlFor="retry-slider"
+                className="mb-2 block text-sm text-slate-200"
+              >
                 {`Intentos maximos (${heartbeatConfig.maxRetries})`}
               </label>
               <input
@@ -669,22 +681,32 @@ const Home: React.FC = () => {
               <div className="mb-4">
                 <h3 className="font-bold text-white">Personalizar tema</h3>
                 <p className="text-sm text-slate-400">
-                  El base tiñe la atmósfera. El acento guía foco, botones y estados activos.
+                  El base tiñe la atmósfera. El acento guía foco, botones y
+                  estados activos.
                 </p>
               </div>
 
               <div
                 className="theme-role-preview mb-4"
-                style={{
-                  "--theme-base": normalizedThemeDraft.base,
-                  "--theme-accent": normalizedThemeDraft.accent,
-                } as React.CSSProperties}
+                style={
+                  {
+                    "--theme-base": normalizedThemeDraft.base,
+                    "--theme-accent": normalizedThemeDraft.accent,
+                  } as React.CSSProperties
+                }
               >
                 <div className="theme-role-preview__surface">
-                  <span className="theme-role-preview__signal" aria-hidden="true" />
+                  <span
+                    className="theme-role-preview__signal"
+                    aria-hidden="true"
+                  />
                   <div>
-                    <p className="text-xs font-bold uppercase text-slate-400">Base</p>
-                    <p className="font-mono text-sm text-white">{normalizedThemeDraft.base}</p>
+                    <p className="text-xs font-bold uppercase text-slate-400">
+                      Base
+                    </p>
+                    <p className="font-mono text-sm text-white">
+                      {normalizedThemeDraft.base}
+                    </p>
                   </div>
                   <button type="button" className="theme-role-preview__button">
                     Acento
@@ -717,7 +739,9 @@ const Home: React.FC = () => {
                   type="button"
                   className="app-button px-4 py-2 font-semibold"
                   onClick={handleSaveTheme}
-                  disabled={!themeDraftIsValid || themeStatus.tone === "loading"}
+                  disabled={
+                    !themeDraftIsValid || themeStatus.tone === "loading"
+                  }
                 >
                   Guardar tema
                 </button>
@@ -737,8 +761,9 @@ const Home: React.FC = () => {
               <div>
                 <h3 className="font-bold text-white">PIN de acceso</h3>
                 <p className="mt-1 max-w-2xl text-sm text-slate-400">
-                  Para cambiarlo se valida primero el PIN actual con el ESP. Despues
-                  se envia el nuevo PIN y se espera ACK de guardado en NVS.
+                  Para cambiarlo se valida primero el PIN actual con el ESP.
+                  Despues se envia el nuevo PIN y se espera ACK de guardado en
+                  NVS.
                 </p>
               </div>
               <button
@@ -747,6 +772,44 @@ const Home: React.FC = () => {
                 onClick={openPinEditor}
               >
                 Modificar PIN
+              </button>
+            </div>
+          </section>
+          <section className="app-panel-strong mt-4 p-4 flex flex-row gap-6">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between rounded-xl border p-3 text-sm border-white/10 bg-white/5 text-slate-300">
+              <div>
+                <h3 className="font-bold text-white">Reset ESP</h3>
+                <p className="mt-1 max-w-2xl text-sm text-slate-400">
+                  Esta operacion requiere que el ESP valide el PIN actual, luego
+                  se envia un comando de reset, es posible que se pierda la
+                  conexion momentaneamente hasta que el ESP reinicie y vuelva a
+                  conectar.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="app-button px-4 py-2 font-semibold"
+                onClick={openPinEditor}
+              >
+                Enviar
+              </button>
+            </div>
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between rounded-xl border p-3 text-sm border-white/10 bg-white/5 text-slate-300">
+              <div>
+                <h3 className="font-bold text-white">Reset STM</h3>
+                <p className="mt-1 max-w-2xl text-sm text-slate-400">
+                  Esta operacion requiere que el ESP valide el PIN actual, luego
+                  se envia un comando de reset al STM, es posible que se pierda
+                  la conexion momentaneamente hasta que el STM y el ESP
+                  reinicien y vuelva a conectar.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="app-button px-4 py-2 font-semibold"
+                onClick={openPinEditor}
+              >
+                Enviar
               </button>
             </div>
           </section>
@@ -762,7 +825,9 @@ const Home: React.FC = () => {
           <div className="mb-6">
             <div className="app-kicker mb-3">PIN</div>
             <h2 className="text-3xl font-black text-white">
-              {pinStep === "validate" ? "Validar PIN actual" : "Confirmar nuevo PIN"}
+              {pinStep === "validate"
+                ? "Validar PIN actual"
+                : "Confirmar nuevo PIN"}
             </h2>
             <p className="mt-2 text-sm text-slate-300">
               {pinStep === "validate"
@@ -784,7 +849,9 @@ const Home: React.FC = () => {
                 type="button"
                 className="app-button w-full px-4 py-3 font-bold"
                 onClick={requestPinValidation}
-                disabled={!/^\d{4}$/.test(currentPin) || pinStatus.tone === "loading"}
+                disabled={
+                  !/^\d{4}$/.test(currentPin) || pinStatus.tone === "loading"
+                }
               >
                 {pinStatus.tone === "loading" ? "Validando..." : "Validar PIN"}
               </button>
@@ -829,7 +896,9 @@ const Home: React.FC = () => {
                     pinStatus.tone === "loading"
                   }
                 >
-                  {pinStatus.tone === "loading" ? "Enviando..." : "Confirmar cambio"}
+                  {pinStatus.tone === "loading"
+                    ? "Enviando..."
+                    : "Confirmar cambio"}
                 </button>
               </div>
             </div>
