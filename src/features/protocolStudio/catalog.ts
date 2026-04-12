@@ -4,7 +4,7 @@ export const IDLE_SUMMARY = "Todavia no se analizo ninguna entrada.";
 
 export const NODE_OPTIONS = [
   { value: "1", label: "0x1 - MCU" },
-  { value: "2", label: "0x2 - PC / Qt" },
+  { value: "2", label: "0x2 - ESP / PC bridge" },
   { value: "3", label: "0x3 - Web App" },
   { value: "4", label: "0x4 - NRF remoto" },
   { value: "15", label: "0xF - Broadcast" },
@@ -12,7 +12,7 @@ export const NODE_OPTIONS = [
 
 export const NODE_NAMES: Record<number, string> = {
   0x1: "MCU",
-  0x2: "PC / Qt",
+  0x2: "ESP / PC bridge",
   0x3: "Web App",
   0x4: "NRF remoto",
   0xf: "Broadcast",
@@ -41,7 +41,7 @@ export const COMMAND_GROUPS: CommandGroup[] = [
   { label: "WiFi - conexion", commands: ["0x14", "0x15", "0x18", "0x48", "0x49", "0x4B", "0x4C"] },
   { label: "Estado e info", commands: ["0x30", "0x31", "0x40", "0x41", "0x44", "0x45", "0x46", "0x47", "0x4D"] },
   { label: "Notificaciones IP / boot", commands: ["0x4F", "0x50"] },
-  { label: "Sistema", commands: ["0x16", "0x17", "0x42", "0x43"] },
+  { label: "Sistema", commands: ["0x16", "0x17", "0x19", "0x42", "0x43"] },
   { label: "ACK / control", commands: ["0xE0", "0xE1"] },
   {
     label: "Eventos",
@@ -134,7 +134,7 @@ export const FRAME_COMMANDS: Record<string, CommandDefinition> = {
   },
   "0x16": {
     name: "REBOOT_ESP",
-    desc: "Reinicia el ESP. No se garantiza respuesta de aplicacion.",
+    desc: "Solicita reinicio del ESP. La web lo envia como stmPacket con payload.data; la ESP valida y reenvia el frame UNER v2 con ruta ESP/PC -> MCU (0x21).",
     fields: [],
     minPayload: 0,
     maxPayload: 0,
@@ -151,6 +151,14 @@ export const FRAME_COMMANDS: Record<string, CommandDefinition> = {
   "0x18": {
     name: "STOP_SCAN",
     desc: "Detiene escaneo, borra resultados temporales. Dispara notificacion 0x15 [0xFE].",
+    fields: [],
+    minPayload: 0,
+    maxPayload: 0,
+    kind: "request",
+  },
+  "0x19": {
+    name: "RESET_MCU",
+    desc: "Reinicia el STM32. La web lo envia como stmPacket con payload.data; la ESP valida y reenvia el frame UNER v2 con ruta ESP/PC -> MCU (0x21).",
     fields: [],
     minPayload: 0,
     maxPayload: 0,
@@ -337,9 +345,19 @@ export const FRAME_COMMANDS: Record<string, CommandDefinition> = {
   "0x81": {
     name: "EVT_MODE_CHANGED",
     desc: "Emitido cuando cambia el modo WiFi.",
-    fields: [],
-    minPayload: 0,
-    maxPayload: 255,
+    fields: [
+      {
+        id: "mode",
+        label: "Modo",
+        type: "select",
+        options: [
+          { value: "16", label: "0x10 - AP" },
+          { value: "17", label: "0x11 - STA" },
+        ],
+      },
+    ],
+    minPayload: 1,
+    maxPayload: 1,
     kind: "event",
   },
   "0x82": {
@@ -362,32 +380,32 @@ export const FRAME_COMMANDS: Record<string, CommandDefinition> = {
     name: "EVT_AP_CLIENT_JOIN",
     desc: "Cliente se conecta al SoftAP.",
     fields: [],
-    minPayload: 1,
-    maxPayload: 1,
+    minPayload: 0,
+    maxPayload: 255,
     kind: "event",
   },
   "0x85": {
     name: "EVT_AP_CLIENT_LEAVE",
     desc: "Cliente sale del SoftAP.",
     fields: [],
-    minPayload: 1,
-    maxPayload: 1,
+    minPayload: 0,
+    maxPayload: 255,
     kind: "event",
   },
   "0x86": {
     name: "EVT_APP_USER_CONNECTED",
     desc: "Usuario app conectado.",
     fields: [],
-    minPayload: 4,
-    maxPayload: 4,
+    minPayload: 0,
+    maxPayload: 255,
     kind: "event",
   },
   "0x87": {
     name: "EVT_APP_USER_DISCONNECTED",
     desc: "Usuario app desconectado.",
     fields: [],
-    minPayload: 4,
-    maxPayload: 4,
+    minPayload: 0,
+    maxPayload: 255,
     kind: "event",
   },
   "0x88": {
@@ -402,16 +420,16 @@ export const FRAME_COMMANDS: Record<string, CommandDefinition> = {
     name: "EVT_WEBSERVER_CLIENT_CONNECTED",
     desc: "Cliente web conectado.",
     fields: [],
-    minPayload: 4,
-    maxPayload: 4,
+    minPayload: 0,
+    maxPayload: 255,
     kind: "event",
   },
   "0x8A": {
     name: "EVT_WEBSERVER_CLIENT_DISCONNECTED",
     desc: "Cliente web desconectado.",
     fields: [],
-    minPayload: 4,
-    maxPayload: 4,
+    minPayload: 0,
+    maxPayload: 255,
     kind: "event",
   },
   "0x8B": {

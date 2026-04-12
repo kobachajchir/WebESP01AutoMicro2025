@@ -7,7 +7,7 @@ export function useMockFirmware(
   mode: "AP" | "STATION" = "AP",
   delay: number = 500
 ) {
-  const { connected, mockMessage, mockRaw } = useWebSocket();
+  const { mockRaw } = useWebSocket();
 
   useEffect(() => {
     const tid = setTimeout(() => {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import ThreeModelViewer from "../components/ThreeModelViewer";
 import OrientationControls from "../components/OrientationControls";
 import type { CameraRigHandle, PresetKey } from "../components/CameraRig";
@@ -9,13 +9,10 @@ import PageHeader from "../components/PageHeader";
 import RealtimeEulerPanel from "../components/RealTimeEulerPanel";
 import MockEulerGenerator from "../components/MockEulerGenerator";
 import Modal from "../components/modal";
-import { UNER, UNERProtocol, type TelemetrySetRateParams } from "../api/UnerProtocol";
 import { useWebSocket } from "../hooks/useWebSocket";
-import { CMD, type U16 } from "../types/UnerProtocolCMDTypes";
 
 export default function EstadoSection() {
-  // @ts-ignore
-  const { mockRaw, setSensorRefreshInterval, sensorRefreshInterval } = useWebSocket();
+  const { setSensorRefreshInterval, sensorRefreshInterval } = useWebSocket();
   const [e, setE] = useState({ yaw: 0, pitch: 0, roll: 0 });
   const [mockActive, setMockActive] = useState(false);
   const [mockMs, setMockMs] = useState(120);
@@ -34,10 +31,6 @@ export default function EstadoSection() {
   const [isEmu, setIsEmu] = useState(false);
 
   const sensorValue = useRef<HTMLInputElement>(null);
-
-  const [sensorSliderValue, setSensorSliderValue] = useState<number>(
-    sensorRefreshInterval
-  );
 
   return (
     <section

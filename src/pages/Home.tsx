@@ -6,6 +6,7 @@ import { useUNERProtocol } from "../hooks/useUnerProtocol";
 import { le16, readLe16 } from "../api/UnerProtocolUtils";
 import PageHeader from "../components/PageHeader";
 import Modal from "../components/modal";
+import SystemResetActions from "../components/SystemResetActions";
 import {
   APP_PIN_ACTION,
   CMD,
@@ -750,6 +751,8 @@ const Home: React.FC = () => {
               </button>
             </div>
           </section>
+
+          <SystemResetActions />
         </Modal>
       )}
       {openPinModal && (

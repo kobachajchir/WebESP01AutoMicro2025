@@ -328,7 +328,7 @@ function TimelineRow({
   );
 
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [overlaySize, setOverlaySize] = useState<{
+  const [, setOverlaySize] = useState<{
     w: number;
     h: number;
   } | null>(null);

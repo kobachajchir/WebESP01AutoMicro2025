@@ -6,6 +6,7 @@ import PageHeader from "../components/PageHeader";
 import TimelineRow from "../components/TimelineRow";
 import type { Block, Dir, TrackKey } from "../types/MotorTypes";
 import Modal from "../components/modal";
+import SystemResetActions from "../components/SystemResetActions";
 
 const uid = () => Math.random().toString(36).slice(2);
 
@@ -591,9 +592,6 @@ export default function ControlSection() {
       blockProps,
     ]
   );
-
-  const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
-  const [editLabelValue, setEditLabelValue] = useState("");
 
   const updateBlockLabelAdvanced = useCallback(
     (blockId: string, newLabel: string) => {
@@ -1420,18 +1418,7 @@ export default function ControlSection() {
         >
           <h2 className="text-2xl font-bold mb-4 text-black">Configuración</h2>
 
-          <div className="flex flex-row gap-4 text-black w-full items-center justify-center my-4">
-            <p className="text-lg">Reiniciar ESP01</p>
-            <button
-              className="btn-indigo group relative inline-flex items-center gap-2 rounded-xl py-2 font-medium text-white
-                               transition-all duration-300 hover:text-slate-900
-                               hover:shadow-[inset_0_0_0_1px_theme('colors.indigo.400')]
-                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40 estado-btn px-5"
-              onClick={() => console.log("Reiniciar ESP01")}
-            >
-              Enviar
-            </button>
-          </div>
+          <SystemResetActions />
 
           <div className="flex flex-row gap-4 text-black w-full items-center justify-center my-4">
             <p className="text-lg">Resetear configuración</p>

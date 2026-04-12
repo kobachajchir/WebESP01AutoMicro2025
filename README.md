@@ -1,4 +1,20 @@
-# React + TypeScript + Vite
+# Web ESP01 Auto Micro 2025
+
+## Reinicios desde la configuracion principal
+
+La configuracion de la pagina principal emite paquetes WebSocket JSON a la ESP. La web no manda bytes binarios crudos; cuando el destino logico es la STM, el mensaje viaja como `stmPacket` con los bytes en `payload.data`:
+
+- `Reiniciar ESP`: envia `{"type":"stmPacket","payload":{"action":"resetEsp","cmd":"CMD_REBOOT_ESP","data":[85,78,69,82,0,58,2,33,22,3]}}`.
+  - `CMD_REBOOT_ESP = 0x16`, ruta `0x21` (`src=0x02`, `dst=0x01`).
+  - Frame UNER equivalente: `55 4E 45 52 00 3A 02 21 16 03`.
+  - Es normal perder el enlace WebSocket si el firmware termina reiniciando la ESP.
+
+- `Reiniciar STM32`: envia `{"type":"stmPacket","payload":{"action":"resetMcu","cmd":"CMD_RESET_MCU","data":[85,78,69,82,0,58,2,33,25,12]}}`.
+  - `CMD_RESET_MCU = 0x19`, ruta `0x21` (`src=0x02`, `dst=0x01`).
+  - Frame UNER equivalente: `55 4E 45 52 00 3A 02 21 19 0C`.
+  - Es normal perder comunicacion mientras la STM32 reinicia.
+
+Mas detalle: [docs/uner-websocket-events.md](docs/uner-websocket-events.md).
 
 ## Comandos ESP pendientes de firmware
 

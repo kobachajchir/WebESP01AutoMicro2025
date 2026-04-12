@@ -56,7 +56,7 @@ function useAutoWsTransport(): UNERTransport {
   return useMemo<UNERTransport>(
     () => ({
       write: (data: Uint8Array) => {
-        ws.sendRaw(data); // siempre binario
+        ws.sendRaw(data); // paquete WebSocket JSON con payload.data
       },
       onBytes: (cb) => {
         return ws.subscribeRaw((incoming: ArrayBuffer | Uint8Array) => {

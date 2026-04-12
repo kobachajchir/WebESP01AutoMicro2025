@@ -11,6 +11,15 @@ import Modal from "../components/modal";
 
 type WSMessageHandler = (data: any) => void;
 type WSRawHandler = (data: ArrayBuffer | Uint8Array) => void;
+type WSDataPacketMeta = Record<string, unknown>;
+
+const WS_DATA_PACKET_TYPE = "stmPacket";
+const WS_DATA_PACKET_TYPES = new Set([
+  WS_DATA_PACKET_TYPE,
+  "unerPacket",
+  "rawBytes",
+  "binaryData",
+]);
 
 interface HeartbeatConfig {
   intervalMs: number;
@@ -26,7 +35,7 @@ interface WebSocketContextType {
   send: (type: string, payload?: any) => void;
   subscribe: (type: string, handler: WSMessageHandler) => () => void;
 
-  sendRaw: (data: Uint8Array) => void;
+  sendRaw: (data: Uint8Array, meta?: WSDataPacketMeta) => void;
   subscribeRaw: (handler: WSRawHandler) => () => void;
 
   disconnect: () => void;
@@ -311,6 +320,10 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
         }
         const { type, payload } = msg ?? {};
         jsonListeners.current.get(type)?.forEach((h) => h(payload));
+        const packetBytes = decodeWsDataPacket(msg);
+        if (packetBytes) {
+          rawListeners.current.forEach((h) => h(packetBytes));
+        }
         return;
       }
       if (evt.data instanceof ArrayBuffer) {
@@ -373,20 +386,20 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     };
   }, []);
 
-  // 4) Enviar binario
-  const sendRaw = useCallback((data: Uint8Array) => {
+  // 4) Enviar bytes dentro de un paquete WebSocket JSON
+  const sendRaw = useCallback((data: Uint8Array, meta?: WSDataPacketMeta) => {
     const ws = wsRef.current;
     if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(data);
+      ws.send(JSON.stringify(buildWsDataPacket(data, meta)));
     } else {
       // MODO MOCK: registrar log y simular recepción (eco)
-      console.log("[WS mock] sendRaw bytes:", data);
-      // ⬇️ inyecta hacia todos los suscriptores binarios:
+      console.log("[WS mock] send data packet:", buildWsDataPacket(data, meta));
+      // Inyecta hacia todos los suscriptores de bytes:
       rawListeners.current.forEach((h) => h(data));
     }
   }, []);
 
-  // 5) Suscribirse a binario
+  // 5) Suscribirse a bytes recibidos por stmPacket o por transporte legacy
   const subscribeRaw = useCallback((handler: WSRawHandler) => {
     rawListeners.current.add(handler);
     return () => {
@@ -399,7 +412,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     wsRef.current?.close();
   }, []);
 
-  // 7) Mock JSON (no binario)
+  // 7) Mock JSON
   const mockMessage = useCallback((type: string, payload?: any) => {
     jsonListeners.current.get(type)?.forEach((handler) => handler(payload));
   }, []);
@@ -469,3 +482,33 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     </WebSocketContext.Provider>
   );
 };
+
+function buildWsDataPacket(data: Uint8Array, meta?: WSDataPacketMeta) {
+  return {
+    type: WS_DATA_PACKET_TYPE,
+    payload: {
+      ...meta,
+      data: Array.from(data),
+    },
+  };
+}
+
+function decodeWsDataPacket(msg: any): Uint8Array | null {
+  if (!msg || !WS_DATA_PACKET_TYPES.has(msg.type)) {
+    return null;
+  }
+
+  const rawData = Array.isArray(msg.payload)
+    ? msg.payload
+    : Array.isArray(msg.payload?.data)
+      ? msg.payload.data
+      : Array.isArray(msg.data)
+        ? msg.data
+        : null;
+
+  if (!rawData || rawData.some((value: unknown) => typeof value !== "number")) {
+    return null;
+  }
+
+  return Uint8Array.from(rawData, (value: number) => value & 0xff);
+}

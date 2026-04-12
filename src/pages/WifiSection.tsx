@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { useMockFirmware } from "../hooks/useMockFirmware";
 import ToggleButton from "../components/toggleButton";
 import Modal from "../components/modal";
 import type { WifiMode } from "../types/WifiTypes";
 import PageHeader from "../components/PageHeader";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { CMD } from "../types/UnerProtocolCMDTypes";
+import SystemResetActions from "../components/SystemResetActions";
 
 export default function WifiSection() {
-  const { send, subscribe, connected, sendRaw, subscribeRaw, mockRaw } =
+  const { connected, sendRaw, subscribeRaw, mockRaw } =
     useWebSocket();
   const [mode, setMode] = useState<WifiMode | null>(null);
   const [changesMade, setChangesMade] = useState(false);
@@ -804,18 +804,7 @@ export default function WifiSection() {
         >
           <h2 className="text-2xl font-bold mb-4 text-black">Configuración</h2>
 
-          <div className="flex flex-row gap-4 text-black w-full items-center justify-center my-4">
-            <p className="text-lg">Reiniciar ESP01</p>
-            <button
-              className="btn-indigo group relative inline-flex items-center gap-2 rounded-xl py-2 font-medium text-white
-                         transition-all duration-300 hover:text-slate-900
-                         hover:shadow-[inset_0_0_0_1px_theme('colors.indigo.400')]
-                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40 estado-btn px-5"
-              onClick={() => console.log("Reiniciar ESP01")}
-            >
-              Enviar
-            </button>
-          </div>
+          <SystemResetActions />
 
           <div className="flex flex-row gap-4 text-black w-full items-center justify-center my-4">
             <p className="text-lg">Resetear configuración</p>
