@@ -26,6 +26,30 @@ HEADER "UNER" | LEN | TOKEN ":" | VERSION 0x02 | ROUTE | CMD | PAYLOAD | CHK
 
 Nota: el flujo "STM -> ESP real" para `CMD_REBOOT_ESP` usa ruta `0x12` y frame `55 4E 45 52 00 3A 02 12 16 30`. Ese tramo corresponde al firmware/STM cuando decide reiniciar la ESP desde el lado del micro.
 
+## Telemetria real desde Sensores/Visor
+
+La pantalla Sensores/Visor tambien envia frames UNER v2 dentro de `stmPacket` para controlar el stream real de MPU6050:
+
+| Accion en la web | CMD | Payload | Regla |
+| --- | --- | --- | --- |
+| Iniciar o actualizar tasa | `TELEMETRY_SET_RATE = 0x20` | `u16 LE periodMs` | `periodMs > 0` activa o actualiza el stream |
+| Detener stream | `TELEMETRY_SET_RATE = 0x20` | `00 00` | `periodMs = 0` es finalizador explicito |
+| ACK esperado | `TELEMETRY_ACK = 0x21` | `[code, periodMsLow, periodMsHigh]` | `code=0` indica OK |
+| Datos esperados | `TELEMETRY_DATA = 0x22` | 17 bytes | `[schema, seqL, seqH, accXl, accXh, accYl, accYh, accZl, accZh, gyroXl, gyroXh, gyroYl, gyroYh, gyroZl, gyroZh, tempL, tempH]` |
+
+Modos de captura:
+
+- Temporizado: la web envia `0x20` con el periodo elegido y, al vencer la duracion, envia automaticamente `0x20` con payload `00 00`. La duracion maxima de la UI es `240s`.
+- Constante: la web envia `0x20` con el periodo elegido y mantiene el stream activo hasta que el usuario presiona `Detener`; ahi envia `00 00`.
+- Si cambia el periodo mientras el stream esta activo, la web reenvia `0x20` con el nuevo `u16 LE`.
+
+Ejemplos:
+
+- `200ms` por `2s`: payload inicial `C8 00`; al vencer, finalizador `00 00`.
+- `500ms` constante: payload inicial `F4 01`; al detener, finalizador `00 00`.
+
+Mas detalle: [telemetry-session-protocol.md](telemetry-session-protocol.md).
+
 ## Trabajo pendiente en firmware ESP
 
 Si el firmware de la ESP recibe un `stmPacket`, tiene que validar `payload.data` y escribir esos bytes hacia la STM. Como minimo:

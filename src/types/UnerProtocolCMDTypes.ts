@@ -183,6 +183,11 @@ export const TELEMETRY_SCHEMA = {
   MPU6050_INT16: 0x01, // MPU6050 datos crudos int16
 } as const;
 
+export const TELEMETRY_LIMITS = {
+  MIN_RECOMMENDED_DURATION_SECONDS: 1,
+  MAX_DURATION_SECONDS: 240,
+} as const;
+
 // Estructuras de datos
 export interface APCreds {
   ssidLen: U8;

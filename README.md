@@ -16,6 +16,19 @@ La configuracion de la pagina principal emite paquetes WebSocket JSON a la ESP. 
 
 Mas detalle: [docs/uner-websocket-events.md](docs/uner-websocket-events.md).
 
+## Telemetria real en Sensores/Visor
+
+La pantalla Sensores/Visor controla el stream real de MPU6050 con `TELEMETRY_SET_RATE = 0x20`:
+
+- Payload `u16 LE periodMs`: `periodMs > 0` inicia o actualiza el stream.
+- Payload `00 00`: finalizador explicito para detenerlo.
+- ACK esperado: `TELEMETRY_ACK = 0x21` con `[code, periodMsLow, periodMsHigh]`.
+- Datos esperados: `TELEMETRY_DATA = 0x22` con payload de 17 bytes.
+- Modo temporizado: duracion maxima `240s`; al vencer envia automaticamente `00 00`.
+- Modo constante: queda activo hasta `Detener`, que envia `00 00`.
+
+Mas detalle: [docs/telemetry-session-protocol.md](docs/telemetry-session-protocol.md).
+
 ## Comandos ESP pendientes de firmware
 
 La web usa dos comandos UNER nuevos para preferencias persistidas en NVS:

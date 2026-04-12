@@ -16,6 +16,9 @@ export const UNER_V2_NODE = {
 export const UNER_V2_CMD = {
   REBOOT_ESP: 0x16,
   RESET_MCU: 0x19,
+  TELEMETRY_SET_RATE: 0x20,
+  TELEMETRY_ACK: 0x21,
+  TELEMETRY_DATA: 0x22,
 } as const;
 
 export type UnerV2FrameOptions = {
@@ -58,6 +61,16 @@ export function buildEspRebootRequestFrame(): Uint8Array {
 
 export function buildStmResetFrame(): Uint8Array {
   return buildUnerV2Frame({ cmd: UNER_V2_CMD.RESET_MCU });
+}
+
+export function buildTelemetrySetRateFrame(periodMs: number): Uint8Array {
+  const normalizedPeriod = Math.max(0, Math.min(0xffff, Math.round(periodMs)));
+  const payload = [normalizedPeriod & 0xff, (normalizedPeriod >> 8) & 0xff];
+
+  return buildUnerV2Frame({
+    cmd: UNER_V2_CMD.TELEMETRY_SET_RATE,
+    payload,
+  });
 }
 
 export function formatUnerFrameHex(frame: Uint8Array): string {

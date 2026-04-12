@@ -23,6 +23,7 @@ export function ProtocolHelpModal({ isOpen, onClose }: ProtocolHelpModalProps) {
         <li><span className="font-semibold">Escaner de bloques:</span> cuando encuentra varios headers o un bloque largo, separa frames validos, headers invalidos y bytes fuera de frame, mostrando una vista continua del stream.</li>
         <li><span className="font-semibold">Bootloader ESP detectado:</span> si el bloque previo al primer header contiene el log fijo tipo <code>ets Jan 8 2013</code> / <code>rst cause:2</code>, se marca como reinicio del ESP y no como ruido generico. En esta integracion eso suele significar que el STM se reinicio y obligo al ESP a reiniciarse.</li>
         <li><span className="font-semibold">Reinicios desde la web:</span> <code>resetEsp</code> y <code>resetMcu</code> viajan como <code>stmPacket</code> con <code>payload.data</code>. El firmware de la ESP valida esos bytes y los reenvia como frames UNER v2 con ruta <code>0x21</code>.</li>
+        <li><span className="font-semibold">Telemetria:</span> <code>TELEMETRY_SET_RATE (0x20)</code> usa payload <code>u16 LE</code>; <code>00 00</code> detiene el stream, <code>0x21</code> confirma ACK y <code>0x22</code> transporta muestras de 17 bytes.</li>
         <li><span className="font-semibold">Salidas listas para copiar:</span> puedes exportar el frame como hex limpio, formato RealTerm, array <code>uint8_t[]</code> o literal de Python.</li>
       </ul>
       <div className="rounded-xl bg-white/70 p-3 text-xs text-black ring-1 ring-black/5">

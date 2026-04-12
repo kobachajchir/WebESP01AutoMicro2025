@@ -39,6 +39,7 @@ const NETWORK_IP_FIELDS: CommandDefinition["fields"] = [
 export const COMMAND_GROUPS: CommandGroup[] = [
   { label: "WiFi - modo", commands: ["0x10", "0x11", "0x12", "0x13", "0x4A", "0x4E"] },
   { label: "WiFi - conexion", commands: ["0x14", "0x15", "0x18", "0x48", "0x49", "0x4B", "0x4C"] },
+  { label: "Telemetria", commands: ["0x20", "0x21", "0x22"] },
   { label: "Estado e info", commands: ["0x30", "0x31", "0x40", "0x41", "0x44", "0x45", "0x46", "0x47", "0x4D"] },
   { label: "Notificaciones IP / boot", commands: ["0x4F", "0x50"] },
   { label: "Sistema", commands: ["0x16", "0x17", "0x19", "0x42", "0x43"] },
@@ -163,6 +164,33 @@ export const FRAME_COMMANDS: Record<string, CommandDefinition> = {
     minPayload: 0,
     maxPayload: 0,
     kind: "request",
+  },
+  "0x20": {
+    name: "TELEMETRY_SET_RATE",
+    desc: "Inicia, actualiza o detiene el stream de telemetria. Payload u16 LE: [periodMsLow, periodMsHigh]. periodMs > 0 inicia/actualiza; periodMs = 0 envia el finalizador explicito 00 00.",
+    fields: [
+      { id: "periodLow", label: "Periodo low", type: "u8", placeholder: "200" },
+      { id: "periodHigh", label: "Periodo high", type: "u8", placeholder: "0" },
+    ],
+    minPayload: 2,
+    maxPayload: 2,
+    kind: "request",
+  },
+  "0x21": {
+    name: "TELEMETRY_ACK",
+    desc: "ACK de telemetria. Payload: [code, periodMsLow, periodMsHigh]. code=0 indica OK y periodMs confirma la tasa aplicada.",
+    fields: [],
+    minPayload: 3,
+    maxPayload: 3,
+    kind: "ack",
+  },
+  "0x22": {
+    name: "TELEMETRY_DATA",
+    desc: "Dato de telemetria MPU6050. Payload esperado de 17 bytes: [schema, seqL, seqH, accXl, accXh, accYl, accYh, accZl, accZh, gyroXl, gyroXh, gyroYl, gyroYh, gyroZl, gyroZh, tempL, tempH].",
+    fields: [],
+    minPayload: 17,
+    maxPayload: 17,
+    kind: "event",
   },
   "0x30": {
     name: "GET_STATUS",
