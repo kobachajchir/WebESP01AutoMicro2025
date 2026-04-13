@@ -44,6 +44,7 @@ interface WebSocketContextType {
 
   // Heartbeat watchdog
   heartbeatConfig: HeartbeatConfig;
+  lastHeartbeatAt: number | null;
   setHeartbeatInterval: (ms: number) => void;
   setHeartbeatMaxRetries: (retries: number) => void;
   toggleHeartbeatWatchdog: () => void;
@@ -82,6 +83,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     isActive: false,
     remainingRetries: 5,
   });
+  const [lastHeartbeatAt, setLastHeartbeatAt] = useState<number | null>(null);
 
   const [sensorRefreshInterval, setSensorRefreshInterval] = useState<number>(500);
 
@@ -188,6 +190,8 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
 
   // Función pública para notificar que se recibió un heartbeat
   const onHeartbeatReceived = useCallback(() => {
+    setLastHeartbeatAt(Date.now());
+
     if (heartbeatConfig.isActive) {
       resetHeartbeatWatchdog();
     }
@@ -379,8 +383,13 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     }
     jsonListeners.current.get(type)!.add(handler);
     return () => {
-      jsonListeners.current.get(type)!.delete(handler);
-      if (jsonListeners.current.get(type)!.size === 0) {
+      const listeners = jsonListeners.current.get(type);
+      if (!listeners) {
+        return;
+      }
+
+      listeners.delete(handler);
+      if (listeners.size === 0) {
         jsonListeners.current.delete(type);
       }
     };
@@ -435,6 +444,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
         mockMessage,
         mockRaw,
         heartbeatConfig,
+        lastHeartbeatAt,
         setHeartbeatInterval,
         setHeartbeatMaxRetries,
         toggleHeartbeatWatchdog,

@@ -36,6 +36,12 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 
 const USER_SESSION_KEY = "user";
 
+// !!! WARNING: DEBUG FLAG — REMOVE BEFORE PRODUCTION DEPLOY !!!
+// Esta variable permite activar el login de desarrollo desde el código.
+// BORRAR esta bandera antes de hacer deploy a producción.
+const DEBUG_ALLOW_DEV_LOGIN = true;
+// !!! END WARNING: BORRAR ANTES DE PRODUCCIÓN !!!
+
 interface UserProviderProps {
   children: ReactNode;
 }
@@ -104,6 +110,34 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
   const login = useCallback(
     (pin: string) => {
+      // Permitir mock sobre WebSocket real si está activado explícitamente.
+      // Se puede activar con la variable de entorno VITE_ALLOW_DEV_LOGIN=true
+      // o en tiempo de ejecución con `sessionStorage.setItem('ALLOW_DEV_LOGIN','true')`.
+      const devLoginEnabled = DEBUG_ALLOW_DEV_LOGIN
+
+      if (devLoginEnabled) {
+        // Intentamos enviar la petición al dispositivo, pero no esperamos la respuesta
+        try {
+          console.log("Dev Login Bypass")
+          sendUner(
+            CMD.APP_PIN_CONFIG,
+            PayloadBuilder.appPinConfig(APP_PIN_ACTION.VALIDATE, pin)
+          ).catch(() => {
+            /* ignore */
+          });
+        } catch (e) {
+          /* ignore */
+        }
+
+        const userData: User = {
+          id: `dev-${Date.now()}`,
+          name: "Dev User",
+        };
+        setUser(userData);
+        sessionStorage.setItem(USER_SESSION_KEY, JSON.stringify(userData));
+        return Promise.resolve(true);
+      }
+
       return new Promise<boolean>((resolve) => {
         if (!/^\d{4}$/.test(pin)) {
           resolve(false);

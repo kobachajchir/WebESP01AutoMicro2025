@@ -7,6 +7,7 @@ import { le16, readLe16 } from "../api/UnerProtocolUtils";
 import PageHeader from "../components/PageHeader";
 import Modal from "../components/modal";
 import SystemResetActions from "../components/SystemResetActions";
+import ScreenDashboardPanel from "../components/ScreenDashboardPanel";
 import {
   APP_PIN_ACTION,
   CMD,
@@ -39,6 +40,7 @@ const Home: React.FC = () => {
     setHeartbeatMaxRetries,
     toggleHeartbeatWatchdog,
     onHeartbeatReceived,
+    lastHeartbeatAt,
   } = useWebSocket();
 
   const { send, subscribe } = useUNERProtocol();
@@ -249,9 +251,71 @@ const Home: React.FC = () => {
     base: normalizeHexColor(themeDraft.base, DEFAULT_THEME_COLORS.base),
     accent: normalizeHexColor(themeDraft.accent, DEFAULT_THEME_COLORS.accent),
   };
+  const [hoveredBtn, setHoveredBtn] = useState<string | null>(null);
+  const [accentBorder30, setAccentBorder30] = useState<string>(
+    "rgba(34,211,238,0.3)",
+  );
+
+  useEffect(() => {
+    try {
+      const raw =
+        getComputedStyle(document.documentElement).getPropertyValue(
+          "--ui-accent",
+        ) || "#22d3ee";
+      const hex = raw.trim();
+      const m = hex.match(/^#?([0-9a-fA-F]{6})$/);
+      if (m) {
+        const hh = m[1];
+        const r = parseInt(hh.slice(0, 2), 16);
+        const g = parseInt(hh.slice(2, 4), 16);
+        const b = parseInt(hh.slice(4, 6), 16);
+        setAccentBorder30(`rgba(${r}, ${g}, ${b}, 0.3)`);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+  // Preset themes para seleccionar rápidamente
+  // Presets invertidos: por defecto base/acento intercambiados
+  const PRESET_THEMES: Array<ThemeColors & { label: string }> = [
+    { base: "#C21121", accent: "#B3E6FB", label: "Berry Red / Icy Blue" },
+    {
+      base: "#700143",
+      accent: "#CFD78C",
+      label: "Crimson Violet / Pale Amber",
+    },
+    { base: "#3D2E2B", accent: "#E1D0C9", label: "Deep Mocha / Powder Petal" },
+    { base: "#2D3E50", accent: "#F4F8F9", label: "Charcoal Blue / Platinum" },
+    {
+      base: "#2E1E1F",
+      accent: "#E30B5C",
+      label: "Raspberry Red / Coffee Bean",
+    },
+    { base: "#3E2723", accent: "#F4C9D6", label: "Espresso / Peony" },
+    {
+      base: "#35393C",
+      accent: "#A4D8FF",
+      label: "Gunmetal / Icy Blue Variant",
+    },
+  ];
+
+  const isSameTheme = (a: ThemeColors, b: ThemeColors) => {
+    return (
+      normalizeHexColor(a.base, DEFAULT_THEME_COLORS.base) ===
+        normalizeHexColor(b.base, DEFAULT_THEME_COLORS.base) &&
+      normalizeHexColor(a.accent, DEFAULT_THEME_COLORS.accent) ===
+        normalizeHexColor(b.accent, DEFAULT_THEME_COLORS.accent)
+    );
+  };
   const themeDraftIsValid =
     isHexColor(toHexCandidate(themeDraft.base)) &&
     isHexColor(toHexCandidate(themeDraft.accent));
+  const missedHeartbeatCount = Math.max(
+    0,
+    heartbeatConfig.maxRetries - heartbeatConfig.remainingRetries
+  );
+  const shouldShowLastHeartbeat =
+    missedHeartbeatCount >= 2 || heartbeatConfig.remainingRetries === 0;
 
   function clearPinAckTimeout() {
     if (pinAckTimeoutRef.current) {
@@ -406,7 +470,7 @@ const Home: React.FC = () => {
                  selection:bg-cyan-500/30"
     >
       {/* Header */}
-      <div className="flex flex-col h-1/3 w-full items-center justify-center p-4">
+      <div className="flex w-full flex-col items-center justify-center p-4">
         <PageHeader
           setOpenSettingsModal={setOpenSettingsModal}
           setOpenInfoModal={setOpenInfoModal}
@@ -439,6 +503,13 @@ const Home: React.FC = () => {
                 {connected ? "Conectado" : "Desconectado"}
               </span>
             </div>
+            {shouldShowLastHeartbeat ? (
+              <p className="max-w-sm text-center text-xs font-medium text-amber-200">
+                Ultimo heartbeat: {formatHeartbeatTime(lastHeartbeatAt)}.
+                Watchdog sin respuesta: {missedHeartbeatCount} de{" "}
+                {heartbeatConfig.maxRetries}.
+              </p>
+            ) : null}
           </div>
 
           {/* Configuraciones */}
@@ -467,24 +538,39 @@ const Home: React.FC = () => {
         </div>
       </div>
 
+      <div className="mb-6 flex w-full max-w-6xl justify-center px-2">
+        <ScreenDashboardPanel />
+      </div>
+
       {/* Accesos */}
-      <div className="flex flex-col md:flex-row h-3/4 md:h-1/2 w-full md:w-11/12 max-w-6xl items-center justify-between gap-6">
+      <div className="flex flex-col md:flex-row flex-1 min-h-[18rem] w-full md:w-11/12 max-w-6xl items-center justify-between gap-6">
         {/* 1) Estado — cyan → indigo */}
         <button
-          className={`group relative w-3/4 md:w-1/3 h-3/5 rounded-2xl transition-all duration-300 ${
-            !connected
-              ? "!bg-gray-400 !text-slate-900"
-              : "estado-btn hover:-translate-y-1 hover:text-slate-900 hover:shadow-[inset_0_0_0_2px_theme('colors.cyan.400')] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
-          }`}
+          className={`group relative w-3/4 md:w-1/3 h-3/5 rounded-2xl transition-all duration-300 text-slate-900`}
+          style={
+            connected
+              ? hoveredBtn === "estado"
+                ? ({
+                    borderColor: "white",
+                    color: "white",
+                    borderStyle: "solid",
+                    borderWidth: "2px",
+                  } as React.CSSProperties)
+                : ({
+                    borderColor: accentBorder30,
+                    borderStyle: "solid",
+                    borderWidth: "2px",
+                  } as React.CSSProperties)
+              : undefined
+          }
+          onMouseEnter={() => connected && setHoveredBtn("estado")}
+          onMouseLeave={() => connected && setHoveredBtn(null)}
           onClick={() => navigate("/statics", { viewTransition: true })}
           aria-label="Ir a Estado"
           disabled={!connected}
         >
           <div
-            className={`flex flex-col justify-center items-center h-full w-full rounded-2xl
-                 bg-transparent text-slate-100 transition-all duration-300 group-hover:text-slate-900 ${
-                   connected ? "text-hover-indigo" : "text-hover-gray"
-                 }`}
+            className={`flex flex-col justify-center items-center h-full w-full rounded-2xl bg-transparent text-slate-100 transition-all duration-300`}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -506,11 +592,25 @@ const Home: React.FC = () => {
 
         {/* 2) Control — indigo → fuchsia */}
         <button
-          className={`group relative w-3/4 md:w-1/3 h-3/5 rounded-2xl transition-all duration-300 ${
-            !connected
-              ? "!bg-gray-400 !text-slate-900"
-              : "control-btn hover:-translate-y-1 hover:text-slate-900 hover:shadow-[inset_0_0_0_2px_theme('colors.cyan.400')] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
-          }`}
+          className={`group relative w-3/4 md:w-1/3 h-3/5 rounded-2xl transition-all duration-300 text-slate-900`}
+          style={
+            connected
+              ? hoveredBtn === "control"
+                ? ({
+                    borderColor: "white",
+                    color: "white",
+                    borderStyle: "solid",
+                    borderWidth: "2px",
+                  } as React.CSSProperties)
+                : ({
+                    borderColor: accentBorder30,
+                    borderStyle: "solid",
+                    borderWidth: "2px",
+                  } as React.CSSProperties)
+              : undefined
+          }
+          onMouseEnter={() => connected && setHoveredBtn("control")}
+          onMouseLeave={() => connected && setHoveredBtn(null)}
           onClick={(e) => {
             e.preventDefault();
             navigate("/control", { viewTransition: true });
@@ -519,10 +619,7 @@ const Home: React.FC = () => {
           aria-label="Ir a Control"
         >
           <div
-            className={`flex flex-col justify-center items-center h-full w-full rounded-2xl
-         bg-transparent text-slate-100 transition-all duration-300 group-hover:text-slate-900 ${
-           connected ? "text-hover-indigo" : "text-hover-gray"
-         }`}
+            className={`flex flex-col justify-center items-center h-full w-full rounded-2xl bg-transparent text-slate-100 transition-all duration-300`}
           >
             <svg
               width="800px"
@@ -542,20 +639,31 @@ const Home: React.FC = () => {
 
         {/* 3) Wi-Fi — fuchsia → teal */}
         <button
-          className={`group relative w-3/4 md:w-1/3 h-3/5 rounded-2xl transition-all duration-300 ${
-            !connected
-              ? "!bg-gray-400 !text-slate-900"
-              : "wifi-btn hover:-translate-y-1 hover:text-slate-900 hover:shadow-[inset_0_0_0_2px_theme('colors.cyan.400')] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
-          }`}
+          className={`group relative w-3/4 md:w-1/3 h-3/5 rounded-2xl transition-all duration-300 text-slate-900`}
+          style={
+            connected
+              ? hoveredBtn === "wifi"
+                ? ({
+                    borderColor: "white",
+                    color: "white",
+                    borderStyle: "solid",
+                    borderWidth: "2px",
+                  } as React.CSSProperties)
+                : ({
+                    borderColor: accentBorder30,
+                    borderStyle: "solid",
+                    borderWidth: "2px",
+                  } as React.CSSProperties)
+              : undefined
+          }
           onClick={() => navigate("/wifi", { viewTransition: true })}
           aria-label="Ir a Wi-Fi"
           disabled={!connected}
+          onMouseEnter={() => connected && setHoveredBtn("wifi")}
+          onMouseLeave={() => connected && setHoveredBtn(null)}
         >
           <div
-            className={`flex flex-col justify-center items-center h-full w-full rounded-2xl
-                 bg-transparent text-slate-100 transition-all duration-300 group-hover:text-slate-900 ${
-                   connected ? "text-hover-indigo" : "text-hover-gray"
-                 }`}
+            className={`flex flex-col justify-center items-center h-full w-full rounded-2xl bg-transparent text-slate-100 transition-all duration-300`}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -574,7 +682,6 @@ const Home: React.FC = () => {
             </p>
           </div>
         </button>
-
       </div>
       {openInfoModal && (
         <Modal
@@ -607,7 +714,9 @@ const Home: React.FC = () => {
         >
           <div className="mb-6">
             <div className="app-kicker mb-3">Configuracion</div>
-            <h2 className="text-3xl font-black text-white">Centro de ajustes</h2>
+            <h2 className="text-3xl font-black text-white">
+              Centro de ajustes
+            </h2>
             <p className="mt-2 text-sm text-slate-300">
               Personaliza la interfaz y envia los cambios persistentes al ESP.
             </p>
@@ -617,12 +726,16 @@ const Home: React.FC = () => {
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
                   <h3 className="font-bold text-white">Enlace y watchdog</h3>
-                  <p className="text-sm text-slate-400">Supervision de heartbeat.</p>
+                  <p className="text-sm text-slate-400">
+                    Supervision de heartbeat.
+                  </p>
                 </div>
                 <button
                   onClick={toggleHeartbeatWatchdog}
                   className={`px-3 py-1 text-sm font-semibold ${
-                    heartbeatConfig.isActive ? "btn-success" : "app-button--ghost"
+                    heartbeatConfig.isActive
+                      ? "btn-success"
+                      : "app-button--ghost"
                   }`}
                   disabled={!connected}
                 >
@@ -633,11 +746,15 @@ const Home: React.FC = () => {
               <div className="app-panel mb-4 p-3 text-sm text-slate-300">
                 Intentos restantes:{" "}
                 <span className="font-bold text-emerald-300">
-                  {heartbeatConfig.remainingRetries} de {heartbeatConfig.maxRetries}
+                  {heartbeatConfig.remainingRetries} de{" "}
+                  {heartbeatConfig.maxRetries}
                 </span>
               </div>
 
-              <label htmlFor="hb-slider" className="mb-2 block text-sm text-slate-200">
+              <label
+                htmlFor="hb-slider"
+                className="mb-2 block text-sm text-slate-200"
+              >
                 {`Intervalo heartbeat (${heartbeatConfig.intervalMs} ms)`}
               </label>
               <input
@@ -651,7 +768,10 @@ const Home: React.FC = () => {
                 className="mb-4 w-full"
               />
 
-              <label htmlFor="retry-slider" className="mb-2 block text-sm text-slate-200">
+              <label
+                htmlFor="retry-slider"
+                className="mb-2 block text-sm text-slate-200"
+              >
                 {`Intentos maximos (${heartbeatConfig.maxRetries})`}
               </label>
               <input
@@ -670,26 +790,123 @@ const Home: React.FC = () => {
               <div className="mb-4">
                 <h3 className="font-bold text-white">Personalizar tema</h3>
                 <p className="text-sm text-slate-400">
-                  El base tiñe la atmósfera. El acento guía foco, botones y estados activos.
+                  El base tiñe la atmósfera. El acento guía foco, botones y
+                  estados activos.
                 </p>
+              </div>
+              {/* Preset themes - burbujas seleccionables */}
+              <div className="mb-4">
+                <div className="mb-2 flex items-center gap-3">
+                  <h4 className="text-sm font-semibold text-slate-200">
+                    Temas rápidos
+                  </h4>
+                  <p className="text-sm text-slate-400">
+                    Elige un preset o personaliza abajo.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {PRESET_THEMES.map((t, i) => {
+                    const selected = isSameTheme(normalizedThemeDraft, {
+                      base: normalizeHexColor(
+                        t.base,
+                        DEFAULT_THEME_COLORS.base,
+                      ),
+                      accent: normalizeHexColor(
+                        t.accent,
+                        DEFAULT_THEME_COLORS.accent,
+                      ),
+                    });
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        aria-pressed={selected}
+                        aria-label={`Seleccionar tema ${i + 1}: ${t.label}`}
+                        title={t.label}
+                        onClick={() => {
+                          setThemeDraft({ base: t.base, accent: t.accent });
+                          setThemeStatus({
+                            tone: "idle",
+                            message: "Tema seleccionado (no guardado).",
+                          });
+                        }}
+                        className={`w-8 h-8 md:w-9 md:h-9 rounded-full shadow-sm focus:outline-none transition-transform duration-150 ${
+                          selected ? "scale-105 border-2" : "border-0"
+                        }`}
+                        style={{
+                          background: `linear-gradient(135deg, ${t.base} 50%, ${t.accent} 50%)`,
+                          borderColor: selected ? t.accent : undefined,
+                          boxShadow: selected
+                            ? `0 0 0 4px ${t.accent}33`
+                            : "none",
+                        }}
+                      />
+                    );
+                  })}
+                  <button
+                    type="button"
+                    className="px-3 py-1 rounded-md text-sm font-medium bg-slate-700 text-white"
+                    onClick={() => {
+                      // no hace nada: permite al usuario usar el picker manualmente
+                      setThemeStatus({
+                        tone: "idle",
+                        message: "Personaliza el tema abajo.",
+                      });
+                    }}
+                  >
+                    Personalizar
+                  </button>
+                </div>
               </div>
 
               <div
                 className="theme-role-preview mb-4"
-                style={{
-                  "--theme-base": normalizedThemeDraft.base,
-                  "--theme-accent": normalizedThemeDraft.accent,
-                } as React.CSSProperties}
+                style={
+                  {
+                    "--theme-base": normalizedThemeDraft.base,
+                    "--theme-accent": normalizedThemeDraft.accent,
+                  } as React.CSSProperties
+                }
               >
                 <div className="theme-role-preview__surface">
-                  <span className="theme-role-preview__signal" aria-hidden="true" />
+                  <span
+                    className="theme-role-preview__signal"
+                    aria-hidden="true"
+                  />
                   <div>
-                    <p className="text-xs font-bold uppercase text-slate-400">Base</p>
-                    <p className="font-mono text-sm text-white">{normalizedThemeDraft.base}</p>
+                    <p className="text-xs font-bold uppercase text-slate-400">
+                      Base
+                    </p>
+                    <p className="font-mono text-sm text-white">
+                      {normalizedThemeDraft.base}
+                    </p>
                   </div>
-                  <button type="button" className="theme-role-preview__button">
-                    Acento
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="theme-role-preview__button"
+                    >
+                      Acento
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Intercambiar base y acento"
+                      title="Intercambiar base y acento"
+                      onClick={() => {
+                        setThemeDraft((prev) => ({
+                          base: prev.accent,
+                          accent: prev.base,
+                        }));
+                        setThemeStatus({
+                          tone: "idle",
+                          message: "Base y acento intercambiados.",
+                        });
+                      }}
+                      className="px-2 py-1 rounded-md text-sm font-medium bg-slate-700 text-white"
+                    >
+                      ⇄
+                    </button>
+                  </div>
                 </div>
                 <p className="mt-3 font-mono text-xs text-slate-400">
                   Acento: {normalizedThemeDraft.accent}
@@ -718,7 +935,9 @@ const Home: React.FC = () => {
                   type="button"
                   className="app-button px-4 py-2 font-semibold"
                   onClick={handleSaveTheme}
-                  disabled={!themeDraftIsValid || themeStatus.tone === "loading"}
+                  disabled={
+                    !themeDraftIsValid || themeStatus.tone === "loading"
+                  }
                 >
                   Guardar tema
                 </button>
@@ -738,8 +957,9 @@ const Home: React.FC = () => {
               <div>
                 <h3 className="font-bold text-white">PIN de acceso</h3>
                 <p className="mt-1 max-w-2xl text-sm text-slate-400">
-                  Para cambiarlo se valida primero el PIN actual con el ESP. Despues
-                  se envia el nuevo PIN y se espera ACK de guardado en NVS.
+                  Para cambiarlo se valida primero el PIN actual con el ESP.
+                  Despues se envia el nuevo PIN y se espera ACK de guardado en
+                  NVS.
                 </p>
               </div>
               <button
@@ -765,7 +985,9 @@ const Home: React.FC = () => {
           <div className="mb-6">
             <div className="app-kicker mb-3">PIN</div>
             <h2 className="text-3xl font-black text-white">
-              {pinStep === "validate" ? "Validar PIN actual" : "Confirmar nuevo PIN"}
+              {pinStep === "validate"
+                ? "Validar PIN actual"
+                : "Confirmar nuevo PIN"}
             </h2>
             <p className="mt-2 text-sm text-slate-300">
               {pinStep === "validate"
@@ -787,7 +1009,9 @@ const Home: React.FC = () => {
                 type="button"
                 className="app-button w-full px-4 py-3 font-bold"
                 onClick={requestPinValidation}
-                disabled={!/^\d{4}$/.test(currentPin) || pinStatus.tone === "loading"}
+                disabled={
+                  !/^\d{4}$/.test(currentPin) || pinStatus.tone === "loading"
+                }
               >
                 {pinStatus.tone === "loading" ? "Validando..." : "Validar PIN"}
               </button>
@@ -832,7 +1056,9 @@ const Home: React.FC = () => {
                     pinStatus.tone === "loading"
                   }
                 >
-                  {pinStatus.tone === "loading" ? "Enviando..." : "Confirmar cambio"}
+                  {pinStatus.tone === "loading"
+                    ? "Enviando..."
+                    : "Confirmar cambio"}
                 </button>
               </div>
             </div>
@@ -846,6 +1072,18 @@ const Home: React.FC = () => {
 function toHexCandidate(value: string) {
   const trimmed = value.trim();
   return trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+}
+
+function formatHeartbeatTime(timestamp: number | null) {
+  if (!timestamp) {
+    return "sin heartbeat recibido";
+  }
+
+  return new Intl.DateTimeFormat("es-AR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(new Date(timestamp));
 }
 
 function settingsAckMessage(code: number) {

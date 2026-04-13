@@ -1,5 +1,6 @@
 // src/components/PageHeader.tsx
 import { useLocation, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { useUser } from "../contexts/UserContext";
 
 interface PageHeaderProps {
@@ -37,6 +38,25 @@ export default function PageHeader({
   const { logout } = useUser();
   const toolbarButtonClass =
     "toolbar-btn group flex items-center justify-center gap-2 py-2 px-3 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40";
+  const [hoveredHeaderBtn, setHoveredHeaderBtn] = useState<string | null>(null);
+  const [accentBorder30, setAccentBorder30] = useState<string>("rgba(34,211,238,0.3)");
+
+  useEffect(() => {
+    try {
+      const raw = getComputedStyle(document.documentElement).getPropertyValue("--ui-accent") || "#22d3ee";
+      const hex = raw.trim();
+      const m = hex.match(/^#?([0-9a-fA-F]{6})$/);
+      if (m) {
+        const hh = m[1];
+        const r = parseInt(hh.slice(0, 2), 16);
+        const g = parseInt(hh.slice(2, 4), 16);
+        const b = parseInt(hh.slice(4, 6), 16);
+        setAccentBorder30(`rgba(${r}, ${g}, ${b}, 0.3)`);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, []);
 
   // Obtener el título basado en la ruta actual
   const getPageTitle = () => {
@@ -59,7 +79,14 @@ export default function PageHeader({
         <button
           aria-label="Ir a Home"
           className={toolbarButtonClass}
+          onMouseEnter={() => setHoveredHeaderBtn("home")}
+          onMouseLeave={() => setHoveredHeaderBtn(null)}
           onClick={() => navigate("/home", { viewTransition: true })}
+          style={
+            hoveredHeaderBtn === "home"
+              ? ({ borderColor: "white", color: "white", borderStyle: "solid", borderWidth: "1px" } as React.CSSProperties)
+              : ({ borderColor: accentBorder30, borderStyle: "solid", borderWidth: "1px" } as React.CSSProperties)
+          }
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -77,7 +104,14 @@ export default function PageHeader({
           <button
             aria-label="Ir a UNER Studio"
             className={toolbarButtonClass}
+            onMouseEnter={() => setHoveredHeaderBtn("protocol")}
+            onMouseLeave={() => setHoveredHeaderBtn(null)}
             onClick={() => navigate("/protocol", { viewTransition: true })}
+            style={
+              hoveredHeaderBtn === "protocol"
+                ? ({ borderColor: "white", color: "white", borderStyle: "solid", borderWidth: "1px" } as React.CSSProperties)
+                : ({ borderColor: accentBorder30, borderStyle: "solid", borderWidth: "1px" } as React.CSSProperties)
+            }
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -98,7 +132,14 @@ export default function PageHeader({
           <button
             aria-label="Configuración"
             className={toolbarButtonClass}
+            onMouseEnter={() => setHoveredHeaderBtn("settings")}
+            onMouseLeave={() => setHoveredHeaderBtn(null)}
             onClick={() => setOpenSettingsModal(true)}
+            style={
+              hoveredHeaderBtn === "settings"
+                ? ({ borderColor: "white", color: "white", borderStyle: "solid", borderWidth: "1px" } as React.CSSProperties)
+                : ({ borderColor: accentBorder30, borderStyle: "solid", borderWidth: "1px" } as React.CSSProperties)
+            }
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -119,7 +160,14 @@ export default function PageHeader({
           <button
             aria-label="Información"
             className={toolbarButtonClass}
+            onMouseEnter={() => setHoveredHeaderBtn("info")}
+            onMouseLeave={() => setHoveredHeaderBtn(null)}
             onClick={() => setOpenInfoModal(true)}
+            style={
+              hoveredHeaderBtn === "info"
+                ? ({ borderColor: "white", color: "white", borderStyle: "solid", borderWidth: "1px" } as React.CSSProperties)
+                : ({ borderColor: accentBorder30, borderStyle: "solid", borderWidth: "1px" } as React.CSSProperties)
+            }
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"

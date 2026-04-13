@@ -14,14 +14,11 @@ import RedirectRoot from "./components/RedirectRoot";
 import RootLayout from "./components/RootLayout";
 import ControlSection from "./pages/ControlSection";
 import EstadoSection from "./pages/EstadoSection";
-import { useWebSocket } from "./hooks/useWebSocket";
-import ConnectingScreen from "./components/ConnectingScreen";
 import ProtocolSection from "./pages/ProtocolSection";
 import { applyThemeColors, loadThemeColors } from "./utils/theme";
 
 const App: React.FC = () => {
   const { user } = useUser();
-  const { connected, setConnected, retrying, setRetrying } = useWebSocket();
 
   useEffect(() => {
     applyThemeColors(loadThemeColors());
@@ -116,60 +113,6 @@ const App: React.FC = () => {
   useEffect(() => {
     console.log("Usuario autenticado:", user);
   }, [user]);
-
-  // Efecto para establecer el estado inicial de retry
-  useEffect(() => {
-    console.log("[APP] Iniciando estado de retry en el primer render");
-    setRetrying(true);
-  }, [setRetrying]);
-
-  // Efecto para mock de conexión después de 3 segundos
-  useEffect(() => {
-    // Solo ejecutar si estamos en modo retry y no conectado
-    if (!retrying || connected) {
-      return;
-    }
-
-    console.log("[APP] Iniciando timer para mock de conexión (3 segundos)");
-
-    const mockTimer = setTimeout(() => {
-      console.log("[MOCK] Inyectando mock de conexión después de 3 segundos");
-      setConnected(true);
-      setRetrying(false);
-    }, 3000);
-
-    // Cleanup del timer
-    return () => {
-      console.log("[APP] Limpiando timer de mock");
-      clearTimeout(mockTimer);
-    };
-  }, [retrying, connected, setConnected, setRetrying]);
-
-  // Si se conecta realmente antes del mock, detener el retry
-  useEffect(() => {
-    if (connected && retrying) {
-      console.log("[APP] Conexión real detectada, deteniendo retry");
-      setRetrying(false);
-    }
-  }, [connected, retrying, setRetrying]);
-
-  // Mostrar pantalla de conexión mientras está reintentando y no conectado
-  if (retrying && !connected) {
-    console.log(
-      "[APP] Renderizando ConnectingScreen - retrying:",
-      retrying,
-      "connected:",
-      connected
-    );
-    return <ConnectingScreen />;
-  }
-
-  console.log(
-    "[APP] Renderizando RouterProvider - retrying:",
-    retrying,
-    "connected:",
-    connected
-  );
 
   return (
     <div className="flex flex-col h-full w-full relative">
