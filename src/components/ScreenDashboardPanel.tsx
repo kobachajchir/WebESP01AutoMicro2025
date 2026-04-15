@@ -6,12 +6,21 @@ import { resolveOledScreen } from "../screens";
 import OledCommandPreview from "./OledCommandPreview";
 
 export default function ScreenDashboardPanel() {
+  let currentMenu = {
+    itemsCount: 1,
+  } 
   const { connected } = useWebSocket();
   const { currentScreen, requestCurrentScreen } = useScreen();
   const [hoverSync, setHoverSync] = useState(false);
   const [hoverSync2, setHoverSync2] = useState(false);
+  const [hoverSync3, setHoverSync3] = useState(false);
   const [screenVisible, setScreenVisible] = useState(false);
   const [openScreenDetails, setOpenScreenDetails] = useState(false);
+  const [screenHasMenuItems, setScreenHasMenuItems] = useState(true);
+  const [selectedMenuItem, setSelectedMenuItem] = useState<number>(1);
+  const [hoverMenuUp, setHoverMenuUp] = useState(false);
+  const [hoverMenuDown, setHoverMenuDown] = useState(false);
+  const currentMenuMaxItems = currentMenu?.itemsCount ?? 1;
   const resolvedScreen = useMemo(
     () =>
       currentScreen
@@ -25,6 +34,24 @@ export default function ScreenDashboardPanel() {
         : null,
     [currentScreen]
   );
+
+  const sendCurrentMenuSelection = (item: number) => {
+    // construir comando y mandarlo
+  };
+
+  const handleMenuScrollUp = () => {
+    console.log("[Menu] Scroll up solicitado");
+
+    // Acá después mandás el comando real al firmware
+    // sendMenuScrollUp();
+  };
+
+  const handleMenuScrollDown = () => {
+    console.log("[Menu] Scroll down solicitado");
+
+    // Acá después mandás el comando real al firmware
+    // sendMenuScrollDown();
+  };
 
   const screenLabel = currentScreen
     ? currentScreen.known
@@ -126,22 +153,190 @@ export default function ScreenDashboardPanel() {
                       "Esperando screen.current o screen.changed para resolver el builder OLED."}
                   </p>
                 </div>
-              </div>
-              <div className="flex flex-col col-auto mx-8">
-                <div className="text-xs font-semibold uppercase text-slate-400">
-                  OLED render
-                </div>
-                {resolvedScreen ? (
-                  <OledCommandPreview commands={resolvedScreen.commands} />
-                ) : (
-                  <div className="flex aspect-[2/1] w-full items-center justify-center rounded-md border border-cyan-300/30 bg-slate-950 px-4 text-center text-xs text-slate-400">
-                    Sin comandos para renderizar.
+                {screenHasMenuItems && (
+                  <div className="flex flex-row col-auto app-panel-strong p-4">
+                    <p className="text-xs text-slate-400">
+                      Podes enviar la selección del menú actual
+                    </p>
+
+                    <div className="flex flex-row col-auto items-end gap-3">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[11px] text-white">
+                          Item actual (1 - {currentMenuMaxItems})
+                        </label>
+
+                        <input
+                          type="number"
+                          min={1}
+                          max={currentMenuMaxItems}
+                          step={1}
+                          inputMode="numeric"
+                          value={selectedMenuItem}
+                          onChange={(e) => {
+                            const value = e.target.value;
+
+                            if (value === "") {
+                              setSelectedMenuItem("");
+                              return;
+                            }
+
+                            const numericValue = Number(value);
+
+                            if (Number.isNaN(numericValue)) {
+                              return;
+                            }
+
+                            const clampedValue = Math.min(
+                              currentMenuMaxItems,
+                              Math.max(1, numericValue),
+                            );
+
+                            setSelectedMenuItem(String(clampedValue));
+                          }}
+                          onBlur={() => {
+                            if (selectedMenuItem === "") {
+                              setSelectedMenuItem("1");
+                              return;
+                            }
+
+                            const numericValue = Number(selectedMenuItem);
+                            const clampedValue = Math.min(
+                              currentMenuMaxItems,
+                              Math.max(1, numericValue),
+                            );
+
+                            setSelectedMenuItem(String(clampedValue));
+                          }}
+                          className="w-24 rounded-md border px-3 py-1.5 text-xs outline-none"
+                          style={{
+                            borderColor: "rgba(34,211,238,0.3)",
+                            background: "transparent",
+                            color: "var(--color-text-primary)",
+                          }}
+                          disabled={!connected}
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        className="w-fit rounded-md border px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40"
+                        onClick={() => {
+                          const itemToSend = Math.min(
+                            currentMenuMaxItems,
+                            Math.max(1, Number(selectedMenuItem) || 1),
+                          );
+                          sendCurrentMenuSelection(itemToSend);
+                        }}
+                        disabled={!connected}
+                        onMouseEnter={() => setHoverSync3(true)}
+                        onMouseLeave={() => setHoverSync3(false)}
+                        style={
+                          hoverSync3
+                            ? ({
+                                background: "var(--ui-accent)",
+                                color: "var(--ui-action-hover-ink)",
+                                borderColor: "var(--ui-accent)",
+                              } as React.CSSProperties)
+                            : ({
+                                borderColor: "rgba(34,211,238,0.3)",
+                                color: "var(--ui-accent)",
+                              } as React.CSSProperties)
+                        }
+                      >
+                        Enviar selección
+                      </button>
+                    </div>
                   </div>
                 )}
-                <p className="text-xs text-slate-400">
-                  Renderizado desde <code>src/screens</code> usando{" "}
-                  <code>screenCode</code> como identidad.
-                </p>
+              </div>
+              <div className="flex flex-row col-auto mx-8">
+                <div className="flex flex-col col-auto mx-8">
+                  <div className="text-xs font-semibold uppercase text-slate-400 my-2">
+                    OLED render
+                  </div>
+                  {resolvedScreen ? (
+                    <OledCommandPreview commands={resolvedScreen.commands} />
+                  ) : (
+                    <div className="flex aspect-[2/1] w-full items-center justify-center rounded-md border border-cyan-300/30 bg-slate-950 px-4 text-center text-xs text-slate-400">
+                      Sin comandos para renderizar.
+                    </div>
+                  )}
+                  <p className="text-xs text-slate-400 my-2">
+                    Renderizado desde <code>src/screens</code> usando{" "}
+                    <code>screenCode</code> como identidad.
+                  </p>
+                </div>
+                {screenHasMenuItems && (
+                  <div className="flex flex-col items-center gap-2 justify-center col-auto">
+                    <button
+                      type="button"
+                      onClick={handleMenuScrollUp}
+                      onMouseEnter={() => setHoverMenuUp(true)}
+                      onMouseLeave={() => setHoverMenuUp(false)}
+                      className="flex h-9 w-9 items-center justify-center rounded-md border transition disabled:cursor-not-allowed disabled:opacity-40"
+                      style={
+                        hoverMenuUp
+                          ? ({
+                              background: "var(--ui-accent)",
+                              color: "var(--ui-action-hover-ink)",
+                              borderColor: "var(--ui-accent)",
+                            } as React.CSSProperties)
+                          : ({
+                              borderColor: "rgba(34,211,238,0.3)",
+                              color: "var(--ui-accent)",
+                              background: "transparent",
+                            } as React.CSSProperties)
+                      }
+                      aria-label="Scroll menu up"
+                      title="Subir en el menú"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        className="h-4 w-4"
+                      >
+                        <path d="M18 15l-6-6-6 6" />
+                      </svg>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleMenuScrollDown}
+                      onMouseEnter={() => setHoverMenuDown(true)}
+                      onMouseLeave={() => setHoverMenuDown(false)}
+                      className="flex h-9 w-9 items-center justify-center rounded-md border transition disabled:cursor-not-allowed disabled:opacity-40"
+                      style={
+                        hoverMenuDown
+                          ? ({
+                              background: "var(--ui-accent)",
+                              color: "var(--ui-action-hover-ink)",
+                              borderColor: "var(--ui-accent)",
+                            } as React.CSSProperties)
+                          : ({
+                              borderColor: "rgba(34,211,238,0.3)",
+                              color: "var(--ui-accent)",
+                              background: "transparent",
+                            } as React.CSSProperties)
+                      }
+                      aria-label="Scroll menu down"
+                      title="Bajar en el menú"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        className="h-4 w-4"
+                      >
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ) : null}
