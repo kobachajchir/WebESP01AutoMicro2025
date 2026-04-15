@@ -6,6 +6,7 @@ import { WebSocketProvider } from './contexts/WebSocketContext.tsx';
 import { UserProvider } from './contexts/UserContext.tsx';
 import { UNERProtocolProvider } from './contexts/UNERProtocolContext.tsx';
 import { ScreenProvider } from './contexts/ScreenContext.tsx';
+import { ScreenStreamModalProvider } from "./contexts/ScreenStreamModalContext.tsx";
 
 const wsUrl =
   import.meta.env.VITE_WS_URL ??
@@ -19,10 +20,12 @@ createRoot(document.getElementById("root")!).render(
       <UNERProtocolProvider>
         <UserProvider>
           <ScreenProvider>
-            <App />
+            <ScreenStreamModalProvider>
+              <App />
+            </ScreenStreamModalProvider>
           </ScreenProvider>
         </UserProvider>
       </UNERProtocolProvider>
     </WebSocketProvider>
-  </StrictMode>
+  </StrictMode>,
 );

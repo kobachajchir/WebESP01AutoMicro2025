@@ -2,6 +2,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useUser } from "../contexts/UserContext";
+import { useScreenStreamModal } from "../contexts/ScreenStreamModalContext";
 
 interface PageHeaderProps {
   setOpenSettingsModal?: (open: boolean) => void;
@@ -21,7 +22,6 @@ const PAGE_TITLES: Record<string, string> = {
   "/bluetooth": "Bluetooth",
   "/home": "Dashboard",
   "/settings": "Configuración",
-  // Agrega más rutas según necesites
 };
 
 export default function PageHeader({
@@ -31,21 +31,30 @@ export default function PageHeader({
   showInfo = true,
   showLogout = true,
   className = "app-page-header",
-  titleOverride = ""
+  titleOverride = "",
 }: PageHeaderProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout } = useUser();
+  const { logout, devMode } = useUser();
+  const { open: openScreenStreamModal } = useScreenStreamModal();
+
   const toolbarButtonClass =
     "toolbar-btn group flex items-center justify-center gap-2 py-2 px-3 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40";
+
   const [hoveredHeaderBtn, setHoveredHeaderBtn] = useState<string | null>(null);
-  const [accentBorder30, setAccentBorder30] = useState<string>("rgba(34,211,238,0.3)");
+  const [accentBorder30, setAccentBorder30] = useState<string>(
+    "rgba(34,211,238,0.3)",
+  );
 
   useEffect(() => {
     try {
-      const raw = getComputedStyle(document.documentElement).getPropertyValue("--ui-accent") || "#22d3ee";
+      const raw =
+        getComputedStyle(document.documentElement).getPropertyValue(
+          "--ui-accent",
+        ) || "#22d3ee";
       const hex = raw.trim();
       const m = hex.match(/^#?([0-9a-fA-F]{6})$/);
+
       if (m) {
         const hh = m[1];
         const r = parseInt(hh.slice(0, 2), 16);
@@ -53,40 +62,67 @@ export default function PageHeader({
         const b = parseInt(hh.slice(4, 6), 16);
         setAccentBorder30(`rgba(${r}, ${g}, ${b}, 0.3)`);
       }
-    } catch (e) {
+    } catch {
       // ignore
     }
   }, []);
 
-  // Obtener el título basado en la ruta actual
   const getPageTitle = () => {
     const path = location.pathname;
-    if(titleOverride.length > 0){
-      return titleOverride
-    }else{
-      return PAGE_TITLES[path] || "Aplicación";
+    if (titleOverride.length > 0) {
+      return titleOverride;
     }
+    return PAGE_TITLES[path] || "Aplicación";
   };
+
+  const getToolbarButtonStyle = (key: string): React.CSSProperties =>
+    hoveredHeaderBtn === key
+      ? {
+          borderColor: "white",
+          color: "white",
+          borderStyle: "solid",
+          borderWidth: "1px",
+        }
+      : {
+          borderColor: accentBorder30,
+          borderStyle: "solid",
+          borderWidth: "1px",
+        };
 
   return (
     <div className={className}>
-      <h1 className="app-title text-3xl md:text-5xl">
-        {getPageTitle()}
-      </h1>
+      <h1 className="app-title text-3xl md:text-5xl">{getPageTitle()}</h1>
 
       <div className="app-page-header__actions">
         {!location.pathname.includes("home") && (
+          <button
+            aria-label="Ir a Home"
+            className={toolbarButtonClass}
+            onMouseEnter={() => setHoveredHeaderBtn("home")}
+            onMouseLeave={() => setHoveredHeaderBtn(null)}
+            onClick={() => navigate("/home", { viewTransition: true })}
+            style={getToolbarButtonStyle("home")}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+              className="size-6 transition-transform duration-300 group-hover:scale-110"
+            >
+              <path d="M11.47 3.841a.75.75 0 0 1 1.06 0l8.69 8.69a.75.75 0 1 0 1.06-1.061l-8.689-8.69a2.25 2.25 0 0 0-3.182 0l-8.69 8.69a.75.75 0 1 0 1.061 1.06l8.69-8.689Z" />
+              <path d="m12 5.432 8.159 8.159c.03.03.06.058.091.086v6.198c0 1.035-.84 1.875-1.875 1.875H15a.75.75 0 0 1-.75-.75v-4.5a.75.75 0 0 0-.75-.75h-3a.75.75 0 0 0-.75.75V21a.75.75 0 0 1-.75.75H5.625a1.875 1.875 0 0 1-1.875-1.875v-6.198a2.29 2.29 0 0 0 .091-.086L12 5.432Z" />
+            </svg>
+          </button>
+        )}
+
         <button
-          aria-label="Ir a Home"
+          aria-label="Abrir stream de pantalla"
           className={toolbarButtonClass}
-          onMouseEnter={() => setHoveredHeaderBtn("home")}
+          onMouseEnter={() => setHoveredHeaderBtn("screen-stream")}
           onMouseLeave={() => setHoveredHeaderBtn(null)}
-          onClick={() => navigate("/home", { viewTransition: true })}
-          style={
-            hoveredHeaderBtn === "home"
-              ? ({ borderColor: "white", color: "white", borderStyle: "solid", borderWidth: "1px" } as React.CSSProperties)
-              : ({ borderColor: accentBorder30, borderStyle: "solid", borderWidth: "1px" } as React.CSSProperties)
-          }
+          onClick={openScreenStreamModal}
+          style={getToolbarButtonStyle("screen-stream")}
+          title="Abrir stream de pantalla"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -94,24 +130,22 @@ export default function PageHeader({
             viewBox="0 0 24 24"
             className="size-6 transition-transform duration-300 group-hover:scale-110"
           >
-            <path d="M11.47 3.841a.75.75 0 0 1 1.06 0l8.69 8.69a.75.75 0 1 0 1.06-1.061l-8.689-8.69a2.25 2.25 0 0 0-3.182 0l-8.69 8.69a.75.75 0 1 0 1.061 1.06l8.69-8.689Z" />
-            <path d="m12 5.432 8.159 8.159c.03.03.06.058.091.086v6.198c0 1.035-.84 1.875-1.875 1.875H15a.75.75 0 0 1-.75-.75v-4.5a.75.75 0 0 0-.75-.75h-3a.75.75 0 0 0-.75.75V21a.75.75 0 0 1-.75.75H5.625a1.875 1.875 0 0 1-1.875-1.875v-6.198a2.29 2.29 0 0 0 .091-.086L12 5.432Z" />
+            <path
+              fillRule="evenodd"
+              d="M3.75 6A2.25 2.25 0 0 1 6 3.75h12A2.25 2.25 0 0 1 20.25 6v8.25A2.25 2.25 0 0 1 18 16.5h-4.19l.72 2.25h1.22a.75.75 0 0 1 0 1.5h-7.5a.75.75 0 0 1 0-1.5h1.22l.72-2.25H6a2.25 2.25 0 0 1-2.25-2.25V6Zm1.5 0a.75.75 0 0 1 .75-.75h12a.75.75 0 0 1 .75.75v8.25a.75.75 0 0 1-.75.75H6a.75.75 0 0 1-.75-.75V6Z"
+              clipRule="evenodd"
+            />
           </svg>
         </button>
-      )}
 
-        {!location.pathname.includes("protocol") && (
+        {!location.pathname.includes("protocol") && devMode && (
           <button
             aria-label="Ir a UNER Studio"
             className={toolbarButtonClass}
             onMouseEnter={() => setHoveredHeaderBtn("protocol")}
             onMouseLeave={() => setHoveredHeaderBtn(null)}
             onClick={() => navigate("/protocol", { viewTransition: true })}
-            style={
-              hoveredHeaderBtn === "protocol"
-                ? ({ borderColor: "white", color: "white", borderStyle: "solid", borderWidth: "1px" } as React.CSSProperties)
-                : ({ borderColor: accentBorder30, borderStyle: "solid", borderWidth: "1px" } as React.CSSProperties)
-            }
+            style={getToolbarButtonStyle("protocol")}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -135,11 +169,7 @@ export default function PageHeader({
             onMouseEnter={() => setHoveredHeaderBtn("settings")}
             onMouseLeave={() => setHoveredHeaderBtn(null)}
             onClick={() => setOpenSettingsModal(true)}
-            style={
-              hoveredHeaderBtn === "settings"
-                ? ({ borderColor: "white", color: "white", borderStyle: "solid", borderWidth: "1px" } as React.CSSProperties)
-                : ({ borderColor: accentBorder30, borderStyle: "solid", borderWidth: "1px" } as React.CSSProperties)
-            }
+            style={getToolbarButtonStyle("settings")}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -163,11 +193,7 @@ export default function PageHeader({
             onMouseEnter={() => setHoveredHeaderBtn("info")}
             onMouseLeave={() => setHoveredHeaderBtn(null)}
             onClick={() => setOpenInfoModal(true)}
-            style={
-              hoveredHeaderBtn === "info"
-                ? ({ borderColor: "white", color: "white", borderStyle: "solid", borderWidth: "1px" } as React.CSSProperties)
-                : ({ borderColor: accentBorder30, borderStyle: "solid", borderWidth: "1px" } as React.CSSProperties)
-            }
+            style={getToolbarButtonStyle("info")}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -202,7 +228,9 @@ export default function PageHeader({
                 clipRule="evenodd"
               />
             </svg>
-            <span className="hidden text-sm font-semibold sm:inline">Salir</span>
+            <span className="hidden text-sm font-semibold sm:inline">
+              Salir
+            </span>
           </button>
         )}
       </div>

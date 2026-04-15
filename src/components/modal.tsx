@@ -80,7 +80,7 @@ const Modal: React.FC<ModalProps> = ({
         <button
           type="button"
           onClick={onClose}
-          className="app-dialog__close absolute top-3 right-3 flex items-center justify-center rounded-xl p-2 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40"
+          className="app-dialog__close z-30 absolute top-3 right-3 flex items-center justify-center rounded-xl p-2 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40"
           aria-label="Cerrar"
         >
           <svg

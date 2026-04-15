@@ -37,10 +37,33 @@ const NETWORK_IP_FIELDS: CommandDefinition["fields"] = [
 ];
 
 export const COMMAND_GROUPS: CommandGroup[] = [
-  { label: "WiFi - modo", commands: ["0x10", "0x11", "0x12", "0x13", "0x4A", "0x4E"] },
-  { label: "WiFi - conexion", commands: ["0x14", "0x15", "0x18", "0x48", "0x49", "0x4B", "0x4C"] },
+  {
+    label: "WiFi - modo",
+    commands: ["0x10", "0x11", "0x12", "0x13", "0x4A", "0x4E"],
+  },
+  {
+    label: "WiFi - conexion",
+    commands: ["0x14", "0x15", "0x18", "0x48", "0x49", "0x4B", "0x4C"],
+  },
   { label: "Telemetria", commands: ["0x20", "0x21", "0x22"] },
-  { label: "Estado e info", commands: ["0x30", "0x31", "0x40", "0x41", "0x44", "0x45", "0x46", "0x47", "0x4D"] },
+  {
+    label: "Estado e info",
+    commands: [
+      "0x30",
+      "0x31",
+      "0x40",
+      "0x41",
+      "0x44",
+      "0x45",
+      "0x46",
+      "0x47",
+      "0x4D",
+    ],
+  },
+  {
+    label: "UI / pantalla",
+    commands: ["0x51", "0x52", "0x53", "0x54", "0x55"],
+  },
   { label: "Notificaciones IP / boot", commands: ["0x4F", "0x50"] },
   { label: "Sistema", commands: ["0x16", "0x17", "0x19", "0x42", "0x43"] },
   { label: "ACK / control", commands: ["0xE0", "0xE1"] },
@@ -256,7 +279,9 @@ export const FRAME_COMMANDS: Record<string, CommandDefinition> = {
   "0x45": {
     name: "GET_USER_INFO",
     desc: "Consulta info de cliente WS por indice (id LE 4 bytes + IP 4 bytes).",
-    fields: [{ id: "idx", label: "Indice de usuario", type: "u8", placeholder: "0" }],
+    fields: [
+      { id: "idx", label: "Indice de usuario", type: "u8", placeholder: "0" },
+    ],
     minPayload: 1,
     maxPayload: 1,
     kind: "request",
@@ -293,12 +318,94 @@ export const FRAME_COMMANDS: Record<string, CommandDefinition> = {
     maxPayload: 0,
     kind: "request",
   },
+  "0x51": {
+    name: "GET_CURRENT_SCREEN",
+    desc: "Solicita al MCU el snapshot actual de pantalla para resincronizar el visor web.",
+    fields: [],
+    minPayload: 0,
+    maxPayload: 0,
+    kind: "request",
+  },
+  "0x52": {
+    name: "REQUEST_SCREEN_PAGE",
+    desc: "Pide al MCU cambiar la página visible de una screen concreta. El payload incluye el screenCode para validar que el request aplica a la pantalla esperada.",
+    fields: [
+      {
+        id: "screenCode",
+        label: "Código de pantalla",
+        type: "hex4",
+        placeholder: "00000000",
+      },
+      { id: "direction", label: "Dirección", type: "hex1", placeholder: "00" },
+    ],
+    minPayload: 5,
+    maxPayload: 5,
+    kind: "request",
+  },
+  "0x53": {
+    name: "MENU_ITEM_CLICK",
+    desc: "Emula en el MCU un click físico sobre uno de los tres items visibles del menú actual. El payload incluye el screenCode y el número de item visible.",
+    fields: [
+      {
+        id: "screenCode",
+        label: "Código de pantalla",
+        type: "hex4",
+        placeholder: "00000000",
+      },
+      { id: "item", label: "Item", type: "hex1", placeholder: "01" },
+    ],
+    minPayload: 5,
+    maxPayload: 5,
+    kind: "request",
+  },
+  "0x54": {
+    name: "TRIGGER_ENCODER_BUTTON",
+    desc: "Emula el botón del encoder en el MCU. El payload distingue entre shortpress y longpress y valida contra el screenCode actual.",
+    fields: [
+      {
+        id: "screenCode",
+        label: "Código de pantalla",
+        type: "hex4",
+        placeholder: "00000000",
+      },
+      { id: "pressKind", label: "Tipo de pulsación", type: "hex1", placeholder: "00" },
+    ],
+    minPayload: 5,
+    maxPayload: 5,
+    kind: "request",
+  },
+  "0x55": {
+    name: "TRIGGER_USER_BUTTON",
+    desc: "Emula el botón de usuario en el MCU. El payload distingue entre shortpress y longpress y valida contra el screenCode actual.",
+    fields: [
+      {
+        id: "screenCode",
+        label: "Código de pantalla",
+        type: "hex4",
+        placeholder: "00000000",
+      },
+      { id: "pressKind", label: "Tipo de pulsación", type: "hex1", placeholder: "00" },
+    ],
+    minPayload: 5,
+    maxPayload: 5,
+    kind: "request",
+  },
   "0x4A": {
     name: "SET_AP_CONFIG",
     desc: "Actualiza credenciales AP (SSID y password). Payload: [ssid_len, ssid..., pass_len, pass...]",
     fields: [
-      { id: "ssid", label: "SSID del AP", type: "str", placeholder: "ESP_TEST" },
-      { id: "pass", label: "Password del AP", type: "str", placeholder: "12345678" },
+      {
+        id: "ssid",
+        label: "SSID del AP",
+        type: "str",
+        placeholder: "ESP_TEST",
+      },
+      {
+        id: "pass",
+        label: "Password del AP",
+        type: "str",
+        placeholder: "12345678",
+      },
     ],
     minPayload: 2,
     maxPayload: 255,

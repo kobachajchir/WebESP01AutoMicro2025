@@ -30,6 +30,9 @@ interface UserContextType {
   /** Limpia el user y avisa al servidor */
   logout: () => void;
   setUser: (user: User | null) => void;
+  /** Modo de desarrollo que permite bypasss/testing */
+  devMode: boolean;
+  setDevMode: (v: boolean) => void;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -40,6 +43,9 @@ const USER_SESSION_KEY = "user";
 // Esta variable permite activar el login de desarrollo desde el código.
 // BORRAR esta bandera antes de hacer deploy a producción.
 const DEBUG_ALLOW_DEV_LOGIN = true;
+// Exports to allow external toggling (kept in sync by the provider)
+export let externalDevMode: boolean = DEBUG_ALLOW_DEV_LOGIN;
+export let externalSetDevMode: ((v: boolean) => void) | null = null;
 // !!! END WARNING: BORRAR ANTES DE PRODUCCIÓN !!!
 
 interface UserProviderProps {
@@ -51,6 +57,16 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   const { send: sendUner, subscribe: subscribeUner } = useUNERProtocol();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [devMode, setDevMode] = useState<boolean>(DEBUG_ALLOW_DEV_LOGIN);
+
+  // Keep exported dev-mode refs in sync so other modules can toggle if needed
+  useEffect(() => {
+    externalDevMode = devMode;
+    externalSetDevMode = setDevMode;
+    return () => {
+      externalSetDevMode = null;
+    };
+  }, [devMode]);
 
   // Efecto para verificar si hay un usuario guardado al inicializar
   useEffect(() => {
@@ -113,12 +129,15 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       // Permitir mock sobre WebSocket real si está activado explícitamente.
       // Se puede activar con la variable de entorno VITE_ALLOW_DEV_LOGIN=true
       // o en tiempo de ejecución con `sessionStorage.setItem('ALLOW_DEV_LOGIN','true')`.
-      const devLoginEnabled = DEBUG_ALLOW_DEV_LOGIN
+      const devLoginEnabled =
+        devMode ||
+        import.meta.env.VITE_ALLOW_DEV_LOGIN === "true" ||
+        sessionStorage.getItem("ALLOW_DEV_LOGIN") === "true";
 
       if (devLoginEnabled) {
         // Intentamos enviar la petición al dispositivo, pero no esperamos la respuesta
         try {
-          console.log("Dev Login Bypass")
+          console.log("Dev Login Bypass");
           sendUner(
             CMD.APP_PIN_CONFIG,
             PayloadBuilder.appPinConfig(APP_PIN_ACTION.VALIDATE, pin)
@@ -183,7 +202,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
         setTimeout(() => finish(false), 10000);
       });
     },
-    [sendUner, subscribeUner]
+    [sendUner, subscribeUner, devMode]
   );
 
   const logout = useCallback(() => {
@@ -199,7 +218,9 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   }, [send, disconnect, connected]);
 
   return (
-    <UserContext.Provider value={{ user, loading, login, logout, setUser }}>
+    <UserContext.Provider
+      value={{ user, loading, login, logout, setUser, devMode, setDevMode }}
+    >
       {children}
     </UserContext.Provider>
   );
@@ -213,3 +234,5 @@ export function useUser() {
   }
   return ctx;
 }
+
+export default useUser;

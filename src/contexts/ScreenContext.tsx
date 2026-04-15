@@ -1,6 +1,8 @@
+// src/contexts/ScreenContext.tsx
 import React, {
   createContext,
   useCallback,
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -22,7 +24,7 @@ interface ScreenContextType {
 }
 
 export const ScreenContext = createContext<ScreenContextType | undefined>(
-  undefined
+  undefined,
 );
 
 interface ScreenProviderProps {
@@ -32,24 +34,27 @@ interface ScreenProviderProps {
 export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
   const { connected, send, subscribe } = useWebSocket();
   const { user, loading } = useUser();
+
   const [currentScreen, setCurrentScreen] = useState<CurrentScreen | null>(() =>
-    createInitialCurrentScreen()
+    createInitialCurrentScreen(),
   );
+
   const pendingScreenRequestsRef = useRef(new Set<string>());
   const lastSyncAuthKeyRef = useRef<string | null>(null);
 
   const applyScreenReport = useCallback(
     (data: unknown, updateKind: ScreenUpdateKind, requestId?: string) => {
       const report = normalizeScreenReport(data);
+
       if (!report) {
-        console.warn("[screen] Payload de pantalla invalido:", data);
+        console.warn("[screen] Payload de pantalla inválido:", data);
         return false;
       }
 
       setCurrentScreen(toCurrentScreen(report, updateKind, requestId));
       return true;
     },
-    []
+    [],
   );
 
   const requestCurrentScreen = useCallback(() => {
@@ -81,6 +86,7 @@ export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
       }
 
       const eventName = readString(payload.event);
+
       if (eventName === "screen.changed" || eventName === "screen.current") {
         applyScreenReport(payload.data, eventName);
         return;
@@ -94,29 +100,33 @@ export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
       }
     });
 
-    const offDeviceResponse = subscribe("device.response", (payload: unknown) => {
-      if (!isRecord(payload)) {
-        return;
-      }
-
-      const requestId = readString(payload.requestId);
-      const isPendingScreenRequest = requestId
-        ? pendingScreenRequestsRef.current.has(requestId)
-        : false;
-      const isCurrentScreenResponse =
-        readString(payload.command) === SCREEN_GET_CURRENT_COMMAND ||
-        readString(payload.payloadCommand) === SCREEN_GET_CURRENT_COMMAND;
-
-      if (!isPendingScreenRequest && !isCurrentScreenResponse) {
-        return;
-      }
-
-      if (applyScreenReport(payload.data, "device.response", requestId)) {
-        if (requestId) {
-          pendingScreenRequestsRef.current.delete(requestId);
+    const offDeviceResponse = subscribe(
+      "device.response",
+      (payload: unknown) => {
+        if (!isRecord(payload)) {
+          return;
         }
-      }
-    });
+
+        const requestId = readString(payload.requestId);
+        const isPendingScreenRequest = requestId
+          ? pendingScreenRequestsRef.current.has(requestId)
+          : false;
+
+        const isCurrentScreenResponse =
+          readString(payload.command) === SCREEN_GET_CURRENT_COMMAND ||
+          readString(payload.payloadCommand) === SCREEN_GET_CURRENT_COMMAND;
+
+        if (!isPendingScreenRequest && !isCurrentScreenResponse) {
+          return;
+        }
+
+        if (applyScreenReport(payload.data, "device.response", requestId)) {
+          if (requestId) {
+            pendingScreenRequestsRef.current.delete(requestId);
+          }
+        }
+      },
+    );
 
     const offStmEvent = subscribe("stm.event", (payload: unknown) => {
       if (hasReservedScreenCmd(payload)) {
@@ -142,6 +152,7 @@ export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
     }
 
     const authKey = user.id;
+
     if (lastSyncAuthKeyRef.current === authKey) {
       return;
     }
@@ -156,6 +167,16 @@ export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
     </ScreenContext.Provider>
   );
 };
+
+export function useScreen(): ScreenContextType {
+  const context = useContext(ScreenContext);
+
+  if (!context) {
+    throw new Error("useScreen debe usarse dentro de un ScreenProvider");
+  }
+
+  return context;
+}
 
 function createRequestId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -192,8 +213,8 @@ function hasReservedScreenCmd(data: unknown): boolean {
 
 function warnReservedScreenDiagnostic(data: unknown) {
   console.warn(
-    "[screen] stm.event con cmd=0x95 recibido como diagnostico o payload invalido; el bridge debe publicar screen.changed.",
-    data
+    "[screen] stm.event con cmd=0x95 recibido como diagnóstico o payload inválido; el bridge debe publicar screen.changed.",
+    data,
   );
 }
 

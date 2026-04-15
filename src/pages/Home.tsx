@@ -5,6 +5,7 @@ import { useWebSocket } from "../hooks/useWebSocket";
 import { useUNERProtocol } from "../hooks/useUnerProtocol";
 import { le16, readLe16 } from "../api/UnerProtocolUtils";
 import PageHeader from "../components/PageHeader";
+import useUser from "../contexts/UserContext";
 import Modal from "../components/modal";
 import SystemResetActions from "../components/SystemResetActions";
 import ScreenDashboardPanel from "../components/ScreenDashboardPanel";
@@ -31,6 +32,25 @@ type RequestStatus = {
 };
 
 type PinStep = "validate" | "change";
+
+function DevModeToggle() {
+  const { devMode, setDevMode } = useUser();
+
+  return (
+    <button
+      type="button"
+      onClick={() => setDevMode(!devMode)}
+      className={`px-3 py-1 text-sm font-semibold ${
+        devMode ? "btn-success" : "app-button--ghost"
+      }`}
+      aria-pressed={devMode}
+      aria-label="Alternar modo desarrollador"
+      title={devMode ? "Desactivar modo desarrollador" : "Activar modo desarrollador"}
+    >
+      {devMode ? "Activo" : "Inactivo"}
+    </button>
+  );
+}
 
 const Home: React.FC = () => {
   const {
@@ -742,7 +762,6 @@ const Home: React.FC = () => {
                   {heartbeatConfig.isActive ? "Activo" : "Inactivo"}
                 </button>
               </div>
-
               <div className="app-panel mb-4 p-3 text-sm text-slate-300">
                 Intentos restantes:{" "}
                 <span className="font-bold text-emerald-300">
@@ -951,7 +970,18 @@ const Home: React.FC = () => {
               </div>
             </section>
           </div>
-
+          <section className="app-panel-strong p-4 mt-4">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h3 className="font-bold text-white">Modo desarrollador</h3>
+                <p className="text-sm text-slate-400">
+                  Este modo permite entrar el hub de desarrollo mostrando el
+                  icono en la barra de navegación.
+                </p>
+              </div>
+              <DevModeToggle />
+            </div>
+          </section>
           <section className="app-panel-strong mt-4 p-4">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>

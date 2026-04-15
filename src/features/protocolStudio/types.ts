@@ -1,5 +1,5 @@
 export type CommandKind = "request" | "mixed" | "event" | "ack";
-export type FieldType = "select" | "str" | "u8" | "hex1";
+export type FieldType = "select" | "str" | "u8" | "hex1" | "hex4";
 export type ValidationTone = "ok" | "warn" | "bad";
 export type OverallState = "ok" | "warn" | "bad";
 export type TranslatorViewMode = "idle" | "singleFrame" | "singleCommand" | "block" | "error";
