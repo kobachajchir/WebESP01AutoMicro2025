@@ -17,9 +17,29 @@ import {
   type CurrentScreen,
   type ScreenUpdateKind,
 } from "../types/ScreenTypes";
+import {
+  getScreenDefinition,
+  getValidationPinDigitsCount,
+  isValidationScreenCode,
+} from "../screens/screenCodes";
+
+const MENU_ITEMS_PER_PAGE = 3;
+
+export interface ScreenViewModel extends CurrentScreen {
+  itemsCount: number;
+  hasMenuItems: boolean;
+  currentMenuPage: number;
+  totalMenuPages: number;
+  selectedIndex: number | null;
+  visibleStartIndex: number;
+  visibleEndIndex: number;
+  isValidationScreen: boolean;
+  pinDigitsCount: number;
+  screenDefinition: ReturnType<typeof getScreenDefinition>;
+}
 
 interface ScreenContextType {
-  currentScreen: CurrentScreen | null;
+  currentScreen: ScreenViewModel | null;
   requestCurrentScreen: () => string | null;
 }
 
@@ -35,8 +55,8 @@ export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
   const { connected, send, subscribe } = useWebSocket();
   const { user, loading } = useUser();
 
-  const [currentScreen, setCurrentScreen] = useState<CurrentScreen | null>(() =>
-    createInitialCurrentScreen(),
+  const [currentScreen, setCurrentScreen] = useState<ScreenViewModel | null>(
+    () => createInitialCurrentScreen(),
   );
 
   const pendingScreenRequestsRef = useRef(new Set<string>());
@@ -51,7 +71,9 @@ export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
         return false;
       }
 
-      setCurrentScreen(toCurrentScreen(report, updateKind, requestId));
+      const baseScreen = toCurrentScreen(report, updateKind, requestId);
+      const nextScreen = enrichCurrentScreen(baseScreen, data);
+      setCurrentScreen(nextScreen);
       return true;
     },
     [],
@@ -178,14 +200,143 @@ export function useScreen(): ScreenContextType {
   return context;
 }
 
+function enrichCurrentScreen(
+  baseScreen: CurrentScreen,
+  rawData: unknown,
+): ScreenViewModel {
+  const meta = extractScreenMeta(rawData);
+
+  const itemsCount = clampByte(meta.itemsCount ?? 0);
+  const hasMenuItems = itemsCount > 0;
+
+  const rawPage =
+    typeof baseScreen.page === "number" && Number.isFinite(baseScreen.page)
+      ? Math.max(1, Math.trunc(baseScreen.page))
+      : 1;
+
+  const totalMenuPages = hasMenuItems
+    ? Math.max(1, Math.ceil(itemsCount / MENU_ITEMS_PER_PAGE))
+    : 1;
+
+  const currentMenuPage = Math.min(rawPage, totalMenuPages);
+
+  const visibleStartIndex = hasMenuItems
+    ? (currentMenuPage - 1) * MENU_ITEMS_PER_PAGE + 1
+    : 0;
+
+  const visibleEndIndex = hasMenuItems
+    ? Math.min(itemsCount, visibleStartIndex + MENU_ITEMS_PER_PAGE - 1)
+    : 0;
+
+  const isValidationScreen = isValidationScreenCode(baseScreen.screenCode);
+  const pinDigitsCount = isValidationScreen
+    ? getValidationPinDigitsCount(baseScreen.screenCode)
+    : 0;
+
+  return {
+    ...baseScreen,
+    itemsCount,
+    hasMenuItems,
+    currentMenuPage,
+    totalMenuPages,
+    selectedIndex:
+      meta.selectedIndex !== undefined ? clampByte(meta.selectedIndex) : null,
+    visibleStartIndex,
+    visibleEndIndex,
+    isValidationScreen,
+    pinDigitsCount,
+    screenDefinition: getScreenDefinition(baseScreen.screenCode),
+  };
+}
+
+function extractScreenMeta(data: unknown): {
+  itemsCount?: number;
+  selectedIndex?: number;
+} {
+  if (!isRecord(data)) {
+    return {};
+  }
+
+  const directItemsCount =
+    readNumber(data.itemCount) ??
+    readNumber(data.item_count) ??
+    readNumber(data.menuItemCount) ??
+    readNumber(data.menu_item_count);
+
+  const directSelectedIndex =
+    readNumber(data.selectedIndex) ??
+    readNumber(data.selected_index) ??
+    readNumber(data.menuSelectedIndex) ??
+    readNumber(data.menu_selected_index);
+
+  if (directItemsCount !== undefined || directSelectedIndex !== undefined) {
+    return {
+      itemsCount: directItemsCount,
+      selectedIndex: directSelectedIndex,
+    };
+  }
+
+  const payload = readPayloadBytes(data);
+  if (!payload) {
+    return {};
+  }
+
+  /*
+   * Formatos soportados:
+   * 1) ScreenReport extendido:
+   *    [screen_code_le(4), item_count, source]
+   * 2) MenuSelectionReport:
+   *    [screen_code_le(4), selected_index, item_count, source]
+   * 3) Legacy:
+   *    [screen_code_le(4), source]
+   */
+
+  if (payload.length >= 7) {
+    return {
+      selectedIndex: payload[4],
+      itemsCount: payload[5],
+    };
+  }
+
+  if (payload.length >= 6) {
+    return {
+      itemsCount: payload[4],
+    };
+  }
+
+  return {};
+}
+
+function readPayloadBytes(data: unknown): number[] | undefined {
+  if (!isRecord(data) || !Array.isArray(data.payload)) {
+    return undefined;
+  }
+
+  const bytes: number[] = [];
+
+  for (const item of data.payload) {
+    const n = readNumber(item);
+    if (n === undefined) {
+      return undefined;
+    }
+    bytes.push(clampByte(n));
+  }
+
+  return bytes;
+}
+
+function clampByte(value: number): number {
+  return Math.max(0, Math.min(0xff, Math.trunc(value)));
+}
+
 function createRequestId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
     : `screen-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function createInitialCurrentScreen(): CurrentScreen {
-  const report = normalizeScreenReport({
+function createInitialCurrentScreen(): ScreenViewModel {
+  const initialRawData = {
     screenCode: 0x010101,
     screenCodeHex: "0x010101",
     menu: 1,
@@ -193,14 +344,20 @@ function createInitialCurrentScreen(): CurrentScreen {
     page: 1,
     source: 0x02,
     sourceName: "RENDER",
-    payload: [0x01, 0x01, 0x01, 0x00, 0x02],
-  });
+    payload: [0x01, 0x01, 0x01, 0x00, 0x00, 0x02],
+    itemCount: 0,
+  };
+
+  const report = normalizeScreenReport(initialRawData);
 
   if (!report) {
     throw new Error("No se pudo crear la pantalla inicial Dashboard.");
   }
 
-  return toCurrentScreen(report, "screen.current");
+  return enrichCurrentScreen(
+    toCurrentScreen(report, "screen.current"),
+    initialRawData,
+  );
 }
 
 function hasReservedScreenCmd(data: unknown): boolean {

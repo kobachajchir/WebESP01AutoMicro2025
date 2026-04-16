@@ -115,7 +115,10 @@ const Home: React.FC = () => {
         const [action, code] = payload;
         const isOk = code === SETTINGS_ACK_CODES.OK;
 
-        if (action === APP_PIN_ACTION.VALIDATE && activeRequest === "validate") {
+        if (
+          action === APP_PIN_ACTION.VALIDATE_SCREEN &&
+          activeRequest === "validate"
+        ) {
           clearPinAckTimeout();
           activePinRequestRef.current = null;
           if (isOk) {
@@ -441,7 +444,7 @@ const Home: React.FC = () => {
     try {
       await send(
         CMD.APP_PIN_CONFIG,
-        PayloadBuilder.appPinConfig(APP_PIN_ACTION.VALIDATE, currentPin)
+        PayloadBuilder.appPinConfig(APP_PIN_ACTION.VALIDATE_SCREEN, currentPin),
       );
     } catch {
       clearPinAckTimeout();

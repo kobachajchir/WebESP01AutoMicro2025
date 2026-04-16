@@ -1,4 +1,3 @@
-// src/proto/uner_cmds.ts
 export const CMD = {
   // Heartbeat
   HEARTBEAT_SET: 0xa0, // payload: u16 period_ms
@@ -19,11 +18,23 @@ export const CMD = {
   TELEMETRY_ACK: 0x21, // payload: u8 code, u16 period_ms
   TELEMETRY_DATA: 0x22, // payload: u8 schema, u16 seq, i16[6] imu_data, i16 tempRaw
 
-  // Preferencias de aplicacion persistidas en NVS
-  // APP_PIN_CONFIG request:
-  //   validate -> [action=0x01, current_pin_ascii4]
-  //   change   -> [action=0x02, current_pin_ascii4, new_pin_ascii4]
-  // APP_PIN_CONFIG response/ACK: [action, code]
+  /*
+   * Preferencias de aplicación persistidas en NVS
+   *
+   * APP_PIN_CONFIG request:
+   *   LOGIN           -> [action=0x01, pin_ascii4]
+   *   CHANGE          -> [action=0x02, current_pin_ascii4, new_pin_ascii4]
+   *   VALIDATE_SCREEN -> [action=0x03, pin_ascii4]
+   *
+   * APP_PIN_CONFIG response/ACK:
+   *   [action, code]
+   *
+   * code:
+   *   0x00 = OK
+   *   0x01 = ERROR
+   *   0x02 = INVALID_PIN
+   *   0x03 = TIMEOUT
+   */
   APP_PIN_CONFIG: 0x60,
 
   // APP_THEME_CONFIG request: [base_rgb3, accent_rgb3]
@@ -45,7 +56,7 @@ export const PayloadBuilder = {
   wifiSetAP: (
     ssid: string,
     password: string,
-    ip: [U8, U8, U8, U8]
+    ip: [U8, U8, U8, U8],
   ): Uint8Array => {
     const ssidBytes = new TextEncoder().encode(ssid);
     const passBytes = new TextEncoder().encode(password);
@@ -72,7 +83,7 @@ export const PayloadBuilder = {
     ssid: string,
     password: string,
     fixedIp: boolean,
-    ip?: [U8, U8, U8, U8]
+    ip?: [U8, U8, U8, U8],
   ): Uint8Array => {
     const ssidBytes = new TextEncoder().encode(ssid);
     const passBytes = new TextEncoder().encode(password);
@@ -106,21 +117,43 @@ export const PayloadBuilder = {
   appPinConfig: (
     action: U8,
     currentPin: string,
-    newPin?: string
+    newPin?: string,
   ): Uint8Array => {
     const current = encodePin4(currentPin);
-    const next = newPin ? encodePin4(newPin) : new Uint8Array(0);
-    const buf = new Uint8Array(1 + current.length + next.length);
-    buf[0] = action;
-    buf.set(current, 1);
-    if (next.length) buf.set(next, 1 + current.length);
-    return buf;
+
+    switch (action) {
+      case APP_PIN_ACTION.LOGIN:
+      case APP_PIN_ACTION.VALIDATE_SCREEN: {
+        const buf = new Uint8Array(1 + current.length);
+        buf[0] = action;
+        buf.set(current, 1);
+        return buf;
+      }
+
+      case APP_PIN_ACTION.CHANGE: {
+        if (!newPin) {
+          throw new Error("appPinConfig: newPin es obligatorio para CHANGE");
+        }
+
+        const next = encodePin4(newPin);
+        const buf = new Uint8Array(1 + current.length + next.length);
+        buf[0] = action;
+        buf.set(current, 1);
+        buf.set(next, 1 + current.length);
+        return buf;
+      }
+
+      default: {
+        const buf = new Uint8Array(1 + current.length);
+        buf[0] = action;
+        buf.set(current, 1);
+        return buf;
+      }
+    }
   },
 
-  appThemeConfig: (
-    base: [U8, U8, U8],
-    accent: [U8, U8, U8]
-  ): Uint8Array => new Uint8Array([...base, ...accent]),
+  appThemeConfig: (base: [U8, U8, U8], accent: [U8, U8, U8]): Uint8Array =>
+    new Uint8Array([...base, ...accent]),
 } as const;
 
 function encodePin4(pin: string): Uint8Array {
@@ -150,8 +183,9 @@ export const ERROR_CODES = {
 } as const;
 
 export const APP_PIN_ACTION = {
-  VALIDATE: 0x01,
+  LOGIN: 0x01,
   CHANGE: 0x02,
+  VALIDATE_SCREEN: 0x03,
 } as const;
 
 export const SETTINGS_ACK_CODES = {

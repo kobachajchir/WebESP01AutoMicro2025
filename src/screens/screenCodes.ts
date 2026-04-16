@@ -1,6 +1,12 @@
-import type { ScreenCode } from "./types";
+// src/screens/screenCodes.ts
 
-export function makeScreenCode(menu: number, submenu: number, page: number): ScreenCode {
+import type { ScreenCode } from "../screens/types";
+
+export function makeScreenCode(
+  menu: number,
+  submenu: number,
+  page: number,
+): ScreenCode {
   return ((menu & 0xff) << 16) | ((submenu & 0xff) << 8) | (page & 0xff);
 }
 
@@ -80,3 +86,45 @@ export const SCREEN_CODE_WARNING_PIN_DENIED = 0x080106;
 export const SCREEN_CODE_WARNING_PIN_TIMEOUT = 0x080107;
 export const SCREEN_CODE_WARNING_PIN_BLOCKED = 0x080108;
 export const SCREEN_CODE_WARNING_PERMISSION_DENIED = 0x080109;
+
+export interface ScreenDefinition {
+  code: ScreenCode;
+  isValidationScreen?: boolean;
+  pinDigitsCount?: number;
+}
+
+export const SCREEN_DEFINITIONS: Partial<Record<ScreenCode, ScreenDefinition>> =
+  {
+    [SCREEN_CODE_WARNING_PIN_ENTRY]: {
+      code: SCREEN_CODE_WARNING_PIN_ENTRY,
+      isValidationScreen: true,
+      pinDigitsCount: 4,
+    },
+  };
+
+export function getScreenDefinition(
+  code: ScreenCode | null | undefined,
+): ScreenDefinition | null {
+  if (typeof code !== "number") {
+    return null;
+  }
+
+  return SCREEN_DEFINITIONS[code] ?? null;
+}
+
+export function isValidationScreenCode(
+  code: ScreenCode | null | undefined,
+): boolean {
+  return getScreenDefinition(code)?.isValidationScreen === true;
+}
+
+export function getValidationPinDigitsCount(
+  code: ScreenCode | null | undefined,
+): number {
+  const def = getScreenDefinition(code);
+  if (!def?.isValidationScreen) {
+    return 0;
+  }
+
+  return Math.max(1, def.pinDigitsCount ?? 4);
+}

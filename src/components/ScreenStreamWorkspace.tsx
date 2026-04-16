@@ -5,8 +5,11 @@ import { useWebSocket } from "../hooks/useWebSocket";
 import { formatScreenCodeHex } from "../types/ScreenTypes";
 import { resolveOledScreen } from "../screens";
 import OledCommandPreview from "./OledCommandPreview";
+import PinScreenModal from "./PinScreenModal";
+import useUser from "../contexts/UserContext";
 
 const LONG_PRESS_THRESHOLD_MS = 2000;
+const POST_COMMAND_SCREEN_REFRESH_DELAY_MS = 120;
 
 const UNER_CMD_GET_CURRENT_SCREEN = "0x52";
 const UNER_CMD_MENU_ITEM_CLICK = "0x53";
@@ -15,6 +18,7 @@ const UNER_CMD_TRIGGER_USER_BUTTON = "0x55";
 const UNER_CMD_REQUEST_SCREEN_PAGE = "0x56";
 const UNER_CMD_TRIGGER_ENCODER_ROTATE_LEFT = "0x57";
 const UNER_CMD_TRIGGER_ENCODER_ROTATE_RIGHT = "0x58";
+const UNER_CMD_AUTH_PIN_GRANTED = "0x59";
 
 const UNER_SCREEN_PAGE_DIR_UP = 0x00;
 const UNER_SCREEN_PAGE_DIR_DOWN = 0x01;
@@ -74,21 +78,10 @@ function buildEncoderRotatePayload(screenCode: number): number[] {
   return [...screenCodeToLeBytes(screenCode)];
 }
 
-function dispatchUnerCommand(
-  cmdHex: string,
-  payload: number[],
-  description: string,
-) {
-  console.log("[UNER][WEB->MCU] comando solicitado", {
-    cmdHex,
-    description,
-    payloadHex: payload
-      .map((byte) => byte.toString(16).toUpperCase().padStart(2, "0"))
-      .join(" "),
-    payloadBytes: payload,
-  });
-
-  // TODO: conectar con el envío real del frame UNER
+function createCommandRequestId(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `screen-cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 export default function ScreenStreamWorkspace({
@@ -96,18 +89,14 @@ export default function ScreenStreamWorkspace({
 }: {
   isModal?: boolean;
 }) {
-  const currentMenu = {
-    itemsCount: 3,
-  };
-
-  const { connected } = useWebSocket();
+  const { validatePin } = useUser();
+  const { connected, send } = useWebSocket();
   const { currentScreen, requestCurrentScreen } = useScreen();
 
   const [hoverSync, setHoverSync] = useState(false);
   const [hoverSync2, setHoverSync2] = useState(false);
 
   const [openScreenDetails, setOpenScreenDetails] = useState(false);
-  const [screenHasMenuItems] = useState(true);
   const [, setSelectedMenuItem] = useState<number>(1);
 
   const [hoverMenuUp, setHoverMenuUp] = useState(false);
@@ -131,6 +120,8 @@ export default function ScreenStreamWorkspace({
     null,
   );
 
+
+
   const [pressedAuxButton, setPressedAuxButton] =
     useState<AuxButtonKind | null>(null);
   const [longPressActive, setLongPressActive] = useState<
@@ -150,13 +141,9 @@ export default function ScreenStreamWorkspace({
     user: null,
   });
 
+  const refreshTimeoutRef = useRef<number | null>(null);
   const previewMeasureRef = useRef<HTMLDivElement | null>(null);
   const [previewHeight, setPreviewHeight] = useState<number>(256);
-
-  const [currentPage] = useState(1);
-  const [totalPages] = useState(1);
-
-  const currentMenuMaxItems = currentMenu?.itemsCount ?? 1;
 
   const resolvedScreen = useMemo(
     () =>
@@ -171,6 +158,34 @@ export default function ScreenStreamWorkspace({
         : null,
     [currentScreen],
   );
+
+  const itemsCount = Math.max(0, currentScreen?.itemsCount ?? 0);
+  const screenHasMenuItems = currentScreen?.hasMenuItems ?? itemsCount > 0;
+  const isValidationScreen = true //currentScreen?.isValidationScreen ?? false;
+  const pinDigitsCount = Math.max(0, currentScreen?.pinDigitsCount ?? 0);
+
+  const currentPage = Math.max(1, currentScreen?.currentMenuPage ?? 1);
+  const totalPages = Math.max(1, currentScreen?.totalMenuPages ?? 1);
+  const selectedIndex = currentScreen?.selectedIndex ?? null;
+  const visibleStartIndex = currentScreen?.visibleStartIndex ?? 0;
+  const visibleEndIndex = currentScreen?.visibleEndIndex ?? 0;
+
+  const [openPinValidationModal, setOpenPinValidationModal] = useState(false);
+
+  const visibleButtonsCount = screenHasMenuItems
+    ? Math.max(0, visibleEndIndex - visibleStartIndex + 1)
+    : 0;
+
+  const [pinDigits, setPinDigits] = useState<number[]>([0, 0, 0, 0]);
+
+  useEffect(() => {
+    if (!isValidationScreen) {
+      return;
+    }
+
+    const nextLength = Math.max(1, pinDigitsCount || 4);
+    setPinDigits(new Array(nextLength).fill(0));
+  }, [isValidationScreen, pinDigitsCount, currentScreen?.screenCode]);
 
   useEffect(() => {
     const target = previewMeasureRef.current;
@@ -195,6 +210,58 @@ export default function ScreenStreamWorkspace({
       observer.disconnect();
     };
   }, [resolvedScreen, isModal]);
+
+  useEffect(() => {
+    return () => {
+      if (refreshTimeoutRef.current !== null) {
+        window.clearTimeout(refreshTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const scheduleScreenRefresh = () => {
+    if (refreshTimeoutRef.current !== null) {
+      window.clearTimeout(refreshTimeoutRef.current);
+    }
+
+    refreshTimeoutRef.current = window.setTimeout(() => {
+      requestCurrentScreen();
+    }, POST_COMMAND_SCREEN_REFRESH_DELAY_MS);
+  };
+
+  const dispatchUnerCommand = (
+    cmdHex: string,
+    payload: number[],
+    description: string,
+  ) => {
+    console.log("[UNER][WEB->MCU] comando solicitado", {
+      cmdHex,
+      description,
+      payloadHex: payload
+        .map((byte) => byte.toString(16).toUpperCase().padStart(2, "0"))
+        .join(" "),
+      payloadBytes: payload,
+    });
+
+    if (!connected) {
+      console.warn("[UNER][WEB->MCU] no conectado, comando ignorado", {
+        cmdHex,
+        description,
+      });
+      return null;
+    }
+
+    const requestId = createCommandRequestId();
+
+    send("device.command", {
+      requestId,
+      target: "stm",
+      command: cmdHex,
+      payload,
+    });
+
+    return requestId;
+  };
 
   const getAccentButtonStyle = (
     hovered: boolean,
@@ -286,34 +353,40 @@ export default function ScreenStreamWorkspace({
   };
 
   const handleMenuItemClick = (item: 1 | 2 | 3) => {
-    if (!currentScreen) {
-      console.warn("[Menu] No hay currentScreen para enviar selección");
+    if (!currentScreen || !screenHasMenuItems) {
+      console.warn("[Menu] No hay currentScreen o el menú no tiene items");
       return;
     }
 
-    const clampedItem = Math.min(currentMenuMaxItems, Math.max(1, item)) as
-      | 1
-      | 2
-      | 3;
+    if (item > visibleButtonsCount) {
+      return;
+    }
 
-    setSelectedMenuItem(clampedItem);
-    animateMenuItemPress(clampedItem);
+    setSelectedMenuItem(item);
+    animateMenuItemPress(item);
 
-    const payload = buildMenuItemClickPayload(
-      currentScreen.screenCode,
-      clampedItem,
-    );
+    const payload = buildMenuItemClickPayload(currentScreen.screenCode, item);
 
     dispatchUnerCommand(
       UNER_CMD_MENU_ITEM_CLICK,
       payload,
-      `Emular click físico sobre item visible ${clampedItem}`,
+      `Emular click físico sobre item visible ${item}`,
     );
+
+    scheduleScreenRefresh();
   };
 
   const handleMenuScroll = (direction: ScreenPageDirection) => {
-    if (!currentScreen) {
-      console.warn("[Menu] No hay currentScreen para pedir cambio de página");
+    if (!currentScreen || !screenHasMenuItems) {
+      console.warn("[Menu] No hay currentScreen o el menú no tiene paginación");
+      return;
+    }
+
+    if (direction === "up" && currentPage <= 1) {
+      return;
+    }
+
+    if (direction === "down" && currentPage >= totalPages) {
       return;
     }
 
@@ -329,7 +402,7 @@ export default function ScreenStreamWorkspace({
         : "Solicitar página siguiente de la screen actual",
     );
 
-    requestCurrentScreen();
+    scheduleScreenRefresh();
   };
 
   const startAuxPress = (kind: AuxButtonKind) => {
@@ -400,6 +473,8 @@ export default function ScreenStreamWorkspace({
 
     setPressedAuxButton((prev) => (prev === kind ? null : prev));
     setLongPressActive((prev) => ({ ...prev, [kind]: false }));
+
+    scheduleScreenRefresh();
   };
 
   const handleEncoderRotate = (direction: "left" | "right") => {
@@ -424,7 +499,58 @@ export default function ScreenStreamWorkspace({
         ? "Emular giro físico del encoder hacia la izquierda"
         : "Emular giro físico del encoder hacia la derecha",
     );
+
+    scheduleScreenRefresh();
   };
+
+  const adjustPinDigit = (digitIndex: number, delta: 1 | -1) => {
+    setPinDigits((prev) =>
+      prev.map((value, index) => {
+        if (index !== digitIndex) {
+          return value;
+        }
+
+        if (delta === 1) {
+          return value === 9 ? 0 : value + 1;
+        }
+
+        return value === 0 ? 9 : value - 1;
+      }),
+    );
+  };
+
+const handleValidatePin = async (pin: string) => {
+  if (!currentScreen) {
+    console.warn("[PIN] No hay currentScreen activa para validar");
+    return false;
+  }
+
+  const ok = await validatePin(pin);
+
+  console.log("[PIN][WEB->ESP] resultado validación", {
+    pin,
+    ok,
+    screenCode:
+      currentScreen.screenCodeHex ??
+      formatScreenCodeHex(currentScreen.screenCode ?? 0),
+  });
+
+  if (!ok) {
+    return false;
+  }
+
+  const payload = screenCodeToLeBytes(currentScreen.screenCode);
+
+  dispatchUnerCommand(
+    UNER_CMD_AUTH_PIN_GRANTED,
+    payload,
+    `Notificar a STM que el PIN fue validado para screen ${currentScreen.screenCodeHex ?? formatScreenCodeHex(currentScreen.screenCode)}`,
+  );
+
+  scheduleScreenRefresh();
+
+  return true;
+};
 
   const screenLabel = currentScreen
     ? currentScreen.known
@@ -499,6 +625,14 @@ export default function ScreenStreamWorkspace({
                 tone="emerald"
               />
             ) : null}
+
+            {isValidationScreen && (
+              <PillWithTooltip
+                label="PIN"
+                tooltip="Pantalla de validación. El panel lateral permite preparar un PIN local y enviarlo luego al bridge."
+                tone="cyan"
+              />
+            )}
           </div>
 
           <div className="flex flex-col">
@@ -509,13 +643,25 @@ export default function ScreenStreamWorkspace({
             </p>
           </div>
 
-          {screenHasMenuItems && (
+          {isValidationScreen ? (
+            //Aca iba la pill de pin validation, agregala
             <div className="app-panel-strong flex flex-row p-4">
               <p className="text-xs text-slate-400">
-                Podés enviar eventos del menú visible. En pantalla se muestran
-                hasta 3 items visibles al mismo tiempo.
+                Esta pantalla es de validación. Podés ingresar el PIN y enviarlo al MCU para validar de manera remota.
               </p>
             </div>
+          ) : (
+            screenHasMenuItems && (
+              <div className="app-panel-strong flex flex-row p-4">
+                <p className="text-xs text-slate-400">
+                  Podés enviar eventos del menú visible. Esta pantalla tiene{" "}
+                  <span className="font-bold text-slate-200">{itemsCount}</span>{" "}
+                  items distribuidos en{" "}
+                  <span className="font-bold text-slate-200">{totalPages}</span>{" "}
+                  páginas.
+                </p>
+              </div>
+            )
           )}
         </div>
       </div>
@@ -559,7 +705,7 @@ export default function ScreenStreamWorkspace({
           <div
             className={`flex w-full ${
               isModal ? "flex-col xl:flex-row" : "flex-col lg:flex-row"
-            } items-start gap-3 justify-center`}
+            } items-start gap-8 justify-center`}
           >
             <div className="flex min-w-0 flex-col gap-3">
               <div
@@ -683,8 +829,9 @@ export default function ScreenStreamWorkspace({
                 </ControlBlock>
               </div>
             </div>
+            <div className="w-px self-stretch" style={{ background: "var(--ui-accent)" }} />
 
-            {screenHasMenuItems && (
+            {isValidationScreen ? (
               <div
                 className="flex items-stretch gap-2"
                 style={{
@@ -693,124 +840,162 @@ export default function ScreenStreamWorkspace({
                 }}
               >
                 <div
-                  className="flex flex-col items-center justify-between rounded-xl border border-white/10 bg-slate-950/40 p-2"
+                  className="flex flex-col justify-between rounded-xl border border-white/10 bg-slate-950/40 p-3"
                   style={{
                     height: `${previewHeight}px`,
                     minHeight: `${previewHeight}px`,
                   }}
                 >
-                  <button
-                    type="button"
-                    onClick={() => handleMenuItemClick(1)}
-                    onMouseEnter={() => setHoverMenuItem1(true)}
-                    onMouseLeave={() => setHoverMenuItem1(false)}
-                    className="flex h-10 w-10 items-center justify-center rounded-md border text-xs font-semibold transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-40"
-                    style={getAccentButtonStyle(
-                      hoverMenuItem1,
-                      pressedMenuItem === 1,
-                    )}
-                    disabled={!connected}
-                    aria-label="Seleccionar item 1"
-                    title="Seleccionar item 1"
-                  >
-                    1
-                  </button>
+                  <div className="flex flex-col gap-3">
+                    <p className="text-sm font-semibold text-white">
+                      Pantalla de validación
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      Esta pantalla requiere ingreso de PIN.
+                    </p>
+                  </div>
 
                   <button
                     type="button"
-                    onClick={() => handleMenuItemClick(2)}
-                    onMouseEnter={() => setHoverMenuItem2(true)}
-                    onMouseLeave={() => setHoverMenuItem2(false)}
-                    className="flex h-10 w-10 items-center justify-center rounded-md border text-xs font-semibold transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-40"
-                    style={getAccentButtonStyle(
-                      hoverMenuItem2,
-                      pressedMenuItem === 2,
-                    )}
-                    disabled={!connected}
-                    aria-label="Seleccionar item 2"
-                    title="Seleccionar item 2"
+                    className="w-full rounded-md border px-3 py-2 text-sm font-semibold transition"
+                    style={getAccentButtonStyle(false, false)}
+                    onClick={() => setOpenPinValidationModal(true)}
+                    aria-label="Validar PIN"
+                    title="Validar PIN"
                   >
-                    2
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleMenuItemClick(3)}
-                    onMouseEnter={() => setHoverMenuItem3(true)}
-                    onMouseLeave={() => setHoverMenuItem3(false)}
-                    className="flex h-10 w-10 items-center justify-center rounded-md border text-xs font-semibold transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-40"
-                    style={getAccentButtonStyle(
-                      hoverMenuItem3,
-                      pressedMenuItem === 3,
-                    )}
-                    disabled={!connected}
-                    aria-label="Seleccionar item 3"
-                    title="Seleccionar item 3"
-                  >
-                    3
-                  </button>
-                </div>
-
-                <div
-                  className="flex flex-col items-center justify-between rounded-xl border border-white/10 bg-slate-950/40 p-2"
-                  style={{
-                    height: `${previewHeight}px`,
-                    minHeight: `${previewHeight}px`,
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => handleMenuScroll("up")}
-                    onMouseEnter={() => setHoverMenuUp(true)}
-                    onMouseLeave={() => setHoverMenuUp(false)}
-                    className="flex h-10 w-10 items-center justify-center rounded-md border transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-40"
-                    style={getAccentButtonStyle(
-                      hoverMenuUp,
-                      pressedScrollDir === "up",
-                    )}
-                    aria-label="Scroll menu up"
-                    title="Subir página"
-                    disabled={!connected}
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      className="h-4 w-4"
-                    >
-                      <path d="M18 15l-6-6-6 6" />
-                    </svg>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleMenuScroll("down")}
-                    onMouseEnter={() => setHoverMenuDown(true)}
-                    onMouseLeave={() => setHoverMenuDown(false)}
-                    className="flex h-10 w-10 items-center justify-center rounded-md border transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-40"
-                    style={getAccentButtonStyle(
-                      hoverMenuDown,
-                      pressedScrollDir === "down",
-                    )}
-                    aria-label="Scroll menu down"
-                    title="Bajar página"
-                    disabled={!connected}
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      className="h-4 w-4"
-                    >
-                      <path d="M6 9l6 6 6-6" />
-                    </svg>
+                    Validar PIN
                   </button>
                 </div>
               </div>
+            ) : (
+              screenHasMenuItems && (
+                <div
+                  className="flex items-stretch gap-2"
+                  style={{
+                    height: `${previewHeight}px`,
+                    minHeight: `${previewHeight}px`,
+                  }}
+                >
+                  <div
+                    className="flex flex-col items-center justify-between rounded-xl border border-white/10 bg-slate-950/40 p-2"
+                    style={{
+                      height: `${previewHeight}px`,
+                      minHeight: `${previewHeight}px`,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleMenuItemClick(1)}
+                      onMouseEnter={() => setHoverMenuItem1(true)}
+                      onMouseLeave={() => setHoverMenuItem1(false)}
+                      className="flex h-10 w-10 items-center justify-center rounded-md border text-xs font-semibold transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-40"
+                      style={getAccentButtonStyle(
+                        hoverMenuItem1,
+                        pressedMenuItem === 1,
+                      )}
+                      disabled={!connected || visibleButtonsCount < 1}
+                      aria-label="Seleccionar item visible 1"
+                      title="Seleccionar item visible 1"
+                    >
+                      1
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleMenuItemClick(2)}
+                      onMouseEnter={() => setHoverMenuItem2(true)}
+                      onMouseLeave={() => setHoverMenuItem2(false)}
+                      className="flex h-10 w-10 items-center justify-center rounded-md border text-xs font-semibold transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-40"
+                      style={getAccentButtonStyle(
+                        hoverMenuItem2,
+                        pressedMenuItem === 2,
+                      )}
+                      disabled={!connected || visibleButtonsCount < 2}
+                      aria-label="Seleccionar item visible 2"
+                      title="Seleccionar item visible 2"
+                    >
+                      2
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleMenuItemClick(3)}
+                      onMouseEnter={() => setHoverMenuItem3(true)}
+                      onMouseLeave={() => setHoverMenuItem3(false)}
+                      className="flex h-10 w-10 items-center justify-center rounded-md border text-xs font-semibold transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-40"
+                      style={getAccentButtonStyle(
+                        hoverMenuItem3,
+                        pressedMenuItem === 3,
+                      )}
+                      disabled={!connected || visibleButtonsCount < 3}
+                      aria-label="Seleccionar item visible 3"
+                      title="Seleccionar item visible 3"
+                    >
+                      3
+                    </button>
+                  </div>
+
+                  <div
+                    className="flex flex-col items-center justify-between rounded-xl border border-white/10 bg-slate-950/40 p-2"
+                    style={{
+                      height: `${previewHeight}px`,
+                      minHeight: `${previewHeight}px`,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleMenuScroll("up")}
+                      onMouseEnter={() => setHoverMenuUp(true)}
+                      onMouseLeave={() => setHoverMenuUp(false)}
+                      className="flex h-10 w-10 items-center justify-center rounded-md border transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-40"
+                      style={getAccentButtonStyle(
+                        hoverMenuUp,
+                        pressedScrollDir === "up",
+                      )}
+                      aria-label="Scroll menu up"
+                      title="Subir página"
+                      disabled={!connected || currentPage <= 1}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        className="h-4 w-4"
+                      >
+                        <path d="M18 15l-6-6-6 6" />
+                      </svg>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleMenuScroll("down")}
+                      onMouseEnter={() => setHoverMenuDown(true)}
+                      onMouseLeave={() => setHoverMenuDown(false)}
+                      className="flex h-10 w-10 items-center justify-center rounded-md border transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-40"
+                      style={getAccentButtonStyle(
+                        hoverMenuDown,
+                        pressedScrollDir === "down",
+                      )}
+                      aria-label="Scroll menu down"
+                      title="Bajar página"
+                      disabled={!connected || currentPage >= totalPages}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        className="h-4 w-4"
+                      >
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              )
             )}
           </div>
         </div>
@@ -895,6 +1080,44 @@ export default function ScreenStreamWorkspace({
               />
 
               <ScreenFact
+                label="Items"
+                value={String(itemsCount)}
+                styles="app-dialog flex flex-row items-start gap-2 py-2 px-4 !w-fit rounded-md bg-slate-900/50 border border-slate-700/50"
+              />
+
+              <ScreenFact
+                label="Páginas menú"
+                value={`${currentPage}/${totalPages}`}
+                styles="app-dialog flex flex-row items-start gap-2 py-2 px-4 !w-fit rounded-md bg-slate-900/50 border border-slate-700/50"
+              />
+
+              <ScreenFact
+                label="Seleccionado"
+                value={
+                  selectedIndex !== null ? String(selectedIndex) : "sin dato"
+                }
+                styles="app-dialog flex flex-row items-start gap-2 py-2 px-4 !w-fit rounded-md bg-slate-900/50 border border-slate-700/50"
+              />
+
+              <ScreenFact
+                label="Rango visible"
+                value={
+                  screenHasMenuItems
+                    ? `${visibleStartIndex}-${visibleEndIndex}`
+                    : "sin menú"
+                }
+                styles="app-dialog flex flex-row items-start gap-2 py-2 px-4 !w-fit rounded-md bg-slate-900/50 border border-slate-700/50"
+              />
+
+              <ScreenFact
+                label="Validación PIN"
+                value={
+                  isValidationScreen ? `sí (${pinDigitsCount} dígitos)` : "no"
+                }
+                styles="app-dialog flex flex-row items-start gap-2 py-2 px-4 !w-fit rounded-md bg-slate-900/50 border border-slate-700/50"
+              />
+
+              <ScreenFact
                 label="Payload 0x95"
                 value={formatPayload(currentScreen?.payload)}
                 styles="app-dialog flex flex-row items-start gap-2 py-2 px-4 !w-fit rounded-md bg-slate-900/50 border border-slate-700/50"
@@ -917,6 +1140,24 @@ export default function ScreenStreamWorkspace({
           </div>
         </div>
       )}
+      <PinScreenModal
+        isOpen={openPinValidationModal}
+        onClose={() => setOpenPinValidationModal(false)}
+        title="Validar PIN"
+        subtitle="Ingresá el PIN para validar esta acción."
+        kicker="Validación"
+        submitLabel="Validar PIN"
+        digitsCount={4}//currentScreen?.pinDigitsCount ?? 4
+        canClose={true}
+        onSubmit={handleValidatePin}
+        successAction={() => {
+          setOpenPinValidationModal(false);
+          requestCurrentScreen();
+        }}
+        idleMessage="Ingresá el PIN para continuar."
+        errorMessage="PIN inválido."
+        loadingMessage="Validando..."
+      />
     </div>
   );
 }
