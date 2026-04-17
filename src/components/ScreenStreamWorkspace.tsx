@@ -589,7 +589,7 @@ const handleValidatePin = async (pin: string) => {
     <div className={`flex w-full flex-col ${isModal ? "min-h-[72vh]" : ""}`}>
       <div
         className={`mb-6 flex w-full flex-col gap-4 ${
-          isModal ? "" : "lg:flex-row lg:items-start lg:justify-between"
+          isModal ? "" : "lg:flex-row lg:items-center lg:justify-between"
         }`}
       >
         <div className="flex flex-1 flex-col gap-4">
@@ -647,7 +647,8 @@ const handleValidatePin = async (pin: string) => {
             //Aca iba la pill de pin validation, agregala
             <div className="app-panel-strong flex flex-row p-4">
               <p className="text-xs text-slate-400">
-                Esta pantalla es de validación. Podés ingresar el PIN y enviarlo al MCU para validar de manera remota.
+                Esta pantalla es de validación. Podés ingresar el PIN y enviarlo
+                al MCU para validar de manera remota.
               </p>
             </div>
           ) : (
@@ -703,9 +704,9 @@ const handleValidatePin = async (pin: string) => {
           </div>
 
           <div
-            className={`flex w-full ${
-              isModal ? "flex-col xl:flex-row" : "flex-col lg:flex-row"
-            } items-start gap-8 justify-center`}
+            className={`flex w-full gap-3 justify-center items-center flex-col lg:flex-row ${
+              isModal ? "" : ""
+            } `}
           >
             <div className="flex min-w-0 flex-col gap-3">
               <div
@@ -829,7 +830,10 @@ const handleValidatePin = async (pin: string) => {
                 </ControlBlock>
               </div>
             </div>
-            <div className="w-px self-stretch" style={{ background: "var(--ui-accent)" }} />
+            <div
+              className="w-px self-stretch"
+              style={{ background: "var(--ui-accent)" }}
+            />
 
             {isValidationScreen ? (
               <div
@@ -1147,7 +1151,7 @@ const handleValidatePin = async (pin: string) => {
         subtitle="Ingresá el PIN para validar esta acción."
         kicker="Validación"
         submitLabel="Validar PIN"
-        digitsCount={4}//currentScreen?.pinDigitsCount ?? 4
+        digitsCount={4} //currentScreen?.pinDigitsCount ?? 4
         canClose={true}
         onSubmit={handleValidatePin}
         successAction={() => {
