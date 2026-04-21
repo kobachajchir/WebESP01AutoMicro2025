@@ -629,6 +629,57 @@ export function analyzeFrame(frame: number[], sourceLabel: string): TranslationR
       okLine(`Detectada notificacion de finalizacion con IP: ${payload[1]}.${payload[2]}.${payload[3]}.${payload[4]}.`)
     );
   }
+  if (definition?.name === "REBOOT_ESP" && payload.length === 1) {
+    const rebootMode = payload[0] === 0x01 ? "modo AP" : "modo normal";
+    payloadText = `${payloadHex} | ${rebootMode}`;
+    validations.push(okLine(`Pedido de reinicio ESP con bootMode=${rebootMode}.`));
+  }
+  if (definition?.name === "WIFI_GET_DETAIL" && payload.length >= 4) {
+    const ssidLen = payload[0] ?? 0;
+    if (payload.length >= ssidLen + 4) {
+      const ssidBytes = payload.slice(1, 1 + ssidLen);
+      const signalStrength = payload[1 + ssidLen] > 127
+        ? payload[1 + ssidLen] - 256
+        : payload[1 + ssidLen];
+      const encryptionType = payload[2 + ssidLen];
+      const channel = payload[3 + ssidLen];
+      const ssid = new TextDecoder().decode(new Uint8Array(ssidBytes));
+      payloadText =
+        `${payloadHex} | ssid="${ssid}", signalStrength=${signalStrength}dBm, ` +
+        `encryptionType=${encryptionType}, channel=${channel}`;
+      validations.push(okLine("Detalle de red WiFi reconocido."));
+    }
+  }
+  if (
+    (definition?.name === "GET_CAR_MODE" ||
+      definition?.name === "EVT_CAR_MODE_CHANGED") &&
+    payload.length === 1
+  ) {
+    const modeLabel = carModeLabel(payload[0]);
+    payloadText = `${payloadHex} | ${modeLabel}`;
+    validations.push(okLine(`Modo de auto recibido: ${modeLabel} (${hx(payload[0])}).`));
+  }
+  if (
+    definition?.name === "EVT_MENU_SELECTION_CHANGED" &&
+    payload.length >= 5
+  ) {
+    const screenCode =
+      payload[0] |
+      (payload[1] << 8) |
+      (payload[2] << 16) |
+      (payload[3] << 24);
+    const selectedIndex = payload.length >= 7 ? payload[4] : null;
+    const itemCount = payload.length >= 7 ? payload[5] : payload[4];
+    const source = payload.length >= 7 ? payload[6] : payload[5];
+    payloadText =
+      `${payloadHex} | screenCode=0x${screenCode
+        .toString(16)
+        .toUpperCase()
+        .padStart(6, "0")}` +
+      (selectedIndex !== null ? `, selectedIndex=${selectedIndex}` : "") +
+      `, itemCount=${itemCount ?? "-"}, source=${source ?? "-"}`;
+    validations.push(okLine("Evento de pantalla/menu reconocido para sincronizar el OLED web."));
+  }
 
   const baseValid = headerOk && lenOk && checksumOk && token === 0x3a && version === 0x02;
   let overall: OverallState = "ok";
@@ -662,6 +713,13 @@ export function analyzeFrame(frame: number[], sourceLabel: string): TranslationR
     frameBytes: frame,
     hasFrame: true,
   };
+}
+
+function carModeLabel(value: number) {
+  if (value === 0x00) return "IDLE_MODE";
+  if (value === 0x01) return "FOLLOW_MODE";
+  if (value === 0x02) return "TEST_MODE";
+  return `valor fuera de CAR_MODE_MAX: ${value}`;
 }
 
 export function scanBlock(bytes: number[], sourceLabel: string): ScanBlockResult {

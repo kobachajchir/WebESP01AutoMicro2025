@@ -215,7 +215,19 @@ function readScreenCodeFromPayload(payload: number[] | undefined): number | null
 }
 
 function readPayloadSource(payload: number[] | undefined): number | undefined {
-  return payload && payload.length >= 5 ? payload[4] : undefined;
+  if (!payload) {
+    return undefined;
+  }
+
+  if (payload.length >= 7) {
+    return payload[6];
+  }
+
+  if (payload.length >= 6) {
+    return payload[5];
+  }
+
+  return payload.length >= 5 ? payload[4] : undefined;
 }
 
 function readNumberArray(value: unknown): number[] | undefined {

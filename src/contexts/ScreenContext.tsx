@@ -8,6 +8,10 @@ import React, {
   useState,
   type ReactNode,
 } from "react";
+import {
+  UNER_V2_CMD,
+  createUnerV2StreamParser,
+} from "../api/UnerFrameV2";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { useUser } from "./UserContext";
 import {
@@ -20,8 +24,9 @@ import {
 import {
   getScreenDefinition,
   getValidationPinDigitsCount,
-  isValidationScreenCode,
+  isPermissionValidationScreenCode,
 } from "../screens/screenCodes";
+import { useCarMode, type CarModeLabel } from "./CarModeContext";
 
 const MENU_ITEMS_PER_PAGE = 3;
 
@@ -52,8 +57,12 @@ interface ScreenProviderProps {
 }
 
 export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
-  const { connected, send, subscribe } = useWebSocket();
+  const { connected, send, subscribe, subscribeRaw } = useWebSocket();
   const { user, loading } = useUser();
+  const {
+    mode: carMode,
+    applyCarModeValue,
+  } = useCarMode();
 
   const [currentScreen, setCurrentScreen] = useState<ScreenViewModel | null>(
     () => createInitialCurrentScreen(),
@@ -61,6 +70,7 @@ export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
 
   const pendingScreenRequestsRef = useRef(new Set<string>());
   const lastSyncAuthKeyRef = useRef<string | null>(null);
+  const rawScreenParserRef = useRef(createUnerV2StreamParser());
 
   const applyScreenReport = useCallback(
     (data: unknown, updateKind: ScreenUpdateKind, requestId?: string) => {
@@ -72,11 +82,21 @@ export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
       }
 
       const baseScreen = toCurrentScreen(report, updateKind, requestId);
-      const nextScreen = enrichCurrentScreen(baseScreen, data);
+      const reportedCarMode = readCarModeLabelFromScreenData(data);
+
+      if (reportedCarMode) {
+        applyCarModeValue(reportedCarMode, "screen-report");
+      }
+
+      const effectiveCarMode = reportedCarMode ?? carMode;
+      const nextScreen = enrichCurrentScreen(baseScreen, data, {
+        carMode: effectiveCarMode,
+        sensoresVisible: effectiveCarMode === "TEST",
+      });
       setCurrentScreen(nextScreen);
       return true;
     },
-    [],
+    [applyCarModeValue, carMode],
   );
 
   const requestCurrentScreen = useCallback(() => {
@@ -116,9 +136,9 @@ export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
 
       if (
         eventName === "stm.event" &&
-        (hasReservedScreenCmd(payload.data) || hasReservedScreenCmd(payload))
+        (hasScreenReportCmd(payload.data) || hasScreenReportCmd(payload))
       ) {
-        warnReservedScreenDiagnostic(payload.data ?? payload);
+        applyScreenReport(payload.data ?? payload, "screen.changed");
       }
     });
 
@@ -151,8 +171,27 @@ export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
     );
 
     const offStmEvent = subscribe("stm.event", (payload: unknown) => {
-      if (hasReservedScreenCmd(payload)) {
-        warnReservedScreenDiagnostic(payload);
+      if (hasScreenReportCmd(payload)) {
+        applyScreenReport(payload, "screen.changed");
+      }
+    });
+
+    const offRawScreenEvent = subscribeRaw((incoming) => {
+      const bytes =
+        incoming instanceof Uint8Array ? incoming : new Uint8Array(incoming);
+
+      for (const frame of rawScreenParserRef.current.push(bytes)) {
+        if (frame.cmd !== UNER_V2_CMD.EVT_MENU_SELECTION_CHANGED) {
+          continue;
+        }
+
+        applyScreenReport(
+          {
+            cmd: frame.cmd,
+            payload: Array.from(frame.payload),
+          },
+          "screen.changed",
+        );
       }
     });
 
@@ -160,8 +199,15 @@ export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
       offDeviceEvent();
       offDeviceResponse();
       offStmEvent();
+      offRawScreenEvent();
     };
-  }, [applyScreenReport, subscribe]);
+  }, [applyScreenReport, subscribe, subscribeRaw]);
+
+  useEffect(() => {
+    if (!connected) {
+      rawScreenParserRef.current.reset();
+    }
+  }, [connected]);
 
   useEffect(() => {
     if (!connected) {
@@ -203,11 +249,20 @@ export function useScreen(): ScreenContextType {
 function enrichCurrentScreen(
   baseScreen: CurrentScreen,
   rawData: unknown,
+  globalMeta: {
+    carMode: CarModeLabel;
+    sensoresVisible: boolean;
+  } = {
+    carMode: "UNKNOWN",
+    sensoresVisible: false,
+  },
 ): ScreenViewModel {
   const meta = extractScreenMeta(rawData);
 
-  const itemsCount = clampByte(meta.itemsCount ?? 0);
-  const hasMenuItems = itemsCount > 0;
+  const itemsCount = clampByte(meta.itemsCount ?? (meta.hasMenuItems ? 1 : 0));
+  const hasMenuItems = itemsCount > 0 || meta.hasMenuItems === true;
+  const selectedIndex =
+    meta.selectedIndex !== undefined ? clampByte(meta.selectedIndex) : null;
 
   const rawPage =
     typeof baseScreen.page === "number" && Number.isFinite(baseScreen.page)
@@ -218,29 +273,47 @@ function enrichCurrentScreen(
     ? Math.max(1, Math.ceil(itemsCount / MENU_ITEMS_PER_PAGE))
     : 1;
 
-  const currentMenuPage = Math.min(rawPage, totalMenuPages);
+  const selectedMenuPage =
+    hasMenuItems && selectedIndex !== null
+      ? Math.floor(selectedIndex / MENU_ITEMS_PER_PAGE) + 1
+      : rawPage;
+
+  const currentMenuPage = Math.min(selectedMenuPage, totalMenuPages);
+  const firstVisibleIndex = hasMenuItems
+    ? (currentMenuPage - 1) * MENU_ITEMS_PER_PAGE
+    : 0;
 
   const visibleStartIndex = hasMenuItems
-    ? (currentMenuPage - 1) * MENU_ITEMS_PER_PAGE + 1
+    ? firstVisibleIndex + 1
     : 0;
 
   const visibleEndIndex = hasMenuItems
     ? Math.min(itemsCount, visibleStartIndex + MENU_ITEMS_PER_PAGE - 1)
     : 0;
 
-  const isValidationScreen = isValidationScreenCode(baseScreen.screenCode);
+  const isValidationScreen = isPermissionValidationScreenCode(
+    baseScreen.screenCode,
+    baseScreen.source,
+  );
   const pinDigitsCount = isValidationScreen
     ? getValidationPinDigitsCount(baseScreen.screenCode)
     : 0;
 
   return {
     ...baseScreen,
+    rawData: enrichRawScreenData(baseScreen.rawData, {
+      carMode: globalMeta.carMode,
+      firstVisibleIndex,
+      hasMenuItems,
+      itemsCount,
+      selectedIndex,
+      sensoresVisible: globalMeta.sensoresVisible,
+    }),
     itemsCount,
     hasMenuItems,
     currentMenuPage,
     totalMenuPages,
-    selectedIndex:
-      meta.selectedIndex !== undefined ? clampByte(meta.selectedIndex) : null,
+    selectedIndex,
     visibleStartIndex,
     visibleEndIndex,
     isValidationScreen,
@@ -249,7 +322,82 @@ function enrichCurrentScreen(
   };
 }
 
+function enrichRawScreenData(
+  rawData: unknown,
+  meta: {
+    carMode: CarModeLabel;
+    firstVisibleIndex: number;
+    hasMenuItems: boolean;
+    itemsCount: number;
+    sensoresVisible: boolean;
+    selectedIndex: number | null;
+  },
+): Record<string, unknown> {
+  const enriched: Record<string, unknown> = isRecord(rawData)
+    ? { ...rawData }
+    : {};
+
+  enriched.itemCount = meta.itemsCount;
+  enriched.itemsCount = meta.itemsCount;
+  enriched.hasMenuItems = meta.hasMenuItems;
+  enriched.firstVisibleIndex = meta.firstVisibleIndex;
+  enriched.sensoresVisible = meta.sensoresVisible;
+  enriched.carMode = meta.carMode === "UNKNOWN" ? "IDLE" : meta.carMode;
+
+  if (meta.selectedIndex !== null) {
+    enriched.selectedIndex = meta.selectedIndex;
+  }
+
+  return enriched;
+}
+
+function readCarModeLabelFromScreenData(data: unknown): CarModeLabel | null {
+  if (!isRecord(data)) {
+    return null;
+  }
+
+  const rawCarMode =
+    data.carMode ??
+    data.car_mode ??
+    data.carModeValue ??
+    data.car_mode_value;
+
+  if (typeof rawCarMode === "number" && Number.isFinite(rawCarMode)) {
+    return carModeLabelFromByte(rawCarMode);
+  }
+
+  if (typeof rawCarMode === "string") {
+    const normalized = rawCarMode.trim().toUpperCase();
+    if (
+      normalized === "IDLE" ||
+      normalized === "FOLLOW" ||
+      normalized === "TEST"
+    ) {
+      return normalized;
+    }
+
+    if (normalized.length > 0) {
+      const parsed = normalized.startsWith("0X")
+        ? Number.parseInt(normalized.slice(2), 16)
+        : Number(normalized);
+
+      return Number.isFinite(parsed) ? carModeLabelFromByte(parsed) : null;
+    }
+  }
+
+  return null;
+}
+
+function carModeLabelFromByte(value: number): CarModeLabel {
+  const normalized = Math.max(0, Math.min(0xff, Math.trunc(value)));
+  if (normalized === 0x00) return "IDLE";
+  if (normalized === 0x01) return "FOLLOW";
+  if (normalized === 0x02) return "TEST";
+  return "UNKNOWN";
+}
+
 function extractScreenMeta(data: unknown): {
+  hasMenuItems?: boolean;
   itemsCount?: number;
   selectedIndex?: number;
 } {
@@ -260,17 +408,41 @@ function extractScreenMeta(data: unknown): {
   const directItemsCount =
     readNumber(data.itemCount) ??
     readNumber(data.item_count) ??
+    readNumber(data.itemsCount) ??
+    readNumber(data.items_count) ??
+    readNumber(data.itemCOunt) ??
     readNumber(data.menuItemCount) ??
-    readNumber(data.menu_item_count);
+    readNumber(data.menu_item_count) ??
+    readNumber(data.menuItemsCount) ??
+    readNumber(data.menu_items_count);
 
-  const directSelectedIndex =
+  const directHasMenuItems =
+    readBoolean(data.hasMenuItems) ??
+    readBoolean(data.has_menu_items) ??
+    readBoolean(data.hasItems) ??
+    readBoolean(data.has_items);
+
+  const directSelectedIndexZeroBased =
+    readNumber(data.selectedIndexZeroBased) ??
+    readNumber(data.selected_index_zero_based);
+
+  const directSelectedIndexFromStm =
     readNumber(data.selectedIndex) ??
     readNumber(data.selected_index) ??
     readNumber(data.menuSelectedIndex) ??
     readNumber(data.menu_selected_index);
 
-  if (directItemsCount !== undefined || directSelectedIndex !== undefined) {
+  const directSelectedIndex =
+    directSelectedIndexZeroBased ??
+    normalizeStmMenuIndex(directSelectedIndexFromStm, directItemsCount);
+
+  if (
+    directItemsCount !== undefined ||
+    directSelectedIndex !== undefined ||
+    directHasMenuItems !== undefined
+  ) {
     return {
+      hasMenuItems: directHasMenuItems,
       itemsCount: directItemsCount,
       selectedIndex: directSelectedIndex,
     };
@@ -293,13 +465,15 @@ function extractScreenMeta(data: unknown): {
 
   if (payload.length >= 7) {
     return {
-      selectedIndex: payload[4],
+      hasMenuItems: payload[5] > 0,
+      selectedIndex: normalizeStmMenuIndex(payload[4], payload[5]),
       itemsCount: payload[5],
     };
   }
 
   if (payload.length >= 6) {
     return {
+      hasMenuItems: payload[4] > 0,
       itemsCount: payload[4],
     };
   }
@@ -325,6 +499,24 @@ function readPayloadBytes(data: unknown): number[] | undefined {
   return bytes;
 }
 
+function normalizeStmMenuIndex(
+  value: number | undefined,
+  itemsCount?: number,
+): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const selectedIndex = clampByte(value);
+  const count = itemsCount === undefined ? undefined : clampByte(itemsCount);
+
+  if (selectedIndex > 0 && (count === undefined || selectedIndex <= count)) {
+    return selectedIndex - 1;
+  }
+
+  return selectedIndex;
+}
+
 function clampByte(value: number): number {
   return Math.max(0, Math.min(0xff, Math.trunc(value)));
 }
@@ -346,6 +538,7 @@ function createInitialCurrentScreen(): ScreenViewModel {
     sourceName: "RENDER",
     payload: [0x01, 0x01, 0x01, 0x00, 0x00, 0x02],
     itemCount: 0,
+    hasMenuItems: false,
   };
 
   const report = normalizeScreenReport(initialRawData);
@@ -360,19 +553,13 @@ function createInitialCurrentScreen(): ScreenViewModel {
   );
 }
 
-function hasReservedScreenCmd(data: unknown): boolean {
+function hasScreenReportCmd(data: unknown): boolean {
   if (!isRecord(data)) {
     return false;
   }
 
-  return readNumber(data.cmd) === 0x95;
-}
-
-function warnReservedScreenDiagnostic(data: unknown) {
-  console.warn(
-    "[screen] stm.event con cmd=0x95 recibido como diagnóstico o payload inválido; el bridge debe publicar screen.changed.",
-    data,
-  );
+  const cmd = readNumber(data.cmd);
+  return cmd === UNER_V2_CMD.EVT_MENU_SELECTION_CHANGED || cmd === 0x95;
 }
 
 function readString(value: unknown): string | undefined {
@@ -391,6 +578,35 @@ function readNumber(value: unknown): number | undefined {
       : Number(trimmed);
 
     return Number.isFinite(parsed) ? Math.trunc(parsed) : undefined;
+  }
+
+  return undefined;
+}
+
+function readBoolean(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value !== 0;
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    const normalized = value.trim().toLowerCase();
+
+    if (
+      normalized === "true" ||
+      normalized === "1" ||
+      normalized === "yes" ||
+      normalized === "si"
+    ) {
+      return true;
+    }
+
+    if (normalized === "false" || normalized === "0" || normalized === "no") {
+      return false;
+    }
   }
 
   return undefined;

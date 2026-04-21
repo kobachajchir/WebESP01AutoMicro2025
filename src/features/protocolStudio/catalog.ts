@@ -43,7 +43,7 @@ export const COMMAND_GROUPS: CommandGroup[] = [
   },
   {
     label: "WiFi - conexion",
-    commands: ["0x14", "0x15", "0x18", "0x48", "0x49", "0x4B", "0x4C"],
+    commands: ["0x14", "0x15", "0x18", "0x1A", "0x48", "0x49", "0x4B", "0x4C"],
   },
   { label: "Telemetria", commands: ["0x20", "0x21", "0x22"] },
   {
@@ -58,6 +58,7 @@ export const COMMAND_GROUPS: CommandGroup[] = [
       "0x46",
       "0x47",
       "0x4D",
+      "0x5B",
     ],
   },
   {
@@ -91,6 +92,8 @@ export const COMMAND_GROUPS: CommandGroup[] = [
       "0x92",
       "0x93",
       "0x94",
+      "0x96",
+      "0x97",
     ],
   },
 ];
@@ -158,10 +161,20 @@ export const FRAME_COMMANDS: Record<string, CommandDefinition> = {
   },
   "0x16": {
     name: "REBOOT_ESP",
-    desc: "Solicita reinicio del ESP. La web lo envia como stmPacket con payload.data; la ESP valida y reenvia el frame UNER v2 con ruta ESP/PC -> MCU (0x21).",
-    fields: [],
-    minPayload: 0,
-    maxPayload: 0,
+    desc: "Solicita reinicio del ESP. Payload fijo de 1 byte: [boot_mode], donde 0x00 = reinicio normal y 0x01 = reinicio forzado en modo AP.",
+    fields: [
+      {
+        id: "bootMode",
+        label: "Modo de arranque",
+        type: "select",
+        options: [
+          { value: "0", label: "0 - Reinicio normal" },
+          { value: "1", label: "1 - Reinicio en modo AP" },
+        ],
+      },
+    ],
+    minPayload: 1,
+    maxPayload: 1,
     kind: "request",
   },
   "0x17": {
@@ -186,6 +199,14 @@ export const FRAME_COMMANDS: Record<string, CommandDefinition> = {
     fields: [],
     minPayload: 0,
     maxPayload: 0,
+    kind: "request",
+  },
+  "0x1A": {
+    name: "WIFI_GET_DETAIL",
+    desc: "Consulta el detalle de una red detectada o cacheada por SSID. Request: [ssid_len, ssid...]. Response en el mismo CMD: [ssid_len, ssid..., signalStrength_i8, encryptionType_u8, channel_u8].",
+    fields: [{ id: "ssid", label: "SSID", type: "str", placeholder: "MiWifi" }],
+    minPayload: 2,
+    maxPayload: 35,
     kind: "request",
   },
   "0x20": {
@@ -388,6 +409,14 @@ export const FRAME_COMMANDS: Record<string, CommandDefinition> = {
     ],
     minPayload: 5,
     maxPayload: 5,
+    kind: "request",
+  },
+  "0x5B": {
+    name: "GET_CAR_MODE",
+    desc: "Consulta al STM el modo actual del auto. Es un CMD request/response: la web envia 0x5B sin payload y la STM responde en el mismo CMD con payload [carMode], donde carMode es (uint8_t)GET_CAR_MODE(): 0=IDLE_MODE, 1=FOLLOW_MODE, 2=TEST_MODE. CAR_MODE_MAX=3. No es un evento puro.",
+    fields: [],
+    minPayload: 0,
+    maxPayload: 1,
     kind: "request",
   },
   "0x4A": {
@@ -645,6 +674,22 @@ export const FRAME_COMMANDS: Record<string, CommandDefinition> = {
     fields: NETWORK_IP_FIELDS,
     minPayload: 5,
     maxPayload: 5,
+    kind: "event",
+  },
+  "0x96": {
+    name: "EVT_MENU_SELECTION_CHANGED",
+    desc: "Evento emitido por la STM cuando entra a un menu o cambia el item seleccionado. Payload: [screen_code_le(4), selected_index, item_count, source]. La web lo normaliza como screen.changed para actualizar el preview.",
+    fields: [],
+    minPayload: 5,
+    maxPayload: 7,
+    kind: "event",
+  },
+  "0x97": {
+    name: "EVT_CAR_MODE_CHANGED",
+    desc: "Evento propio emitido por la STM cuando empuja el modo actual del auto hacia la web. Payload fijo: [carMode], donde carMode es GET_CAR_MODE(): 0=IDLE_MODE, 1=FOLLOW_MODE, 2=TEST_MODE.",
+    fields: [],
+    minPayload: 1,
+    maxPayload: 1,
     kind: "event",
   },
   "0xE0": {

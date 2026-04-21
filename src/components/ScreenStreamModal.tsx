@@ -1,5 +1,4 @@
 // src/components/ScreenStreamModal.tsx
-import React from "react";
 import Modal from "./modal";
 import ScreenStreamWorkspace from "./ScreenStreamWorkspace";
 

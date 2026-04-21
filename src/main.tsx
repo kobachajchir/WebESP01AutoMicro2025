@@ -7,6 +7,8 @@ import { UserProvider } from './contexts/UserContext.tsx';
 import { UNERProtocolProvider } from './contexts/UNERProtocolContext.tsx';
 import { ScreenProvider } from './contexts/ScreenContext.tsx';
 import { ScreenStreamModalProvider } from "./contexts/ScreenStreamModalContext.tsx";
+import { CarModeProvider } from "./contexts/CarModeContext.tsx";
+import { WifiCredentialsProvider } from "./contexts/WifiCredentialsContext.tsx";
 
 const wsUrl =
   import.meta.env.VITE_WS_URL ??
@@ -17,15 +19,19 @@ const wsUrl =
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <WebSocketProvider url={wsUrl}>
-      <UNERProtocolProvider>
-        <UserProvider>
-          <ScreenProvider>
-            <ScreenStreamModalProvider>
-              <App />
-            </ScreenStreamModalProvider>
-          </ScreenProvider>
-        </UserProvider>
-      </UNERProtocolProvider>
+      <WifiCredentialsProvider>
+        <UNERProtocolProvider>
+          <UserProvider>
+            <CarModeProvider>
+              <ScreenProvider>
+                <ScreenStreamModalProvider>
+                  <App />
+                </ScreenStreamModalProvider>
+              </ScreenProvider>
+            </CarModeProvider>
+          </UserProvider>
+        </UNERProtocolProvider>
+      </WifiCredentialsProvider>
     </WebSocketProvider>
   </StrictMode>,
 );

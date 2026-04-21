@@ -3,25 +3,12 @@ import { useEffect, useRef, useTransition } from "react";
 type Euler = { yaw: number; pitch: number; roll: number };
 
 interface MockEulerGeneratorProps {
-  /** Si está activo, emite valores en onUpdate */
   active: boolean;
-  /** Intervalo de muestreo en ms (50..3000) */
   ms: number;
-  /** Setter del intervalo */
   onMsChange: (ms: number) => void;
-  /** Callback que recibe los eulerDeg calculados */
   onUpdate: (e: Euler) => void;
 }
 
-/**
- * Generador de euler mock (frecuencia fija):
- * - yaw: seno (±120°)
- * - pitch: seno desfasado (±60°, clamp a ±90)
- * - roll: seno desfasado (±120°)
- *
- * Se emiten muestras cada `ms` milisegundos (50..3000).
- * Usa setInterval y refs para no recrear intervalos innecesariamente.
- */
 export default function MockEulerGenerator({
   active,
   ms,
@@ -30,14 +17,12 @@ export default function MockEulerGenerator({
 }: MockEulerGeneratorProps) {
   const intervalRef = useRef<number | null>(null);
   const t0Ref = useRef<number>(performance.now());
-
-  // refs para evitar recrear el intervalo por cambios de identidad
   const onUpdateRef = useRef(onUpdate);
+
   useEffect(() => {
     onUpdateRef.current = onUpdate;
   }, [onUpdate]);
 
-  // transición no urgente para no bloquear la UI
   const [, startTransition] = useTransition();
 
   useEffect(() => {
@@ -50,20 +35,18 @@ export default function MockEulerGenerator({
     }
 
     const clampedMs = clamp(Math.round(ms), 50, 3000);
-    // frecuencia fija (Hz): periodo ≈ 4s => 0.25 Hz
     const F_HZ = 0.25;
-    const W = Math.PI * 2 * F_HZ; // omega
+    const W = Math.PI * 2 * F_HZ;
 
     t0Ref.current = performance.now();
 
     const tick = () => {
       const now = performance.now();
-      const t = (now - t0Ref.current) / 1000; // seg
+      const t = (now - t0Ref.current) / 1000;
 
-      // Señales con fase distinta
-      const yaw = 120 * Math.sin(W * t + 0.0); // ±120°
-      const pitch = 60 * Math.sin(W * t + Math.PI / 3); // ±60° (clamp a ±90)
-      const roll = 120 * Math.sin(W * t + (2 * Math.PI) / 3); // ±120°
+      const yaw = 120 * Math.sin(W * t + 0.0);
+      const pitch = 60 * Math.sin(W * t + Math.PI / 3);
+      const roll = 120 * Math.sin(W * t + (2 * Math.PI) / 3);
 
       const e: Euler = {
         yaw: clamp(yaw, -180, 180),
@@ -76,7 +59,7 @@ export default function MockEulerGenerator({
       });
     };
 
-    tick(); // primer tick inmediato
+    tick();
     intervalRef.current = window.setInterval(tick, clampedMs);
 
     return () => {
@@ -88,32 +71,28 @@ export default function MockEulerGenerator({
   }, [active, ms]);
 
   return (
-    <div
-      className="rounded-2xl p-4
-                 bg-white/70 dark:bg-neutral-900/50
-                 ring-1 ring-black/5 shadow-sm backdrop-blur
-                 transition-shadow hover:shadow-md"
-    >
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-semibold text-slate-200">
-          Mock (auto)
-        </span>
+    <div className="app-panel-strong rounded-md border border-emerald-300/18 p-4">
+      <div className="mb-2 flex items-center justify-between">
+        <div>
+          <span className="text-sm font-semibold uppercase tracking-wide text-white">
+            Generador mock
+          </span>
+          <p className="mt-1 text-xs text-slate-300">
+            Señal automática para validar animación y refresco.
+          </p>
+        </div>
         <span
-          className={`text-[11px] px-2 py-0.5 rounded-full ring-1
-                     ${
-                       active
-                         ? "bg-emerald-500/20 ring-emerald-400/40 text-emerald-300"
-                         : "bg-slate-500/10 ring-white/10 text-slate-400"
-                     }`}
+          className={`rounded-full px-2 py-0.5 text-[11px] ring-1 ${
+            active
+              ? "bg-emerald-500/20 text-emerald-300 ring-emerald-400/40"
+              : "bg-slate-500/10 text-slate-400 ring-white/10"
+          }`}
         >
           {active ? "Activo" : "Inactivo"}
         </span>
       </div>
 
-      {/* Intervalo (ms) */}
-      <label className="block text-xs text-slate-300 mb-1">
-        Intervalo (ms)
-      </label>
+      <label className="mb-1 block text-xs text-slate-300">Intervalo (ms)</label>
       <div className="flex items-center gap-3">
         <input
           type="range"
@@ -122,7 +101,7 @@ export default function MockEulerGenerator({
           step={10}
           value={clamp(ms, 50, 3000)}
           onChange={(e) => onMsChange(clamp(Number(e.target.value), 50, 3000))}
-          className="flex-1 accent-indigo-500"
+          className="flex-1 accent-emerald-400"
         />
         <input
           type="number"
@@ -131,22 +110,18 @@ export default function MockEulerGenerator({
           step={10}
           value={clamp(ms, 50, 3000)}
           onChange={(e) => onMsChange(clamp(Number(e.target.value), 50, 3000))}
-          className="w-24 rounded-xl px-2 py-1.5
-                     bg-white/60 dark:bg-neutral-900/40
-                     text-slate-900 dark:text-slate-100
-                     ring-1 ring-black/10 dark:ring-white/10 shadow-sm"
+          className="app-input w-24 rounded-md px-2 py-1.5 text-slate-100"
         />
       </div>
 
-      <p className="text-[11px] text-slate-400 mt-2">
-        Emite yaw/pitch/roll sinusoidales cada{" "}
+      <p className="mt-2 text-[11px] text-slate-400">
+        Emite yaw, pitch y roll sinusoidales cada{" "}
         <span className="font-medium">{clamp(ms, 50, 3000)} ms</span>.
       </p>
     </div>
   );
 }
 
-/* helpers */
 function clamp(v: number, a: number, b: number) {
   return Math.max(a, Math.min(b, v));
 }

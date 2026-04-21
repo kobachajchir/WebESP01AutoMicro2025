@@ -17,7 +17,7 @@ interface PageHeaderProps {
 const PAGE_TITLES: Record<string, string> = {
   "/control": "Control de Motores",
   "/wifi": "Wifi",
-  "/statics": "Sensores y Visor 3D",
+  "/statics": "MPU + IR",
   "/protocol": "UNER Studio",
   "/bluetooth": "Bluetooth",
   "/home": "Dashboard",

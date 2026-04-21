@@ -323,7 +323,8 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
           return;
         }
         const { type, payload } = msg ?? {};
-        jsonListeners.current.get(type)?.forEach((h) => h(payload));
+        const listenerPayload = payload === undefined ? msg : payload;
+        jsonListeners.current.get(type)?.forEach((h) => h(listenerPayload));
         const packetBytes = decodeWsDataPacket(msg);
         if (packetBytes) {
           rawListeners.current.forEach((h) => h(packetBytes));
@@ -363,7 +364,10 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
     } else {
       // modo mock: solo log
       if (!ws) {
-        console.log("[WS mock] send JSON:", { type, payload });
+        console.log(
+          "[WS mock] send JSON:",
+          redactSensitiveFields({ type, payload }),
+        );
 
         if (type === "verifySession") {
           window.setTimeout(() => {
@@ -521,4 +525,24 @@ function decodeWsDataPacket(msg: any): Uint8Array | null {
   }
 
   return Uint8Array.from(rawData, (value: number) => value & 0xff);
+}
+
+function redactSensitiveFields(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(redactSensitiveFields);
+  }
+
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  const redacted: Record<string, unknown> = {};
+
+  for (const [key, item] of Object.entries(value)) {
+    redacted[key] = key.toLowerCase().includes("password")
+      ? "[redacted]"
+      : redactSensitiveFields(item);
+  }
+
+  return redacted;
 }

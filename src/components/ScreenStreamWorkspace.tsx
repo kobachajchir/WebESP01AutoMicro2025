@@ -7,6 +7,7 @@ import { resolveOledScreen } from "../screens";
 import OledCommandPreview from "./OledCommandPreview";
 import PinScreenModal from "./PinScreenModal";
 import useUser from "../contexts/UserContext";
+import { useCarMode } from "../contexts/CarModeContext";
 
 const LONG_PRESS_THRESHOLD_MS = 2000;
 const POST_COMMAND_SCREEN_REFRESH_DELAY_MS = 120;
@@ -92,6 +93,7 @@ export default function ScreenStreamWorkspace({
   const { validatePin } = useUser();
   const { connected, send } = useWebSocket();
   const { currentScreen, requestCurrentScreen } = useScreen();
+  const { requestCarMode } = useCarMode();
 
   const [hoverSync, setHoverSync] = useState(false);
   const [hoverSync2, setHoverSync2] = useState(false);
@@ -161,7 +163,7 @@ export default function ScreenStreamWorkspace({
 
   const itemsCount = Math.max(0, currentScreen?.itemsCount ?? 0);
   const screenHasMenuItems = currentScreen?.hasMenuItems ?? itemsCount > 0;
-  const isValidationScreen = true //currentScreen?.isValidationScreen ?? false;
+  const isValidationScreen = currentScreen?.isValidationScreen ?? false;
   const pinDigitsCount = Math.max(0, currentScreen?.pinDigitsCount ?? 0);
 
   const currentPage = Math.max(1, currentScreen?.currentMenuPage ?? 1);
@@ -175,17 +177,6 @@ export default function ScreenStreamWorkspace({
   const visibleButtonsCount = screenHasMenuItems
     ? Math.max(0, visibleEndIndex - visibleStartIndex + 1)
     : 0;
-
-  const [pinDigits, setPinDigits] = useState<number[]>([0, 0, 0, 0]);
-
-  useEffect(() => {
-    if (!isValidationScreen) {
-      return;
-    }
-
-    const nextLength = Math.max(1, pinDigitsCount || 4);
-    setPinDigits(new Array(nextLength).fill(0));
-  }, [isValidationScreen, pinDigitsCount, currentScreen?.screenCode]);
 
   useEffect(() => {
     const target = previewMeasureRef.current;
@@ -226,6 +217,7 @@ export default function ScreenStreamWorkspace({
 
     refreshTimeoutRef.current = window.setTimeout(() => {
       requestCurrentScreen();
+      requestCarMode();
     }, POST_COMMAND_SCREEN_REFRESH_DELAY_MS);
   };
 
@@ -501,22 +493,6 @@ export default function ScreenStreamWorkspace({
     );
 
     scheduleScreenRefresh();
-  };
-
-  const adjustPinDigit = (digitIndex: number, delta: 1 | -1) => {
-    setPinDigits((prev) =>
-      prev.map((value, index) => {
-        if (index !== digitIndex) {
-          return value;
-        }
-
-        if (delta === 1) {
-          return value === 9 ? 0 : value + 1;
-        }
-
-        return value === 0 ? 9 : value - 1;
-      }),
-    );
   };
 
 const handleValidatePin = async (pin: string) => {
@@ -830,10 +806,10 @@ const handleValidatePin = async (pin: string) => {
                 </ControlBlock>
               </div>
             </div>
-            <div
+            {isValidationScreen || screenHasMenuItems ? (            <div
               className="w-px self-stretch"
               style={{ background: "var(--ui-accent)" }}
-            />
+            />) : null}
 
             {isValidationScreen ? (
               <div
@@ -1151,12 +1127,13 @@ const handleValidatePin = async (pin: string) => {
         subtitle="Ingresá el PIN para validar esta acción."
         kicker="Validación"
         submitLabel="Validar PIN"
-        digitsCount={4} //currentScreen?.pinDigitsCount ?? 4
+        digitsCount={currentScreen?.pinDigitsCount ?? 4}
         canClose={true}
         onSubmit={handleValidatePin}
         successAction={() => {
           setOpenPinValidationModal(false);
           requestCurrentScreen();
+          requestCarMode();
         }}
         idleMessage="Ingresá el PIN para continuar."
         errorMessage="PIN inválido."

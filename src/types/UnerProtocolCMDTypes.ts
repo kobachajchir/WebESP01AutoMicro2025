@@ -12,6 +12,7 @@ export const CMD = {
   WIFI_SET_AP: 0x14, // payload: APCreds
   WIFI_SET_STA: 0x15, // payload: STACreds
   WIFI_ACK: 0x16, // payload: u8 cmdRef, u8 code
+  WIFI_GET_DETAIL: 0x1a, // request: [ssid_len, ssid...], response: [ssid_len, ssid..., i8 signalStrength, u8 encryptionType, u8 channel]
 
   // Telemetría (MPU6050)
   TELEMETRY_SET_RATE: 0x20, // payload: u16 period_ms (0 = desactivar)
@@ -103,6 +104,14 @@ export const PayloadBuilder = {
     buf[offset++] = fixedIp ? 1 : 0;
     buf.set(ip || [0, 0, 0, 0], offset);
 
+    return buf;
+  },
+
+  wifiGetDetail: (ssid: string): Uint8Array => {
+    const ssidBytes = new TextEncoder().encode(ssid);
+    const buf = new Uint8Array(1 + ssidBytes.length);
+    buf[0] = ssidBytes.length;
+    buf.set(ssidBytes, 1);
     return buf;
   },
 
@@ -245,6 +254,14 @@ export interface WiFiNetwork {
   ssid: string; // UTF-8
   rssi_dBm: I8; // Potencia de señal
   security: U8; // Tipo de seguridad (ver WIFI_SECURITY)
+}
+
+export interface WiFiNetworkDetail {
+  ssidLen: U8;
+  ssid: string; // UTF-8
+  signalStrength: I8; // RSSI en dBm
+  encryptionType: U8; // Tipo de encriptación
+  channel: U8; // Canal detectado
 }
 
 export interface TelemetryDataV1 {

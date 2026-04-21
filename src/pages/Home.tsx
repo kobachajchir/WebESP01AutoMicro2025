@@ -505,7 +505,7 @@ const Home: React.FC = () => {
           <div className="flex flex-col items-center gap-4">
             <div className="flex flex-row items-center gap-3">
               <p className="text-lg md:text-xl font-semibold text-slate-200">
-                Estado:
+                MPU + IR:
               </p>
               <span
                 aria-live="polite"
@@ -589,7 +589,7 @@ const Home: React.FC = () => {
           onMouseEnter={() => connected && setHoveredBtn("estado")}
           onMouseLeave={() => connected && setHoveredBtn(null)}
           onClick={() => navigate("/statics", { viewTransition: true })}
-          aria-label="Ir a Estado"
+          aria-label="Ir a MPU e IR"
           disabled={!connected}
         >
           <div
@@ -608,7 +608,7 @@ const Home: React.FC = () => {
               />
             </svg>
             <p className="-mt-2 text-2xl md:text-2xl font-extrabold uppercase">
-              Estado
+              MPU + IR
             </p>
           </div>
         </button>

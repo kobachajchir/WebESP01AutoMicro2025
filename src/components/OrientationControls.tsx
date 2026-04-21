@@ -23,40 +23,38 @@ export default function OrientationControls({
 
   const handleQuickRotation = (
     axis: "yaw" | "pitch" | "roll",
-    degrees: number
+    degrees: number,
   ) => {
     const newValue = eulerDeg[axis] + degrees;
-    // Normalizar valores para mantenerlos en rango
     let normalizedValue = newValue;
+
     if (axis === "yaw" || axis === "roll") {
       normalizedValue = ((newValue % 360) + 360) % 360;
       if (normalizedValue > 180) normalizedValue -= 360;
     } else if (axis === "pitch") {
       normalizedValue = Math.max(-90, Math.min(90, newValue));
     }
+
     onChange({ ...eulerDeg, [axis]: normalizedValue });
   };
 
   if (!isEmu) return null;
 
   return (
-    <div
-      className="w-full max-w-lg rounded-2xl
-                 bg-white/70 dark:bg-neutral-900/50
-                 ring-1 ring-black/5 shadow-sm backdrop-blur
-                 p-4 flex flex-col gap-4
-                 transition-shadow hover:shadow-md"
-    >
+    <div className="app-panel-strong flex w-full max-w-lg flex-col gap-4 rounded-md border border-cyan-300/18 p-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-200 m-0">
-          Orientación
-        </h3>
+        <div>
+          <h3 className="m-0 text-sm font-semibold uppercase tracking-wide text-white">
+            MPU emulado
+          </h3>
+          <p className="mt-1 text-xs text-slate-300">
+            Ajuste manual de yaw, pitch y roll para probar la escena.
+          </p>
+        </div>
         <button
+          type="button"
           onClick={handleReset}
-          className="px-2 py-1 text-xs rounded-md
-                     bg-slate-100/10 hover:bg-slate-100/20
-                     ring-1 ring-white/10 text-slate-300
-                     transition-colors"
+          className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200 transition-all duration-200 hover:bg-white/10"
         >
           Reset
         </button>
@@ -87,7 +85,7 @@ export default function OrientationControls({
           },
         ].map(({ label, key, min, max, desc }) => (
           <div key={key}>
-            <div className="flex items-center justify-between mb-1">
+            <div className="mb-1 flex items-center justify-between">
               <div className="flex flex-col">
                 <label className="block text-xs font-medium text-slate-300">
                   {label}
@@ -96,26 +94,23 @@ export default function OrientationControls({
               </div>
               <div className="flex items-center gap-1">
                 <button
+                  type="button"
                   onClick={() =>
                     handleQuickRotation(key as "yaw" | "pitch" | "roll", -15)
                   }
-                  className="w-6 h-6 rounded text-xs bg-slate-100/10 hover:bg-slate-100/20
-                             ring-1 ring-white/10 text-slate-300 transition-colors"
+                  className="h-6 w-6 rounded-md border border-cyan-300/25 bg-cyan-500/10 text-xs text-cyan-100 transition-colors hover:bg-cyan-500/18"
                 >
                   -
                 </button>
-                <span
-                  className="inline-flex items-center rounded-md px-2 py-0.5
-                               bg-slate-100/10 ring-1 ring-white/10 text-[11px] text-slate-300 min-w-[45px] justify-center"
-                >
+                <span className="inline-flex min-w-[52px] items-center justify-center rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-slate-200">
                   {eulerDeg[key as "yaw" | "pitch" | "roll"]}°
                 </span>
                 <button
+                  type="button"
                   onClick={() =>
                     handleQuickRotation(key as "yaw" | "pitch" | "roll", 15)
                   }
-                  className="w-6 h-6 rounded text-xs bg-slate-100/10 hover:bg-slate-100/20
-                             ring-1 ring-white/10 text-slate-300 transition-colors"
+                  className="h-6 w-6 rounded-md border border-cyan-300/25 bg-cyan-500/10 text-xs text-cyan-100 transition-colors hover:bg-cyan-500/18"
                 >
                   +
                 </button>
@@ -129,17 +124,16 @@ export default function OrientationControls({
               step={1}
               value={eulerDeg[key as "yaw" | "pitch" | "roll"]}
               onChange={handleSliderChange(key as "yaw" | "pitch" | "roll")}
-              className="w-full accent-indigo-500
-                         focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40
-                         transition-all"
+              className="w-full accent-cyan-400 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
             />
           </div>
         ))}
       </div>
 
-      <div className="text-xs text-slate-400 mt-2">
-        💡 <strong>Tip:</strong> El modelo rota sobre su propio centro de masa.
-        Los controles de cámara (clic y arrastrar) orbitan alrededor del modelo.
+      <div className="mt-2 text-xs text-slate-400">
+        <strong className="text-slate-300">Tip:</strong> El modelo rota sobre su
+        propio centro de masa y los controles de cámara orbitan alrededor del
+        vehículo.
       </div>
     </div>
   );

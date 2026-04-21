@@ -315,6 +315,7 @@ function readMenuArgs(data: Record<string, unknown>) {
   return {
     selectedIndex: readNumber(data.selectedIndex) ?? readNumber(data.cursor) ?? 0,
     firstVisibleIndex: readNumber(data.firstVisibleIndex),
+    sensoresVisible: readBoolean(data.sensoresVisible) ?? readBoolean(data.sensorsVisible),
   };
 }
 
@@ -360,13 +361,13 @@ function readConnection(value: unknown): DashboardConnectionState {
 }
 
 function readCarMode(value: unknown): CarModeLabel {
-  return value === "FOLLOW" || value === "TEST" || value === "DEF" || value === "ERROR"
+  return value === "FOLLOW" || value === "TEST"
     ? value
     : "IDLE";
 }
 
 function readMode(value: unknown): ModeChangeScreenArgs["mode"] {
-  return value === "FOLLOW" || value === "TEST" || value === "ERROR" ? value : "IDLE";
+  return value === "FOLLOW" || value === "TEST" ? value : "IDLE";
 }
 
 function readMotorSelection(value: unknown): MotorSelection {

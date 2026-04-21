@@ -13,6 +13,10 @@ function bytes(hex: string): readonly number[] {
     .map((value) => Number.parseInt(value.replace(/^0x/i, ""), 16) & 0xff);
 }
 
+const IMAGE_CURSOR_BLACK_BYTES = bytes(
+  "00 00 01 03 07 0f 1f 3f 7f 0f 1b 19 30 10 00 00",
+);
+
 export const OLED_BITMAP_ASSETS: Record<OledBitmapName, OledBitmapAsset> = {
   Icon_Car_bits: {
     name: "Icon_Car_bits",
@@ -47,7 +51,11 @@ export const OLED_BITMAP_ASSETS: Record<OledBitmapName, OledBitmapAsset> = {
   },
   Icon_Cursor_bits: {
     name: "Icon_Cursor_bits",
-    bytes: bytes("00 00 01 03 07 0f 1f 3f 7f 0f 1b 19 30 10 00 00"),
+    bytes: IMAGE_CURSOR_BLACK_BYTES,
+  },
+  image_cursor_black_bits: {
+    name: "image_cursor_black_bits",
+    bytes: IMAGE_CURSOR_BLACK_BYTES,
   },
   Icon_Config_bits: {
     name: "Icon_Config_bits",

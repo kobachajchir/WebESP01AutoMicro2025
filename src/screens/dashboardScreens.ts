@@ -17,7 +17,7 @@ import {
 import type { OledCommand } from "./types";
 
 export type DashboardConnectionState = "none" | "sta" | "ap";
-export type CarModeLabel = "IDLE" | "FOLLOW" | "TEST" | "DEF" | "ERROR";
+export type CarModeLabel = "IDLE" | "FOLLOW" | "TEST";
 
 export interface DashboardScreenArgs {
   connection: DashboardConnectionState;
@@ -29,7 +29,7 @@ export interface DashboardScreenArgs {
 }
 
 export interface ModeChangeScreenArgs {
-  mode: "IDLE" | "FOLLOW" | "TEST" | "ERROR";
+  mode: "IDLE" | "FOLLOW" | "TEST";
 }
 
 export const screen010001StartupCode = SCREEN_CODE_CORE_STARTUP;

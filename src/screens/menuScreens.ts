@@ -29,6 +29,10 @@ export interface MenuScreenArgs {
 const MENU_VISIBLE_ITEMS = 3;
 const MENU_ITEM_Y0 = 4;
 const MENU_ITEM_SPACING = 21;
+const MENU_CURSOR_X = 117;
+const MENU_CURSOR_WIDTH = 8;
+const MENU_CURSOR_HEIGHT = 16;
+const MENU_CURSOR_BITMAP = "image_cursor_black_bits";
 
 function visibleItems(items: MenuScreenItem[]): Array<MenuScreenItem & { sourceIndex: number }> {
   return items
@@ -52,10 +56,12 @@ export function buildMenuItemCommands(item: MenuScreenItem, y: number, selected:
 
   commands.push(...textAt(27, y + 3, item.label, "Font7x10"));
 
+  commands.push(...clearBox(MENU_CURSOR_X, y, MENU_CURSOR_WIDTH, MENU_CURSOR_HEIGHT));
+
   if (selected) {
-    commands.push(...drawXbm(117, y, 7, 16, "Icon_Cursor_bits"));
-  } else {
-    commands.push(...clearBox(117, y, 7, 16));
+    commands.push(
+      ...drawXbm(MENU_CURSOR_X, y, MENU_CURSOR_WIDTH, MENU_CURSOR_HEIGHT, MENU_CURSOR_BITMAP),
+    );
   }
 
   return commands;
@@ -63,7 +69,13 @@ export function buildMenuItemCommands(item: MenuScreenItem, y: number, selected:
 
 export function buildMenuScreenCommands(args: MenuScreenArgs): OledCommand[] {
   const menuItems = visibleItems(args.items);
-  const firstVisibleIndex = args.firstVisibleIndex ?? 0;
+  const selectedVisibleIndex = menuItems.findIndex(
+    (item) => item.sourceIndex === args.selectedIndex,
+  );
+  const selectedPageStart =
+    Math.floor(Math.max(0, selectedVisibleIndex) / MENU_VISIBLE_ITEMS) *
+    MENU_VISIBLE_ITEMS;
+  const firstVisibleIndex = args.firstVisibleIndex ?? selectedPageStart;
   const commands: OledCommand[] = [clear()];
 
   for (let slot = 0; slot < MENU_VISIBLE_ITEMS; slot++) {
@@ -115,7 +127,7 @@ export const screen010201MainMenuCode = SCREEN_CODE_CORE_MAIN_MENU;
 
 export function buildScreen010201MainMenuCommands(args: { selectedIndex?: number; firstVisibleIndex?: number; sensoresVisible?: boolean } = {}): OledCommand[] {
   const items = mainMenuItems.map((item) =>
-    item.label === "Sensores" ? { ...item, visible: args.sensoresVisible ?? true } : item,
+    item.label === "Sensores" ? { ...item, visible: args.sensoresVisible ?? false } : item,
   );
 
   return buildMenuScreenCommands({
@@ -230,7 +242,7 @@ export function buildLegacyVerticalMenuCommands(args: MenuScreenArgs): OledComma
     }
   }
 
-  commands.push(...drawXbm(0, MENU_ITEM_Y0 + (args.selectedIndex % MENU_VISIBLE_ITEMS) * MENU_ITEM_SPACING, 8, 16, "Icon_Cursor_bits"));
+  commands.push(...drawXbm(0, MENU_ITEM_Y0 + (args.selectedIndex % MENU_VISIBLE_ITEMS) * MENU_ITEM_SPACING, 8, 16, MENU_CURSOR_BITMAP));
   return commands;
 }
 

@@ -54,6 +54,30 @@ const clampPct = (v: number, min = 0, max = 100) =>
   Math.max(min, Math.min(max, v));
 const MIN_SCALE = 0.3; // altura mínima como fracción para que no desaparezcan
 
+function timelineToneClass(kind: BlockKind, highlighted: boolean, active: boolean) {
+  const selected = active
+    ? {
+        ramp: "border-amber-300/70 bg-amber-500 text-white shadow-[0_14px_34px_rgba(245,158,11,0.24)]",
+        hold: "border-emerald-300/70 bg-emerald-500 text-white shadow-[0_14px_34px_rgba(16,185,129,0.24)]",
+        pivot: "border-sky-300/70 bg-sky-500 text-white shadow-[0_14px_34px_rgba(14,165,233,0.24)]",
+        arc: "border-indigo-300/70 bg-indigo-500 text-white shadow-[0_14px_34px_rgba(99,102,241,0.24)]",
+        stop: "border-rose-300/70 bg-rose-500 text-white shadow-[0_14px_34px_rgba(244,63,94,0.24)]",
+      }
+    : {
+        ramp: "border-amber-300/40 bg-amber-500/10 text-amber-100",
+        hold: "border-emerald-300/40 bg-emerald-500/10 text-emerald-100",
+        pivot: "border-sky-300/40 bg-sky-500/10 text-sky-100",
+        arc: "border-indigo-300/40 bg-indigo-500/10 text-indigo-100",
+        stop: "border-rose-300/40 bg-rose-500/10 text-rose-100",
+      };
+
+  const highlight = highlighted
+    ? "shadow-[0_0_0_1px_rgba(255,255,255,0.22),0_0_0_4px_rgba(56,189,248,0.10)]"
+    : "";
+
+  return `${selected[kind]} ${highlight}`;
+}
+
 // Formas por tipo
 function getBlockStyles(
   block: Block,
@@ -138,7 +162,6 @@ function SortableBlock({
   isHighlighted,
   fill,
   onSelect,
-  colorClass,
   shapeStyles,
   title,
   disabled,
@@ -152,7 +175,6 @@ function SortableBlock({
   isHighlighted: boolean;
   fill: number;
   onSelect: (id: string | null) => void;
-  colorClass: string;
   shapeStyles: React.CSSProperties;
   title: string;
   disabled: boolean;
@@ -208,12 +230,12 @@ function SortableBlock({
             onChange={(e) => setEditValue(e.target.value)}
             onBlur={handleFinishEdit}
             onKeyDown={handleKeyDown}
-            className="text-xs bg-slate-700 text-white w-full text-center px-1 rounded"
+            className="app-input w-full rounded-md px-1 py-0.5 text-center text-xs text-white"
             autoFocus
           />
         ) : (
           <div
-            className="text-xs text-slate-300 truncate w-full text-center cursor-pointer hover:bg-slate-700/50 rounded px-1"
+            className="w-full truncate rounded-md px-1 text-center text-xs text-slate-300 transition-colors hover:bg-white/8"
             onClick={handleStartEdit}
           >
             {b.label}
@@ -232,17 +254,13 @@ function SortableBlock({
         title={title}
       >
         <div
-          className={`w-full flex items-center justify-center ${colorClass} ring-1 ring-white/10 shadow-sm
-                      transition-all duration-300 hover:-translate-y-1
-                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40
-                      ${isActive ? "shadow-md" : ""}
-                      ${isSelected ? "bg-white !text-slate-900" : ""}
-                      ${
-                        isHighlighted
-                          ? " outline-white -outline-offset-2 inset-ring-2 ring-white/50"
-                          : ""
-                      }`}
+          className={`w-full border shadow-sm transition-all duration-300 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${timelineToneClass(
+            b.kind,
+            isHighlighted,
+            isSelected || isActive,
+          )}`}
           style={shapeStyles}
+          data-kind={b.kind}
         >
           {b.kind === "pivot" ? (
             b.direction === 1 ? (
@@ -289,10 +307,10 @@ function SortableBlock({
       </button>
 
       {/* Progreso (SIEMPRE visible, también para stop) */}
-      <div className="mt-1 h-2 w-full rounded-full bg-white/10 ring-1 ring-white/10 overflow-hidden">
+      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-white/10 ring-1 ring-white/10">
         <div
           className={`h-full transition-all duration-300 ${
-            isPast || isActive ? "bg-yellow-400" : "bg-cyan-400"
+            isPast || isActive ? "bg-cyan-300" : "bg-white/20"
           }`}
           style={{ width: `${fill * 100}%` }}
         />
@@ -318,6 +336,7 @@ function TimelineRow({
   dndDisabled = false,
   onUpdateLabel,
 }: TimelineRowProps) {
+  void kindColor;
   const sensors = useSensors(
     useSensor(MouseSensor, {
       activationConstraint: { distance: 8 }, // empieza a arrastrar tras 8px
@@ -352,25 +371,24 @@ function TimelineRow({
 
   return (
     <div
-      className={`w-full overflow-x-auto items-center flex flex-col lg:flex-row gap-2 mb-2 py-2.5 mx-0 px-2 inset-ring-0 ${
+      className={`mb-2 flex w-full flex-col items-center gap-2 overflow-x-auto rounded-md border px-3 py-3 ${
         selectedId && blocks.some((b) => b.id === selectedId)
-          ? "bg-slate-400/10 py-2.5 rounded-xl"
+          ? "border-cyan-300/20 bg-cyan-500/8"
+          : ""
+      } ${
+        !selectedId || !blocks.some((b) => b.id === selectedId)
+          ? "border-white/10 bg-slate-950/18"
           : ""
       }`}
     >
-      <div className="items-center flex flex-col gap-1">
+      <div className="flex flex-col items-center gap-1">
         {track === "left" ? (
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 169.53 169.53"
             className="size-8"
           >
-            <circle
-              cx="84.77"
-              cy="84.77"
-              r="84.77"
-              className="fill-indigo-600"
-            />
+            <circle cx="84.77" cy="84.77" r="84.77" className="fill-cyan-500" />
             <path
               className="fill-white"
               d="M88.43,72.68v20.17c0,4.54.4,7.47,1.19,8.79.97,1.55,3,2.33,6.11,2.33,3.34,0,5.98-.73,7.91-2.2s3.28-3.75,4.04-6.86c.44-1.9,1.44-2.86,2.99-2.86s2.82.7,3.8,2.09c.98,1.39,1.47,3.2,1.47,5.43,0,3.63-1.35,7.51-4.04,11.65-.85,1.32-1.6,2.22-2.24,2.7-.64.48-1.42.73-2.33.73l-9.76-1.19h-30.72c-2.02,0-3.44-.23-4.26-.7-1.2-.67-1.8-1.68-1.8-3.03,0-.82.2-1.43.59-1.82.4-.4,1.35-.96,2.88-1.69,1.67-.79,2.74-1.9,3.21-3.34.38-1.2.57-4.7.57-10.5,0-2.7-.07-6.58-.22-11.65-.15-4.86-.23-8.53-.26-10.99,0-2.34-.18-3.95-.55-4.81-.37-.86-1.14-1.49-2.31-1.87-1.93-.67-3.16-1.22-3.69-1.63-.94-.73-1.41-1.57-1.41-2.5,0-2.14,1.77-3.76,5.32-4.88,3.02-.97,7.06-1.45,12.13-1.45,5.68,0,9.93.29,12.74.88,3.63.79,5.45,2.37,5.45,4.75,0,.97-.24,1.68-.72,2.15-.48.47-1.66,1.1-3.54,1.89-1.11.5-1.82,1.35-2.11,2.55s-.44,3.82-.44,7.87Z"
@@ -382,19 +400,14 @@ function TimelineRow({
             viewBox="0 0 169.53 169.53"
             className="size-8"
           >
-            <circle
-              cx="84.77"
-              cy="84.77"
-              r="84.77"
-              className="fill-indigo-600"
-            />
+            <circle cx="84.77" cy="84.77" r="84.77" className="fill-cyan-500" />
             <path
               className="fill-white"
               d="M83.77,88.48c-1.11,0-1.82.34-2.13,1.01-.31.67-.46,2.24-.46,4.7,0,3.72.23,6.62.7,8.7.15.59.37,1.04.66,1.36s.85.72,1.67,1.19c1.76.97,2.64,2.24,2.64,3.82,0,1.93-1.22,3.3-3.67,4.11-2.45.81-6.58,1.21-12.41,1.21-10.84,0-16.26-2.05-16.26-6.15,0-.7.16-1.27.48-1.69.32-.42,1.05-1.02,2.2-1.78,1.29-.85,2.16-1.85,2.61-3.01.45-1.16.77-3.16.94-6,.15-2.08.22-9.54.22-22.37,0-4.07-.21-6.84-.62-8.31-.41-1.46-1.29-2.53-2.64-3.21-1.29-.62-2.15-1.18-2.59-1.69-.44-.51-.66-1.18-.66-2,0-1.08.42-2.03,1.25-2.83.83-.8,2-1.4,3.49-1.78,1.26-.32,2.99-.48,5.19-.48.97,0,3.38.15,7.25.44.73.06,1.89.09,3.47.09,2.64,0,6.15-.18,10.55-.53,2.78-.21,4.73-.31,5.85-.31,6.27,0,11.46,1.51,15.56,4.53,3.69,2.72,5.54,6.5,5.54,11.34,0,2.7-.64,5.15-1.93,7.36-1.29,2.21-3.06,3.88-5.32,4.99-.94.47-1.41,1.03-1.41,1.67,0,.85.72,1.54,2.15,2.07,3.08,1.11,5.33,2.8,6.77,5.05s2.46,5.71,3.08,10.37c.26,1.93.64,3.19,1.14,3.76.5.57,1.65,1.12,3.47,1.65.56.18,1.03.55,1.41,1.12.38.57.57,1.21.57,1.91,0,.91-.35,1.82-1.05,2.75-.7.92-1.61,1.65-2.72,2.18-2.46,1.14-5.83,1.71-10.11,1.71Z"
             />
           </svg>
         ) : null}
-        <span className="w-full text-center text-lg text-slate-200 uppercase font-semibold">
+        <span className="w-full text-center text-sm font-semibold uppercase tracking-wide text-slate-200 md:text-base">
           {title}
         </span>
       </div>
@@ -422,7 +435,7 @@ function TimelineRow({
           items={blocks.map((b) => b.id)}
           strategy={horizontalListSortingStrategy}
         >
-          <div className="relative w-full h-28 flex items-end gap-1.5">
+            <div className="relative flex h-28 w-full items-end gap-1.5">
             {/* Marcadores absolutos 100% / 0% a la izquierda */}
             <div className="pointer-events-none absolute -left-6 top-6 text-[10px] text-slate-400">
               100%
@@ -452,7 +465,6 @@ function TimelineRow({
                   isHighlighted={isHighlighted}
                   fill={fill}
                   onSelect={onSelect}
-                  colorClass={kindColor[b.kind]}
                   shapeStyles={getBlockStyles(b, p)}
                   title={`${b.kind} (${b.durationMs} ms)`}
                   disabled={!!dndDisabled}

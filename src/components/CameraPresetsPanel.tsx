@@ -9,8 +9,9 @@ export default function CameraPresetsPanel({
 }) {
   const Btn = ({ label, k }: { label: string; k: PresetKey }) => (
     <button
+      type="button"
       onClick={() => onPick(k)}
-      className="px-3 py-2 rounded-md bg-slate-700 hover:bg-slate-600 text-slate-100 text-sm transition-colors"
+      className="rounded-md border border-indigo-300/35 bg-indigo-500/10 px-3 py-2 text-sm font-semibold text-indigo-100 transition-all duration-200 hover:bg-indigo-500/18 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300/35"
     >
       {label}
     </button>
@@ -18,10 +19,17 @@ export default function CameraPresetsPanel({
 
   return (
     <div
-      className={`w-full p-3 border border-slate-800 rounded-2xl bg-slate-900/60 ${className}`}
+      className={`app-panel-strong w-full rounded-md border border-indigo-300/18 p-4 ${className}`}
     >
-      <h3 className="m-0 mb-2 text-slate-100 text-sm">Vistas</h3>
-      <div className="grid grid-cols-4 lg:grid-cols-6 gap-2">
+      <div className="mb-3">
+        <h3 className="m-0 text-sm font-semibold uppercase tracking-wide text-white">
+          Vistas
+        </h3>
+        <p className="mt-1 text-xs text-slate-300">
+          Atajos de cámara para revisar la postura del modelo.
+        </p>
+      </div>
+      <div className="grid grid-cols-4 gap-2 lg:grid-cols-6">
         <Btn label="Frente" k="front" />
         <Btn label="Atrás" k="back" />
         <Btn label="Arriba" k="top" />

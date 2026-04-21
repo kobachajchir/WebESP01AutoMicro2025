@@ -93,10 +93,32 @@ export interface ScreenDefinition {
   pinDigitsCount?: number;
 }
 
+export const SCREEN_REPORT_SOURCE_PERMISSION = 0x04;
+
 export const SCREEN_DEFINITIONS: Partial<Record<ScreenCode, ScreenDefinition>> =
   {
     [SCREEN_CODE_WARNING_PIN_ENTRY]: {
       code: SCREEN_CODE_WARNING_PIN_ENTRY,
+      isValidationScreen: true,
+      pinDigitsCount: 4,
+    },
+    [SCREEN_CODE_WARNING_PIN_WAITING]: {
+      code: SCREEN_CODE_WARNING_PIN_WAITING,
+      isValidationScreen: true,
+      pinDigitsCount: 4,
+    },
+    [SCREEN_CODE_WARNING_PIN_DENIED]: {
+      code: SCREEN_CODE_WARNING_PIN_DENIED,
+      isValidationScreen: true,
+      pinDigitsCount: 4,
+    },
+    [SCREEN_CODE_WARNING_PIN_TIMEOUT]: {
+      code: SCREEN_CODE_WARNING_PIN_TIMEOUT,
+      isValidationScreen: true,
+      pinDigitsCount: 4,
+    },
+    [SCREEN_CODE_WARNING_PIN_BLOCKED]: {
+      code: SCREEN_CODE_WARNING_PIN_BLOCKED,
       isValidationScreen: true,
       pinDigitsCount: 4,
     },
@@ -116,6 +138,21 @@ export function isValidationScreenCode(
   code: ScreenCode | null | undefined,
 ): boolean {
   return getScreenDefinition(code)?.isValidationScreen === true;
+}
+
+export function isPermissionValidationScreenCode(
+  code: ScreenCode | null | undefined,
+  source?: number,
+): boolean {
+  if (!isValidationScreenCode(code)) {
+    return false;
+  }
+
+  if (code === SCREEN_CODE_WARNING_PIN_ENTRY) {
+    return source === SCREEN_REPORT_SOURCE_PERMISSION;
+  }
+
+  return true;
 }
 
 export function getValidationPinDigitsCount(

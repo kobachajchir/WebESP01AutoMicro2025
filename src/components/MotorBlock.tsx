@@ -26,19 +26,19 @@ const borderColorsByKind: Record<BlockKind, string> = {
 };
 
 const bgByKind: Record<BlockKind, string> = {
-  ramp: "!bg-amber-500/80",
-  hold: "!bg-emerald-500/80",
-  pivot: "!bg-sky-500/80",
-  arc: "!bg-indigo-500/80",
-  stop: "!bg-rose-500/80",
+  ramp: "bg-amber-500 text-white border-amber-300/70 shadow-[0_16px_36px_rgba(245,158,11,0.26)]",
+  hold: "bg-emerald-500 text-white border-emerald-300/70 shadow-[0_16px_36px_rgba(16,185,129,0.26)]",
+  pivot: "bg-sky-500 text-white border-sky-300/70 shadow-[0_16px_36px_rgba(14,165,233,0.26)]",
+  arc: "bg-indigo-500 text-white border-indigo-300/70 shadow-[0_16px_36px_rgba(99,102,241,0.26)]",
+  stop: "bg-rose-500 text-white border-rose-300/70 shadow-[0_16px_36px_rgba(244,63,94,0.26)]",
 };
 
-const hoverByKind: Record<BlockKind, string> = {
-  ramp: "hover:" + bgByKind["ramp"],
-  hold: "hover:" + bgByKind["hold"],
-  pivot: "hover:" + bgByKind["pivot"],
-  arc: "hover:" + bgByKind["arc"],
-  stop: "hover:" + bgByKind["stop"],
+const outlineByKind: Record<BlockKind, string> = {
+  ramp: "border-amber-300/45 bg-amber-500/10 text-amber-100",
+  hold: "border-emerald-300/45 bg-emerald-500/10 text-emerald-100",
+  pivot: "border-sky-300/45 bg-sky-500/10 text-sky-100",
+  arc: "border-indigo-300/45 bg-indigo-500/10 text-indigo-100",
+  stop: "border-rose-300/45 bg-rose-500/10 text-rose-100",
 };
 
 export default function MotorBlock({
@@ -49,19 +49,17 @@ export default function MotorBlock({
   onClick,
 }: Props) {
   const base =
-    "group relative flex flex-col items-center justify-center rounded-2xl px-4 py-5 " +
-    `${
-      !selected ? "bg-white/10" : bgByKind[kind]
-    } text-slate-100 ring-1 ring-white/10 shadow-sm transition-all duration-300 ` +
-    `focus-visible:outline-none focus-visible:ring-2 focus-visible:${borderColorsByKind[kind]}`;
+    "group relative flex flex-col items-center justify-center rounded-md border px-4 py-5 text-slate-100 shadow-sm transition-all duration-300 focus-visible:outline-none focus-visible:ring-2";
 
-  const hover =
-    "hover:text-slate-900 hover:shadow-[inset_0_0_0_1px_theme('colors.cyan.400')] hover:-translate-y-1";
+  const tone = selected ? bgByKind[kind] : outlineByKind[kind];
+  const hover = disabled
+    ? ""
+    : selected
+      ? "hover:-translate-y-0.5 hover:brightness-105"
+      : "hover:-translate-y-0.5 hover:bg-slate-900/85";
 
-  const active = selected
-    ? "border-4 border-cyan-400/20"
-    : pairSelected && kind === "pivot"
-    ? {/*"outline outline-4 outline-white outline-offset-2 ring-2 ring-white/50"*/}
+  const active = pairSelected && kind === "pivot"
+    ? "shadow-[0_0_0_1px_rgba(255,255,255,0.24),0_0_0_4px_rgba(56,189,248,0.10)]"
     : "";
 
   const disabledCls = disabled
@@ -72,7 +70,7 @@ export default function MotorBlock({
     <button
       type="button"
       onClick={disabled ? undefined : onClick}
-      className={`${base} ${hover} ${active} ${disabledCls} ${hoverByKind[kind]}`}
+      className={`${base} ${tone} ${hover} ${active} ${disabledCls} ${borderColorsByKind[kind]}`}
       aria-pressed={selected}
       aria-selected={selected}
       aria-label={labelES[kind]}

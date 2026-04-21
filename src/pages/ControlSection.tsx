@@ -1,6 +1,4 @@
-// src/pages/Control.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import ToggleButton from "../components/toggleButton";
 import MotorBlock, { type BlockKind } from "../components/MotorBlock";
 import PageHeader from "../components/PageHeader";
 import TimelineRow from "../components/TimelineRow";
@@ -75,6 +73,8 @@ const labelES: Record<BlockKind, string> = {
 };
 
 const TICK_MS = 50;
+const SEGMENTED_BUTTON_CLASS =
+  "min-w-[132px] rounded-full px-4 py-2 text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40";
 
 // Props persistidas por bloque + pairing para pivots en modo simple
 type BlockProps = {
@@ -658,408 +658,417 @@ export default function ControlSection() {
     [blocksLeft, blocksRight, blocksDual, blockProps, dualMode]
   );
 
+  const switchDualMode = useCallback(
+    (nextDualMode: boolean) => {
+      if (nextDualMode === dualMode) return;
+      (["left", "right", "dual"] as TrackKey[]).forEach((t) => stopTrack(t));
+      setPairSelected(null);
+      setDualMode(nextDualMode);
+      setPaletteKind("hold");
+    },
+    [dualMode]
+  );
+
   // === UI ===
   return (
-    <div
-      className="flex flex-col min-h-screen w-full items-center p-6 relative
-                    bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-slate-100
-                    selection:bg-cyan-500/30"
+    <section
+      className="min-h-screen w-full bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-6 text-slate-100 selection:bg-cyan-500/30"
     >
-      <PageHeader
-        setOpenSettingsModal={setOpenSettingsModal}
-        setOpenInfoModal={setOpenInfoModal}
-      />
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+        <PageHeader
+          setOpenSettingsModal={setOpenSettingsModal}
+          setOpenInfoModal={setOpenInfoModal}
+        />
 
-      {/* Timeline + controles */}
-      <div className="rounded-2xl bg-white/5 backdrop-blur ring-1 ring-white/10 shadow-sm p-6 mb-6 w-full lg:max-w-10/12">
-        <div className="flex items-center justify-between mb-4">
-          <div className="text-2xl font-bold uppercase">Linea de tiempo</div>
-
-          <div className="flex items-center gap-3">
-            <ToggleButton
-              checked={dualMode}
-              onChange={() => {
-                // si cambio de modo, detengo todo y limpio activos
-                (["left", "right", "dual"] as TrackKey[]).forEach((t) =>
-                  stopTrack(t)
-                );
-                // NO limpiar la selección (para no resetear el panel)
-                setPairSelected(null); // limpiar highlight pareado
-                setDualMode((p) => !p);
-                // resetear tipo seleccionado (y pivot queda oculto en dual)
-                setPaletteKind("hold");
-              }}
-              ariaLabel="Activar modo dual"
-              size="md"
-              labels
-              labelOn="Modo Dual"
-              labelOff="Modo Simple"
-              labelClassName="text-lg"
-            />
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-10 my-8">
-          {dualMode ? (
-            <>
-              <TimelineRow
-                title="Ambos motores"
-                track="dual"
-                blocks={visibleBlocksDual}
-                totalMs={totalMsDual}
-                kindColor={kindColor}
-                activeIndex={activeIndexDual}
-                activeProgress={activeProgressDual}
-                selectedId={selection?.track === "dual" ? selection.id : null}
-                onSelect={(id) => {
-                  if (selectionLocked) return;
-                  if (id) attemptSelect("dual", id);
-                  else attemptSelect("dual", null);
-                }}
-                blockProps={blockPropsDual}
-                onReorder={handleReorder("dual")}
-                dndDisabled={isPlayingDual}
-                onUpdateLabel={(blockId, newLabel) => {
-                  // Actualizar el bloque en tu estado
-                  updateBlockLabelAdvanced(blockId, newLabel);
-                }}
-              />
-              <div className="flex justify-end -mt-2">
-                <button
-                  onClick={() =>
-                    isPlayingDual ? stopTrack("dual") : startTrack("dual")
-                  }
-                  disabled={blocksDual.length === 0}
-                  className={`group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold transition-all duration-300
-                    ${
-                      isPlayingDual
-                        ? "btn-danger hover:text-slate-900 text-white hover:shadow-[inset_0_0_0_2px_theme('colors.red.400')] hover:outline-none hover:ring-2 hover:ring-slate-900 bg-red-400"
-                        : "btn-success hover:text-slate-900 text-white hover:shadow-[inset_0_0_0_2px_theme('colors.emerald.400')] hover:outline-none hover:ring-2 hover:ring-slate-900 bg-emerald-400/20 hover:bg-emerald-400"
-                    }
-                    disabled:opacity-50 disabled:cursor-not-allowed`}
-                  title={
-                    isPlayingDual ? "Detener (Ambos)" : "Reproducir (Ambos)"
-                  }
-                >
-                  {isPlayingDual ? (
-                    <>
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                        className="size-6"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M4.5 7.5a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9Z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                      Stop
-                    </>
-                  ) : (
-                    <>
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="size-5"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                      >
-                        <path d="M5.25 4.5a.75.75 0 0 1 1.125-.65l12 7.5a.75.75 0 0 1 0 1.3l-12 7.5A.75.75 0 0 1 4.5 19.5v-15a.75.75 0 0 1 .75-.75Z" />
-                      </svg>
-                      Play
-                    </>
-                  )}
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="flex flex-col gap-2">
-                <TimelineRow
-                  title="Motor izquierdo"
-                  track="left"
-                  blocks={visibleBlocksLeft}
-                  totalMs={totalMsLeft}
-                  kindColor={kindColor}
-                  activeIndex={activeIndexLeft}
-                  activeProgress={activeProgressLeft}
-                  selectedId={selection?.track === "left" ? selection.id : null}
-                  onSelect={(id) => {
-                    if (selectionLocked) return;
-                    if (id) attemptSelect("left", id);
-                    else attemptSelect("left", null);
-                  }}
-                  highlightIds={highlightLeft}
-                  blockProps={blockPropsLeft}
-                  onReorder={handleReorder("left")}
-                  dndDisabled={isPlayingLeft}
-                  onUpdateLabel={(blockId, newLabel) => {
-                    // Actualizar el bloque en tu estado
-                    updateBlockLabelAdvanced(blockId, newLabel);
-                  }}
-                />
-                <div className="flex justify-center lg:justify-end">
-                  <button
-                    onClick={() =>
-                      isPlayingLeft ? stopTrack("left") : startTrack("left")
-                    }
-                    disabled={blocksLeft.length === 0}
-                    className={`group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold transition-all duration-300
-                      ${
-                        isPlayingLeft
-                          ? "btn-danger hover:text-slate-900 text-white hover:shadow-[inset_0_0_0_2px_theme('colors.red.400')] hover:outline-none hover:ring-2 hover:ring-slate-900 bg-red-400"
-                          : "btn-success hover:text-slate-900 text-white hover:shadow-[inset_0_0_0_2px_theme('colors.emerald.400')] hover:outline-none hover:ring-2 hover:ring-slate-900 bg-emerald-400/20 hover:bg-emerald-400"
-                      }
-                      disabled:opacity-50 disabled:cursor-not-allowed`}
-                    title={
-                      isPlayingLeft
-                        ? "Detener (Izquierdo)"
-                        : "Reproducir (Izquierdo)"
-                    }
-                  >
-                    {isPlayingLeft ? (
-                      <>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="currentColor"
-                          className="size-6"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M4.5 7.5a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9Z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                        Stop
-                      </>
-                    ) : (
-                      <>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="size-5"
-                          viewBox="0 0 24 24"
-                          fill="currentColor"
-                        >
-                          <path d="M5.25 4.5a.75.75 0 0 1 1.125-.65l12 7.5a.75.75 0 0 1 0 1.3l-12 7.5A.75.75 0 0 1 4.5 19.5v-15a.75.75 0 0 1 .75-.75Z" />
-                        </svg>
-                        Play
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <TimelineRow
-                  title="Motor derecho"
-                  track="right"
-                  blocks={visibleBlocksRight}
-                  totalMs={totalMsRight}
-                  kindColor={kindColor}
-                  activeIndex={activeIndexRight}
-                  activeProgress={activeProgressRight}
-                  selectedId={
-                    selection?.track === "right" ? selection.id : null
-                  }
-                  onSelect={(id) => {
-                    if (selectionLocked) return;
-                    if (id) attemptSelect("right", id);
-                    else attemptSelect("right", null);
-                  }}
-                  highlightIds={highlightRight}
-                  blockProps={blockPropsRight}
-                  onReorder={handleReorder("right")}
-                  dndDisabled={isPlayingRight}
-                  onUpdateLabel={(blockId, newLabel) => {
-                    // Actualizar el bloque en tu estado
-                    updateBlockLabelAdvanced(blockId, newLabel);
-                  }}
-                />
-                <div className="flex justify-center lg:justify-end">
-                  <button
-                    onClick={() =>
-                      isPlayingRight ? stopTrack("right") : startTrack("right")
-                    }
-                    disabled={blocksRight.length === 0}
-                    className={`group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold transition-all duration-300
-                      ${
-                        isPlayingRight
-                          ? "btn-danger hover:text-slate-900 text-white hover:shadow-[inset_0_0_0_2px_theme('colors.red.400')] hover:outline-none hover:ring-2 hover:ring-slate-900 bg-red-400"
-                          : "btn-success hover:text-slate-900 text-white hover:shadow-[inset_0_0_0_2px_theme('colors.emerald.400')] hover:outline-none hover:ring-2 hover:ring-slate-900 bg-emerald-400/20 hover:bg-emerald-400"
-                      }
-                      disabled:opacity-50 disabled:cursor-not-allowed`}
-                    title={
-                      isPlayingRight
-                        ? "Detener (Derecho)"
-                        : "Reproducir (Derecho)"
-                    }
-                  >
-                    {isPlayingRight ? (
-                      <>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="currentColor"
-                          className="size-6"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M4.5 7.5a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9Z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                        Stop
-                      </>
-                    ) : (
-                      <>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="size-5"
-                          viewBox="0 0 24 24"
-                          fill="currentColor"
-                        >
-                          <path d="M5.25 4.5a.75.75 0 0 1 1.125-.65l12 7.5a.75.75 0 0 1 0 1.3l-12 7.5A.75.75 0 0 1 4.5 19.5v-15a.75.75 0 0 1 .75-.75Z" />
-                        </svg>
-                        Play
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Selector + Propiedades */}
-      <div className="w-full lg:max-w-10/12 flex flex-col lg:flex-row gap-6">
-        {/* Selector */}
-        <div className="order-last lg:order-first flex-1 rounded-2xl bg-white/5 backdrop-blur ring-1 ring-white/10 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="text-xl font-bold uppercase">
-              Selector de bloques
-              {selection
-                ? selection.track === "dual"
-                  ? " (Dual)"
-                  : selection.track === "left"
-                  ? " (Izquierdo)"
-                  : " (Derecho)"
-                : dualMode
-                ? " (Dual)"
-                : ""}
-            </div>
-            <div className="flex items-center gap-3">
+        {/* Timeline + controles */}
+        <div className="relative pt-7">
+          <div className="pointer-events-none absolute left-1/2 top-0 z-10 -translate-x-1/2">
+            <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-cyan-300/20 bg-slate-950/85 p-1 shadow-[0_24px_60px_rgba(0,0,0,0.34)] backdrop-blur-xl">
               <button
-                onClick={onAddBlock}
-                className="btn-green group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold text-white
-                           transition-all duration-300 hover:text-slate-900 bg-green-400/50
-                           hover:shadow-[inset_0_0_0_2px_theme('colors.green.400')]
-                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40"
-                title="Agregar bloque"
+                type="button"
+                className={SEGMENTED_BUTTON_CLASS}
+                style={sectionSegmentedButtonStyle(!dualMode, "cyan")}
+                onClick={() => switchDualMode(false)}
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="size-5"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M12 2.25a9.75 9.75 0 1 0 9.75 9.75A9.76 9.76 0 0 0 12 2.25Zm.75 6.75a.75.75 0 1 0-1.5 0v2.25H9a.75.75 0 0 0 0 1.5h2.25V15a.75.75 0 0 0 1.5 0v-2.25H15a.75.75 0 0 0 0-1.5h-2.25Z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                Agregar
+                Modo simple
+              </button>
+              <button
+                type="button"
+                className={SEGMENTED_BUTTON_CLASS}
+                style={sectionSegmentedButtonStyle(dualMode, "emerald")}
+                onClick={() => switchDualMode(true)}
+              >
+                Modo dual
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            {(
-              (dualMode
-                ? (["ramp", "hold", "arc", "stop"] as BlockKind[]) // sin pivot en dual
-                : ([
-                    "ramp",
-                    "hold",
-                    "pivot",
-                    "arc",
-                    "stop",
-                  ] as BlockKind[])) as BlockKind[]
-            ).map((k) => (
-              <MotorBlock
-                key={k}
-                kind={k}
-                // Solo marca tipo seleccionado en la paleta
-                selected={paletteKind === k}
-                // Indicio visual (pivot puede estar oculto en dual)
-                pairSelected={
-                  Boolean(pairSelected) &&
-                  k === "pivot" &&
-                  selection?.track !== "dual"
-                }
-                onClick={() => {
-                  if (selectionLocked) return;
-                  if (k === paletteKind) {
-                    setPaletteKind(null); // desmarcar y dejar vacio
-                  } else {
-                    setPaletteKind(k); // sólo marcar, no agregar ni seleccionar timeline
-                  }
-                }}
-              />
-            ))}
+          <div className={`app-panel-strong relative overflow-hidden px-5 pb-6 pt-14 md:px-7 ${sectionToneClass("cyan")}`}>
+            <div className="mb-6 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+              <div className="flex flex-col gap-2">
+                <h2 className="text-2xl font-black text-white md:text-3xl">
+                  Secuencias de motor
+                </h2>
+                <p className="max-w-3xl text-sm text-slate-300">
+                  Diseña, ordena y reproduce bloques de movimiento con la misma identidad visual de la sección WiFi. La edición sigue siendo la misma, pero ahora cada capa tiene un lenguaje más claro.
+                </p>
+              </div>
+
+              <div className="inline-flex w-fit items-center rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-200">
+                {dualMode ? "Ambos motores sincronizados" : "Motores independientes"}
+              </div>
+            </div>
+
+            <div className="my-8 flex flex-col gap-10">
+              {dualMode ? (
+                <>
+                  <TimelineRow
+                    title="Ambos motores"
+                    track="dual"
+                    blocks={visibleBlocksDual}
+                    totalMs={totalMsDual}
+                    kindColor={kindColor}
+                    activeIndex={activeIndexDual}
+                    activeProgress={activeProgressDual}
+                    selectedId={selection?.track === "dual" ? selection.id : null}
+                    onSelect={(id) => {
+                      if (selectionLocked) return;
+                      if (id) attemptSelect("dual", id);
+                      else attemptSelect("dual", null);
+                    }}
+                    blockProps={blockPropsDual}
+                    onReorder={handleReorder("dual")}
+                    dndDisabled={isPlayingDual}
+                    onUpdateLabel={(blockId, newLabel) => {
+                      updateBlockLabelAdvanced(blockId, newLabel);
+                    }}
+                  />
+                  <div className="flex justify-end -mt-1">
+                    <button
+                      onClick={() =>
+                        isPlayingDual ? stopTrack("dual") : startTrack("dual")
+                      }
+                      disabled={blocksDual.length === 0}
+                      className={actionButtonClass(isPlayingDual ? "rose" : "emerald", isPlayingDual)}
+                      title={
+                        isPlayingDual ? "Detener (Ambos)" : "Reproducir (Ambos)"
+                      }
+                    >
+                      {isPlayingDual ? (
+                        <>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            className="size-5"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M4.5 7.5a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9Z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          Detener
+                        </>
+                      ) : (
+                        <>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="size-5"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                          >
+                            <path d="M5.25 4.5a.75.75 0 0 1 1.125-.65l12 7.5a.75.75 0 0 1 0 1.3l-12 7.5A.75.75 0 0 1 4.5 19.5v-15a.75.75 0 0 1 .75-.75Z" />
+                          </svg>
+                          Reproducir
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex flex-col gap-2">
+                    <TimelineRow
+                      title="Motor izquierdo"
+                      track="left"
+                      blocks={visibleBlocksLeft}
+                      totalMs={totalMsLeft}
+                      kindColor={kindColor}
+                      activeIndex={activeIndexLeft}
+                      activeProgress={activeProgressLeft}
+                      selectedId={selection?.track === "left" ? selection.id : null}
+                      onSelect={(id) => {
+                        if (selectionLocked) return;
+                        if (id) attemptSelect("left", id);
+                        else attemptSelect("left", null);
+                      }}
+                      highlightIds={highlightLeft}
+                      blockProps={blockPropsLeft}
+                      onReorder={handleReorder("left")}
+                      dndDisabled={isPlayingLeft}
+                      onUpdateLabel={(blockId, newLabel) => {
+                        updateBlockLabelAdvanced(blockId, newLabel);
+                      }}
+                    />
+                    <div className="flex justify-center lg:justify-end">
+                      <button
+                        onClick={() =>
+                          isPlayingLeft ? stopTrack("left") : startTrack("left")
+                        }
+                        disabled={blocksLeft.length === 0}
+                        className={actionButtonClass(isPlayingLeft ? "rose" : "emerald", isPlayingLeft)}
+                        title={
+                          isPlayingLeft
+                            ? "Detener (Izquierdo)"
+                            : "Reproducir (Izquierdo)"
+                        }
+                      >
+                        {isPlayingLeft ? (
+                          <>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                              className="size-5"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M4.5 7.5a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9Z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                            Detener
+                          </>
+                        ) : (
+                          <>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="size-5"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                            >
+                              <path d="M5.25 4.5a.75.75 0 0 1 1.125-.65l12 7.5a.75.75 0 0 1 0 1.3l-12 7.5A.75.75 0 0 1 4.5 19.5v-15a.75.75 0 0 1 .75-.75Z" />
+                            </svg>
+                            Reproducir
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <TimelineRow
+                      title="Motor derecho"
+                      track="right"
+                      blocks={visibleBlocksRight}
+                      totalMs={totalMsRight}
+                      kindColor={kindColor}
+                      activeIndex={activeIndexRight}
+                      activeProgress={activeProgressRight}
+                      selectedId={
+                        selection?.track === "right" ? selection.id : null
+                      }
+                      onSelect={(id) => {
+                        if (selectionLocked) return;
+                        if (id) attemptSelect("right", id);
+                        else attemptSelect("right", null);
+                      }}
+                      highlightIds={highlightRight}
+                      blockProps={blockPropsRight}
+                      onReorder={handleReorder("right")}
+                      dndDisabled={isPlayingRight}
+                      onUpdateLabel={(blockId, newLabel) => {
+                        updateBlockLabelAdvanced(blockId, newLabel);
+                      }}
+                    />
+                    <div className="flex justify-center lg:justify-end">
+                      <button
+                        onClick={() =>
+                          isPlayingRight ? stopTrack("right") : startTrack("right")
+                        }
+                        disabled={blocksRight.length === 0}
+                        className={actionButtonClass(isPlayingRight ? "rose" : "emerald", isPlayingRight)}
+                        title={
+                          isPlayingRight
+                            ? "Detener (Derecho)"
+                            : "Reproducir (Derecho)"
+                        }
+                      >
+                        {isPlayingRight ? (
+                          <>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                              className="size-5"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M4.5 7.5a3 3 0 0 1 3-3h9a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9Z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                            Detener
+                          </>
+                        ) : (
+                          <>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="size-5"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                            >
+                              <path d="M5.25 4.5a.75.75 0 0 1 1.125-.65l12 7.5a.75.75 0 0 1 0 1.3l-12 7.5A.75.75 0 0 1 4.5 19.5v-15a.75.75 0 0 1 .75-.75Z" />
+                            </svg>
+                            Reproducir
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Propiedades */}
-        <div
-          className={`w-full ${
-            !selected && "hidden lg:block"
-          } lg:max-w-sm rounded-2xl bg-white/5 backdrop-blur ring-1 ring-white/10 shadow-sm p-6 ${
-            !selection && "opacity-50"
-          }`}
-        >
-          <div className="text-xl font-bold mb-4 uppercase">
-            Propiedades del bloque
+        {/* Selector + Propiedades */}
+        <div className="grid w-full gap-6 xl:grid-cols-[minmax(0,1.12fr)_minmax(320px,0.6fr)]">
+          {/* Selector */}
+          <div className={`order-last flex-1 p-6 lg:order-first ${sectionCardClass("emerald")}`}>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <div className="text-xl font-bold uppercase text-white">
+                  Selector de bloques
+                  {selection
+                    ? selection.track === "dual"
+                      ? " (Dual)"
+                      : selection.track === "left"
+                        ? " (Izquierdo)"
+                        : " (Derecho)"
+                    : dualMode
+                      ? " (Dual)"
+                      : ""}
+                </div>
+                <p className="mt-1 text-sm text-slate-300">
+                  Elegí el tipo y agregalo a la línea de tiempo actual.
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={onAddBlock}
+                  className={actionButtonClass("emerald", Boolean(paletteKind))}
+                  title="Agregar bloque"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="size-5"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M12 2.25a9.75 9.75 0 1 0 9.75 9.75A9.76 9.76 0 0 0 12 2.25Zm.75 6.75a.75.75 0 1 0-1.5 0v2.25H9a.75.75 0 0 0 0 1.5h2.25V15a.75.75 0 0 0 1.5 0v-2.25H15a.75.75 0 0 0 0-1.5h-2.25Z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Agregar
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+              {(
+                (dualMode
+                  ? (["ramp", "hold", "arc", "stop"] as BlockKind[])
+                  : ([
+                      "ramp",
+                      "hold",
+                      "pivot",
+                      "arc",
+                      "stop",
+                    ] as BlockKind[])) as BlockKind[]
+              ).map((k) => (
+                <MotorBlock
+                  key={k}
+                  kind={k}
+                  selected={paletteKind === k}
+                  pairSelected={
+                    Boolean(pairSelected) &&
+                    k === "pivot" &&
+                    selection?.track !== "dual"
+                  }
+                  onClick={() => {
+                    if (selectionLocked) return;
+                    if (k === paletteKind) {
+                      setPaletteKind(null);
+                    } else {
+                      setPaletteKind(k);
+                    }
+                  }}
+                />
+              ))}
+            </div>
           </div>
 
-          <div className="mb-2 text-sm text-slate-300">
-            Tipo:{" "}
-            <span className="font-semibold text-slate-100">
-              {selected ? labelES[selected.kind] : "—"}
-            </span>
-          </div>
+          {/* Propiedades */}
+          <div
+            className={`w-full p-6 ${sectionCardClass(selected ? toneFromKind(selected.kind) : "indigo")} ${
+              !selected && "hidden lg:block"
+            } ${!selection && "opacity-60"}`}
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <div className="text-xl font-bold uppercase text-white">
+                  Propiedades del bloque
+                </div>
+                <p className="mt-1 text-sm text-slate-300">
+                  Ajustes finos para el bloque seleccionado.
+                </p>
+              </div>
+              {selected ? (
+                <span className={kindBadgeClass(selected.kind)}>
+                  {labelES[selected.kind]}
+                </span>
+              ) : null}
+            </div>
 
-          <div className="mb-4">
-            <span className="text-sm text-slate-300 mr-2">Track:</span>
-            <span className="inline-flex items-center rounded-xl px-2 py-1 bg-white/10 ring-1 ring-white/10 text-slate-100 text-xs">
-              {selection
-                ? selection.track === "left"
-                  ? "Izquierdo"
-                  : selection.track === "right"
-                  ? "Derecho"
-                  : "Ambos"
-                : "—"}
-            </span>
-          </div>
+            <div className="mb-2 text-sm text-slate-300">
+              Tipo:{" "}
+              <span className="font-semibold text-slate-100">
+                {selected ? labelES[selected.kind] : "—"}
+              </span>
+            </div>
 
-          {/* Duración */}
-          <div className="mb-3">
-            <label className="block mb-1 text-sm text-slate-300">
-              Duración (ms)
-            </label>
-            <input
-              type="number"
-              min={0}
-              className="w-full rounded-xl bg-white/10 text-slate-100 placeholder-slate-400 ring-1 ring-white/10 p-2.5
-                         focus:outline-none focus:ring-2 focus:ring-slate-400/40"
-              value={selection ? durationMs : 0}
-              onChange={(e) => setDurationMs(Number(e.target.value))}
-              placeholder="Ej: 700"
-              disabled={!selection}
-            />
-          </div>
+            <div className="mb-4">
+              <span className="mr-2 text-sm text-slate-300">Track:</span>
+              <span className="inline-flex items-center rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-xs font-semibold text-slate-100">
+                {selection
+                  ? selection.track === "left"
+                    ? "Izquierdo"
+                    : selection.track === "right"
+                      ? "Derecho"
+                      : "Ambos"
+                  : "—"}
+              </span>
+            </div>
+
+            {/* Duración */}
+            <div className="mb-3">
+              <label className="mb-1 block text-sm text-slate-300">
+                Duración (ms)
+              </label>
+              <input
+                type="number"
+                min={0}
+                className="app-input w-full px-3 py-2.5 text-sm"
+                value={selection ? durationMs : 0}
+                onChange={(e) => setDurationMs(Number(e.target.value))}
+                placeholder="Ej: 700"
+                disabled={!selection}
+              />
+            </div>
 
           {/* Dirección (común, excepto stop) */}
           {selected && selected.kind !== "stop" && (
@@ -1072,9 +1081,9 @@ export default function ControlSection() {
                   </span>
                 )}
               </label>
-              <select
-                className="w-full rounded-xl bg-white/10 text-slate-100 ring-1 ring-white/10 p-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
-                value={direction}
+                <select
+                  className="app-input w-full px-3 py-2.5 text-sm"
+                  value={direction}
                 onChange={(e) => {
                   const newDirection = Number(e.target.value) as Dir;
                   setDirection(newDirection);
@@ -1138,12 +1147,12 @@ export default function ControlSection() {
                     value={speed}
                     onChange={(e) => setSpeed(Number(e.target.value))}
                   />
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    className="w-20 rounded-xl bg-white/10 text-slate-100 ring-1 ring-white/10 p-2.5 focus:outline-none focus:ring-2 focus:ring-slate-400/40"
-                    value={speed}
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      className="app-input w-20 px-2 py-2 text-sm"
+                      value={speed}
                     onChange={(e) => setSpeed(Number(e.target.value))}
                   />
                 </div>
@@ -1166,12 +1175,12 @@ export default function ControlSection() {
                     value={fromPct}
                     onChange={(e) => setFromPct(Number(e.target.value))}
                   />
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    className="w-20 rounded-xl bg-white/10 text-slate-100 ring-1 ring-white/10 p-2.5 focus:outline-none focus:ring-2 focus:ring-slate-400/40"
-                    value={fromPct}
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      className="app-input w-20 px-2 py-2 text-sm"
+                      value={fromPct}
                     onChange={(e) => setFromPct(Number(e.target.value))}
                   />
                 </div>
@@ -1190,12 +1199,12 @@ export default function ControlSection() {
                     value={Math.max(0, Math.min(100, toPct))}
                     onChange={(e) => setToPct(Number(e.target.value))}
                   />
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    className="w-20 rounded-xl bg-white/10 text-slate-100 ring-1 ring-white/10 p-2.5 focus:outline-none focus:ring-2 focus:ring-slate-400/40"
-                    value={Math.max(0, Math.min(100, toPct))}
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      className="app-input w-20 px-2 py-2 text-sm"
+                      value={Math.max(0, Math.min(100, toPct))}
                     onChange={(e) => setToPct(Number(e.target.value))}
                   />
                 </div>
@@ -1212,7 +1221,7 @@ export default function ControlSection() {
                   Lado del arco
                 </label>
                 <select
-                  className="w-full rounded-xl bg-white/10 text-slate-100 ring-1 ring-white/10 p-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-400/40"
+                  className="app-input w-full px-3 py-2.5 text-sm"
                   value={arcSide}
                   onChange={(e) => setArcSide(Number(e.target.value) as 0 | 1)}
                 >
@@ -1222,13 +1231,10 @@ export default function ControlSection() {
               </div>
             )}
 
-          {/* Guardar cambios */}
-          <div className="flex items-center justify-between mt-2">
-            <button
-              className="group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold
-                         transition-all duration-300 hover:text-slate-900 bg-indigo-600 hover:ring-indigo-400 hover:ring-2
-                         hover:shadow-[inset_0_0_0_2px_theme('colors.white.400')]
-                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+            {/* Guardar cambios */}
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <button
+                className={actionButtonClass("indigo", true)}
               onClick={() => {
                 if (!selection || !selected) return;
                 const t = selection.track;
@@ -1305,24 +1311,21 @@ export default function ControlSection() {
                   }
                 }
               }}
-              disabled={!selection}
-            >
-              Guardar
-            </button>
+                disabled={!selection}
+              >
+                Guardar
+              </button>
 
-            {/* Borrar bloque seleccionado (opcional) */}
-            <button
-              onClick={onRemoveSelected}
-              disabled={!selection}
-              className="btn-danger group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold text-white
-                         transition-all duration-300 hover:text-slate-900 bg-red-600 hover:ring-red-400 hover:ring-2
-                         hover:shadow-[inset_0_0_0_2px_theme('colors.red.400')]
-                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40
-                         disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Eliminar bloque seleccionado"
-            >
-              Eliminar
-            </button>
+              {/* Borrar bloque seleccionado (opcional) */}
+              <button
+                onClick={onRemoveSelected}
+                disabled={!selection}
+                className={actionButtonClass("rose", true)}
+                title="Eliminar bloque seleccionado"
+              >
+                Eliminar
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1332,80 +1335,46 @@ export default function ControlSection() {
           onClose={() => setOpenInfoModal(false)}
           closeOnOverlayClick={false}
         >
-          <h2 className="text-2xl font-bold mb-4 text-slate-900">
-            Control de Motores
-          </h2>
+          <div className="flex flex-col gap-4">
+            <div>
+              <div className="app-kicker mb-3">Info</div>
+              <h2 className="text-2xl font-black text-white">
+                Control de motores
+              </h2>
+            </div>
 
-          <p className="mb-3 text-black leading-relaxed">
-            Desde esta sección podés diseñar y probar rutinas de movimiento para
-            los motores. La línea de tiempo se compone de{" "}
-            <strong>bloques</strong> (Ramp, Hold, Arc, Pivot, Stop) que se
-            reproducen de izquierda a derecha. Cada bloque tiene propiedades
-            propias (duración, velocidad, dirección y parámetros específicos)
-            que podés ajustar en el panel lateral.
-          </p>
-
-          <ul className="mb-4 space-y-2 text-black">
-            <li>
-              <span className="font-semibold">Modos:</span>{" "}
-              <span
-                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs
-                     bg-indigo-500 text-white ring-1 ring-indigo-500/20"
-              >
-                Simple
-              </span>{" "}
-              control independiente (izquierdo / derecho), y{" "}
-              <span
-                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs
-                     bg-emerald-600 text-white ring-1 ring-emerald-500/20"
-              >
-                Dual
-              </span>{" "}
-              para accionar ambos motores con la misma secuencia.
-            </li>
-            <li>
-              <span className="font-semibold">Línea de tiempo:</span> cada
-              bloque muestra su duración relativa como ancho. El progreso de
-              reproducción se visualiza con una barra inferior y un indicador en
-              el bloque activo.
-            </li>
-            <li>
-              <span className="font-semibold">Edición de bloques:</span>{" "}
-              seleccioná un bloque para editar sus propiedades. La vista se
-              actualiza en vivo (ancho por duración y altura por
-              velocidad/forma).
-            </li>
-            <li>
-              <span className="font-semibold">Selector de tipos:</span> elegí el
-              tipo en la paleta; el botón <em>Agregar</em> inserta un nuevo
-              bloque del tipo seleccionado. En modo Dual no se muestran opciones
-              no compatibles (p. ej. Pivot pareado).
-            </li>
-            <li>
-              <span className="font-semibold">Reordenar:</span> arrastrá y soltá
-              bloques para reordenarlos en la línea de tiempo. El ancho relativo
-              se conserva según la duración actual de cada bloque.
-            </li>
-            <li>
-              <span className="font-semibold">Reproducción:</span> podés
-              reproducir por track (Izquierdo, Derecho) o en Dual. Cambiar de
-              modo detiene la reproducción activa para evitar estados
-              inconsistentes.
-            </li>
-          </ul>
-
-          <div
-            className="rounded-xl bg-white/70 dark:bg-neutral-900/50
-             ring-1 ring-black/5 dark:ring-white/10 shadow-sm backdrop-blur p-3
-             text-xs text-black"
-          >
-            <p className="m-0">
-              <span className="font-semibold">Tip:</span> usá valores de
-              duración razonables para mantener la vista fluida (p. ej. 300 -
-              1500&nbsp;ms por bloque). Si editás “Ramp”, definí <em>Desde</em>{" "}
-              y <em>Hasta</em> en % (0 - 100). En “Hold/Arc/Pivot”, la velocidad
-              escala la altura del bloque.
+            <p className="text-sm leading-relaxed text-slate-300">
+              Desde esta sección podés diseñar y probar rutinas de movimiento para
+              los motores. La línea de tiempo se compone de <strong>bloques</strong>{" "}
+              que se reproducen de izquierda a derecha y cada bloque mantiene sus
+              propiedades propias.
             </p>
+
+            <ul className="space-y-2 text-sm text-slate-300">
+              <li>
+                <span className="font-semibold text-white">Modos:</span> simple para
+                editar cada motor por separado, y dual para ejecutar una única
+                secuencia sincronizada.
+              </li>
+              <li>
+                <span className="font-semibold text-white">Línea de tiempo:</span>{" "}
+                cada bloque refleja su duración y progreso de reproducción.
+              </li>
+              <li>
+                <span className="font-semibold text-white">Edición:</span> podés
+                reordenar, renombrar y ajustar propiedades sin perder la vista en
+                vivo de la secuencia.
+              </li>
+            </ul>
+
+            <div className="rounded-md border border-white/10 bg-white/5 p-3 text-xs text-slate-300">
+              <p className="m-0">
+                <span className="font-semibold text-white">Tip:</span> en
+                bloques de tipo ramp conviene mantener cambios graduales, y en
+                hold, arc o pivot usar la velocidad como referencia visual para
+                validar la secuencia antes de ejecutar.
+              </p>
+            </div>
           </div>
         </Modal>
       )}
@@ -1416,24 +1385,117 @@ export default function ControlSection() {
           onClose={() => setOpenSettingsModal(false)}
           closeOnOverlayClick={false}
         >
-          <h2 className="text-2xl font-bold mb-4 text-black">Configuración</h2>
+          <div className="flex flex-col gap-4">
+            <div>
+              <div className="app-kicker mb-3">Config</div>
+              <h2 className="text-2xl font-black text-white">Configuración</h2>
+            </div>
 
-          <SystemResetActions />
+            <SystemResetActions />
 
-          <div className="flex flex-row gap-4 text-black w-full items-center justify-center my-4">
-            <p className="text-lg">Resetear configuración</p>
-            <button
-              className="btn-danger group relative inline-flex items-center gap-2 rounded-xl py-2 font-medium text-white
-                               transition-all duration-300 hover:text-slate-900
-                               hover:shadow-[inset_0_0_0_1px_theme('colors.red.400')]
-                               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40 estado-btn px-5"
-              onClick={() => console.log("Resetear configuracion")}
-            >
-              Enviar
-            </button>
+            <div className="my-2 flex w-full items-center justify-center gap-4 rounded-md border border-white/10 bg-white/5 p-4">
+              <p className="text-sm text-slate-300">Resetear configuración</p>
+              <button
+                className={actionButtonClass("rose", true)}
+                onClick={() => console.log("Resetear configuracion")}
+              >
+                Enviar
+              </button>
+            </div>
           </div>
         </Modal>
       )}
-    </div>
+    </section>
   );
+}
+
+function sectionSegmentedButtonStyle(
+  active: boolean,
+  tone: "cyan" | "emerald",
+): React.CSSProperties {
+  if (!active) {
+    return {
+      background: "transparent",
+      color: "var(--ui-text)",
+    };
+  }
+
+  return tone === "emerald"
+    ? {
+        background: "#10b981",
+        color: "#ffffff",
+        boxShadow: "0 12px 28px rgba(16,185,129,0.28)",
+      }
+    : {
+        background: "var(--ui-accent)",
+        color: "#061016",
+        boxShadow: "0 12px 28px rgba(34,211,238,0.28)",
+      };
+}
+
+function sectionToneClass(
+  tone: "cyan" | "emerald" | "indigo" | "amber" | "rose" | "sky",
+) {
+  return {
+    cyan: "border-cyan-300/18",
+    emerald: "border-emerald-300/18",
+    indigo: "border-indigo-300/18",
+    amber: "border-amber-300/18",
+    rose: "border-rose-300/18",
+    sky: "border-sky-300/18",
+  }[tone];
+}
+
+function sectionCardClass(
+  tone: "cyan" | "emerald" | "indigo" | "amber" | "rose" | "sky",
+) {
+  return `app-panel-strong rounded-md ${sectionToneClass(tone)}`;
+}
+
+function toneFromKind(kind: BlockKind) {
+  return {
+    ramp: "amber",
+    hold: "emerald",
+    pivot: "sky",
+    arc: "indigo",
+    stop: "rose",
+  }[kind] as "amber" | "emerald" | "sky" | "indigo" | "rose";
+}
+
+function kindBadgeClass(kind: BlockKind) {
+  return {
+    ramp: "inline-flex items-center rounded-full border border-amber-300/40 bg-amber-500/15 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-amber-100",
+    hold: "inline-flex items-center rounded-full border border-emerald-300/40 bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-100",
+    pivot: "inline-flex items-center rounded-full border border-sky-300/40 bg-sky-500/15 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-sky-100",
+    arc: "inline-flex items-center rounded-full border border-indigo-300/40 bg-indigo-500/15 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-indigo-100",
+    stop: "inline-flex items-center rounded-full border border-rose-300/40 bg-rose-500/15 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-rose-100",
+  }[kind];
+}
+
+function actionButtonClass(
+  tone: "emerald" | "rose" | "indigo",
+  active = false,
+) {
+  const base =
+    "inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50";
+
+  const toneClass = active
+    ? {
+        emerald:
+          "border-emerald-300/70 bg-emerald-500 text-white shadow-[0_14px_34px_rgba(16,185,129,0.24)] focus-visible:ring-emerald-300/40",
+        rose:
+          "border-rose-300/70 bg-rose-500 text-white shadow-[0_14px_34px_rgba(244,63,94,0.24)] focus-visible:ring-rose-300/40",
+        indigo:
+          "border-indigo-300/70 bg-indigo-500 text-white shadow-[0_14px_34px_rgba(99,102,241,0.24)] focus-visible:ring-indigo-300/40",
+      }
+    : {
+        emerald:
+          "border-emerald-300/35 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/18 focus-visible:ring-emerald-300/35",
+        rose:
+          "border-rose-300/35 bg-rose-500/10 text-rose-100 hover:bg-rose-500/18 focus-visible:ring-rose-300/35",
+        indigo:
+          "border-indigo-300/35 bg-indigo-500/10 text-indigo-100 hover:bg-indigo-500/18 focus-visible:ring-indigo-300/35",
+      };
+
+  return `${base} ${toneClass[tone]}`;
 }
