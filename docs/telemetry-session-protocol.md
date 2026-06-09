@@ -1,109 +1,140 @@
-# Protocolo de telemetria en sesion
+# Protocolo de telemetria MPU en sesion
 
 ## Objetivo
 
-La pantalla Sensores/Visor puede iniciar y detener un stream real de datos del MPU6050 usando frames UNER v2 enviados como `stmPacket` por WebSocket. La web controla la tasa de medicion y, cuando corresponde, envia un finalizador explicito.
+La pantalla `MPU + IR` controla el stream real del MPU que publica la STM por UNER v2. El contrato vigente es el de firmware:
+
+- `GET_MPU_SNAPSHOT (0x60)`: lectura puntual.
+- `SET_MPU_STREAM (0x61)`: iniciar o actualizar periodo.
+- `STOP_MPU_STREAM (0x62)`: detener stream.
+- `EVT_APP_GET_MPU_READINGS (0x90)`: muestra push de 42 bytes.
+
+La web envia los comandos como `stmPacket` por WebSocket, con los bytes UNER v2 dentro de `payload.data`. La ruta usada por frames Web -> STM es `0x31` (`src=WEB_APP=0x3`, `dst=MCU=0x1`).
+
+## Frecuencia
+
+La UI normaliza el periodo de stream a un minimo de `8 ms`. Si el usuario carga un valor menor, la web envia `8 ms`.
+
+Esto deja preparado el flujo para recibir muestras cada aproximadamente `8 ms` cuando el firmware y el enlace ESP/UART puedan sostenerlo. El grafico y el visor 3D consumen el mismo estado Euler.
 
 ## Comandos
 
 | CMD | Nombre | Direccion | Payload |
 | --- | --- | --- | --- |
-| `0x20` | `TELEMETRY_SET_RATE` | Web -> firmware | `u16 LE periodMs`: `[periodMsLow][periodMsHigh]` |
-| `0x21` | `TELEMETRY_ACK` | Firmware -> Web | `[code][periodMsLow][periodMsHigh]` |
-| `0x22` | `TELEMETRY_DATA` | Firmware -> Web | 17 bytes de muestra MPU6050 |
+| `0x60` | `GET_MPU_SNAPSHOT` | Web -> STM | vacio |
+| `0x61` | `SET_MPU_STREAM` | Web -> STM | `[enable]` o `[enable, period_l, period_h]` |
+| `0x62` | `STOP_MPU_STREAM` | Web -> STM | vacio |
+| `0x90` | `EVT_APP_GET_MPU_READINGS` | STM -> Web | snapshot MPU de 42 bytes |
 
-## TELEMETRY_SET_RATE (0x20)
-
-El payload siempre tiene 2 bytes little-endian:
-
-```text
-[periodMsLow][periodMsHigh]
-```
-
-Reglas:
-
-- `periodMs > 0`: inicia el stream o actualiza su tasa si ya estaba activo.
-- `periodMs = 0`: finalizador explicito para detener el stream. Payload: `00 00`.
-
-La web usa dos modos:
-
-- Temporizado: envia `TELEMETRY_SET_RATE(periodMs)` al iniciar, muestra los segundos restantes y cuando vence la duracion envia automaticamente `TELEMETRY_SET_RATE(0)` con payload `00 00`.
-- Constante: envia `TELEMETRY_SET_RATE(periodMs)` al iniciar y mantiene el stream activo hasta que el usuario presiona `Detener`; en ese momento envia `TELEMETRY_SET_RATE(0)` con payload `00 00`.
-
-Duracion temporizada:
-
-- Minimo recomendado: `1s`.
-- Maximo permitido en la web: `240s`.
-
-Si el usuario cambia el periodo de medicion mientras la telemetria esta activa, la web reenvia `TELEMETRY_SET_RATE(periodMs)` con la nueva tasa.
-
-## TELEMETRY_ACK (0x21)
-
-Payload:
+### Start / update
 
 ```text
-[code][periodMsLow][periodMsHigh]
+CMD 0x61
+payload: 01 period_l period_h
 ```
 
-- `code = 0` indica OK.
-- `periodMs` confirma el periodo aplicado por firmware.
-- Si `periodMs = 0`, confirma que el stream quedo detenido.
-
-## TELEMETRY_DATA (0x22)
-
-Payload esperado: 17 bytes.
+Ejemplo para `8 ms`:
 
 ```text
-[schema][seqL][seqH][accXl][accXh][accYl][accYh][accZl][accZh][gyroXl][gyroXh][gyroYl][gyroYh][gyroZl][gyroZh][tempL][tempH]
+55 4E 45 52 03 3A 02 31 61 01 08 00 6E
 ```
 
-Campos:
+Respuesta esperada:
 
-- `schema`: version del esquema de datos. Para MPU6050 int16 se usa `0x01`.
-- `seq`: contador `u16 LE`.
-- `accX`, `accY`, `accZ`: acelerometro crudo `i16 LE`.
-- `gyroX`, `gyroY`, `gyroZ`: giroscopio crudo `i16 LE`.
-- `tempRaw`: temperatura cruda `i16 LE`.
+| Byte | Campo |
+| ---: | --- |
+| 0 | status |
+| 1 | active |
+| 2..3 | period_ms LE |
+| 4 | transport_id |
+| 5 | dst_node |
 
-La web muestra datos de prueba del stream:
+### Stop
 
-- paquetes recibidos
-- ultimo `seq`
-- temperatura convertida si esta disponible
-- segundos restantes en modo temporizado
-- estado textual del stream
-- ultimo frame enviado por la web
-
-## Ejemplos
-
-### 200ms por 2s
-
-Inicio:
+La UI usa `STOP_MPU_STREAM (0x62)` para cortar la transmision.
 
 ```text
-CMD = 0x20
-PAYLOAD = C8 00
+55 4E 45 52 00 3A 02 31 62 67
 ```
 
-Luego de 2s, la web envia el finalizador:
+Respuesta esperada:
 
-```text
-CMD = 0x20
-PAYLOAD = 00 00
-```
+| Byte | Campo |
+| ---: | --- |
+| 0 | status |
+| 1 | active |
 
-### 500ms constante
+`active=0` confirma que la STM dejo de transmitir hacia ese requester.
 
-Inicio:
+## Snapshot MPU de 42 bytes
 
-```text
-CMD = 0x20
-PAYLOAD = F4 01
-```
+`GET_MPU_SNAPSHOT (0x60)` y `EVT_APP_GET_MPU_READINGS (0x90)` comparten layout:
 
-Al presionar `Detener`, la web envia el finalizador:
+| Offset | Campo | Tipo | Unidad |
+| ---: | --- | --- | --- |
+| 0 | status | u8 | `0=OK`, `3=sin muestra valida` |
+| 1 | flags | u8 | bits de estado MPU |
+| 2 | sample_seq | u16 LE | contador |
+| 4 | roll | i32 LE | milideg |
+| 8 | pitch | i32 LE | milideg |
+| 12 | yaw | i32 LE | milideg |
+| 16 | accel_x | i16 LE | mg |
+| 18 | accel_y | i16 LE | mg |
+| 20 | accel_z | i16 LE | mg |
+| 22 | linear_accel_x | i16 LE | mg |
+| 24 | linear_accel_y | i16 LE | mg |
+| 26 | linear_accel_z | i16 LE | mg |
+| 28 | gyro_x | i32 LE | mdps |
+| 32 | gyro_y | i32 LE | mdps |
+| 36 | gyro_z | i32 LE | mdps |
+| 40 | sample_dt_us | u16 LE | microsegundos |
 
-```text
-CMD = 0x20
-PAYLOAD = 00 00
-```
+La web convierte `roll`, `pitch` y `yaw` dividiendo por `1000` para alimentar:
+
+- inputs de lectura del panel `RealtimeEulerPanel`;
+- grafico de tendencia Euler;
+- rotacion del modelo 3D (`ThreeModelViewer`, orden `YXZ`).
+
+## Estados y flags
+
+Status comunes:
+
+| Status | Significado |
+| ---: | --- |
+| `0` | OK |
+| `1` | BAD_PAYLOAD |
+| `2` | SCREEN_MISMATCH |
+| `3` | NO_VALID_SAMPLE |
+| `4` | NO_PENDING_OR_BUSY |
+| `5` | BAD_ARGUMENT |
+
+Flags MPU:
+
+| Bit | Mascara | Significado |
+| ---: | ---: | --- |
+| 0 | `0x01` | DATA_READY |
+| 1 | `0x02` | TX_SENT |
+| 2 | `0x04` | CALIBRATED |
+| 3 | `0x08` | MPU_NEW_READING |
+| 4 | `0x10` | MPU_VALID |
+| 5 | `0x20` | MPU_ERROR |
+| 6 | `0x40` | MPU_STATIONARY |
+| 7 | `0x80` | MPU_CALIBRATING |
+
+## Modos de captura de la UI
+
+- Temporizado: envia `SET_MPU_STREAM`, muestra segundos restantes y al vencer envia `STOP_MPU_STREAM`.
+- Constante: envia `SET_MPU_STREAM` y mantiene activo hasta que el usuario presiona `Detener`.
+- Cambio de periodo activo: reenvia `SET_MPU_STREAM` con el nuevo periodo.
+- Cambio a modo emulado, IR o desconexion WebSocket: la UI marca el stream como detenido; si todavia hay enlace activo, manda `STOP_MPU_STREAM`.
+
+## No usar el contrato viejo
+
+Queda obsoleto para MPU real:
+
+- `TELEMETRY_SET_RATE = 0x20`
+- `TELEMETRY_ACK = 0x21`
+- `TELEMETRY_DATA = 0x22`
+- payload de 17 bytes con temperatura cruda
+
+Ese formato no coincide con la STM actual y no alimenta el Euler del visor 3D.

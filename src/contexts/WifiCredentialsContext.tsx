@@ -1,5 +1,7 @@
 import {
+  createContext,
   useCallback,
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -9,6 +11,7 @@ import WifiCredentialsModal from "../components/WifiCredentialsModal";
 import { useWebSocket } from "../hooks/useWebSocket";
 import {
   WIFI_CREDENTIALS_CANCEL_COMMAND,
+  WIFI_CREDENTIALS_CURRENT_COMMAND,
   WIFI_CREDENTIALS_SUBMIT_COMMAND,
   type WifiCredentialsResultStatus,
   type WifiCredentialsStatus,
@@ -23,6 +26,12 @@ const WIFI_CREDENTIALS_SUBMIT_COMMANDS = new Set([
 const WIFI_CREDENTIALS_CANCEL_COMMANDS = new Set([
   WIFI_CREDENTIALS_CANCEL_COMMAND,
   "esp.wifi.credentials.cancel",
+]);
+const WIFI_CREDENTIALS_CURRENT_COMMANDS = new Set([
+  WIFI_CREDENTIALS_CURRENT_COMMAND,
+  "wifi.credentials.current",
+  "esp.wifi.credentials.getCurrent",
+  "esp.wifi.credentials.current",
 ]);
 const CANCELLED_CLOSE_DELAY_MS = 700;
 
@@ -40,6 +49,15 @@ interface WifiCredentialsProviderProps {
   children: ReactNode;
 }
 
+interface WifiCredentialsContextValue {
+  state: WifiCredentialsState;
+  requestCurrentCredentials: () => string | null;
+}
+
+const WifiCredentialsContext = createContext<
+  WifiCredentialsContextValue | undefined
+>(undefined);
+
 const INITIAL_STATE: WifiCredentialsState = {
   status: "idle",
   ssid: null,
@@ -53,9 +71,10 @@ const INITIAL_STATE: WifiCredentialsState = {
 export function WifiCredentialsProvider({
   children,
 }: WifiCredentialsProviderProps) {
-  const { send, subscribe } = useWebSocket();
+  const { connected, send, subscribe } = useWebSocket();
   const [state, setState] = useState<WifiCredentialsState>(INITIAL_STATE);
   const closeTimerRef = useRef<number | null>(null);
+  const initialCredentialsSyncDoneRef = useRef(false);
 
   const clearCloseTimer = useCallback(() => {
     if (closeTimerRef.current !== null) {
@@ -76,6 +95,23 @@ export function WifiCredentialsProvider({
       closeTimerRef.current = null;
     }, CANCELLED_CLOSE_DELAY_MS);
   }, [clearCloseTimer]);
+
+  const requestCurrentCredentials = useCallback(() => {
+    if (!connected) {
+      return null;
+    }
+
+    const requestId = createRequestId("wifi-credentials-current");
+
+    send("device.command", {
+      requestId,
+      target: "esp",
+      command: WIFI_CREDENTIALS_CURRENT_COMMAND,
+      params: {},
+    });
+
+    return requestId;
+  }, [connected, send]);
 
   const submitCredentials = useCallback(
     (ssid: string, password: string) => {
@@ -140,29 +176,37 @@ export function WifiCredentialsProvider({
     return true;
   }, [dismiss, send, state.ssid]);
 
+  const applyPendingCredentials = useCallback(
+    (message: unknown) => {
+      const data = getDeviceEventData(message);
+      const pending = normalizePendingCredentials(data, message);
+
+      if (!pending.ssid) {
+        console.warn("[wifi-credentials] solicitud sin SSID", message);
+        return;
+      }
+
+      clearCloseTimer();
+      setState({
+        status: "requested",
+        ssid: pending.ssid,
+        error: null,
+        reason: pending.reason,
+        ip: null,
+        timeoutMs: pending.timeoutMs,
+        requestId: pending.requestId,
+      });
+    },
+    [clearCloseTimer],
+  );
+
   useEffect(() => {
     const offDeviceEvent = subscribe("device.event", (message: unknown) => {
       const eventName = getDeviceEventName(message);
       const data = getDeviceEventData(message);
 
       if (eventName === WIFI_CREDENTIALS_REQUESTED_EVENT) {
-        const ssid = readString(data.ssid) ?? readString(message, "ssid");
-
-        if (!ssid) {
-          console.warn("[wifi-credentials] solicitud sin SSID", message);
-          return;
-        }
-
-        clearCloseTimer();
-        setState({
-          status: "requested",
-          ssid,
-          error: null,
-          reason: null,
-          ip: null,
-          timeoutMs: null,
-          requestId: null,
-        });
+        applyPendingCredentials(message);
         return;
       }
 
@@ -207,7 +251,8 @@ export function WifiCredentialsProvider({
 
       if (
         !WIFI_CREDENTIALS_SUBMIT_COMMANDS.has(command ?? "") &&
-        !WIFI_CREDENTIALS_CANCEL_COMMANDS.has(command ?? "")
+        !WIFI_CREDENTIALS_CANCEL_COMMANDS.has(command ?? "") &&
+        !WIFI_CREDENTIALS_CURRENT_COMMANDS.has(command ?? "")
       ) {
         return;
       }
@@ -215,6 +260,37 @@ export function WifiCredentialsProvider({
       const ok = getResponseOk(message);
       const data = getResponseData(message);
       const responseSsid = readString(data.ssid);
+
+      if (WIFI_CREDENTIALS_CURRENT_COMMANDS.has(command ?? "")) {
+        const pending = normalizePendingCredentials(data, message);
+
+        if (!ok && !pending.pending) {
+          return;
+        }
+
+        if (!pending.pending) {
+          setState((current) =>
+            current.status === "idle" ? current : INITIAL_STATE,
+          );
+          return;
+        }
+
+        if (!pending.ssid) {
+          return;
+        }
+
+        clearCloseTimer();
+        setState({
+          status: "requested",
+          ssid: pending.ssid,
+          error: null,
+          reason: pending.reason,
+          ip: null,
+          timeoutMs: pending.timeoutMs,
+          requestId: pending.requestId,
+        });
+        return;
+      }
 
       setState((current) => {
         if (!current.ssid) {
@@ -271,7 +347,46 @@ export function WifiCredentialsProvider({
       offDeviceEvent();
       offDeviceResponse();
     };
-  }, [clearCloseTimer, subscribe]);
+  }, [applyPendingCredentials, clearCloseTimer, subscribe]);
+
+  useEffect(() => {
+    const offRequested = subscribe(
+      WIFI_CREDENTIALS_REQUESTED_EVENT,
+      applyPendingCredentials,
+    );
+    const offCurrent = subscribe("wifi.credentials.current", (message: unknown) => {
+      const data = getDeviceEventData(message);
+      const pending = normalizePendingCredentials(data, message);
+
+      if (pending.pending && pending.ssid) {
+        applyPendingCredentials(message);
+        return;
+      }
+
+      setState((current) =>
+        current.status === "idle" ? current : INITIAL_STATE,
+      );
+    });
+
+    return () => {
+      offRequested();
+      offCurrent();
+    };
+  }, [applyPendingCredentials, subscribe]);
+
+  useEffect(() => {
+    if (!connected) {
+      initialCredentialsSyncDoneRef.current = false;
+      return;
+    }
+
+    if (initialCredentialsSyncDoneRef.current) {
+      return;
+    }
+
+    initialCredentialsSyncDoneRef.current = true;
+    requestCurrentCredentials();
+  }, [connected, requestCurrentCredentials]);
 
   useEffect(() => {
     if (state.status === "cancelled") {
@@ -286,7 +401,12 @@ export function WifiCredentialsProvider({
   }, [clearCloseTimer]);
 
   return (
-    <>
+    <WifiCredentialsContext.Provider
+      value={{
+        state,
+        requestCurrentCredentials,
+      }}
+    >
       {children}
       <WifiCredentialsModal
         isOpen={state.status !== "idle"}
@@ -299,8 +419,20 @@ export function WifiCredentialsProvider({
         onCancel={cancelCredentials}
         onDismiss={dismiss}
       />
-    </>
+    </WifiCredentialsContext.Provider>
   );
+}
+
+export function useWifiCredentials() {
+  const context = useContext(WifiCredentialsContext);
+
+  if (!context) {
+    throw new Error(
+      "useWifiCredentials debe usarse dentro de WifiCredentialsProvider",
+    );
+  }
+
+  return context;
 }
 
 function validateSubmit(
@@ -412,6 +544,43 @@ function getResponseErrorCode(message: unknown) {
   );
 }
 
+function normalizePendingCredentials(
+  data: Record<string, unknown>,
+  fallback?: unknown,
+) {
+  const fallbackRecord = toRecord(fallback);
+  const pendingValue =
+    data.pending ??
+    data.hasPendingRequest ??
+    data.has_pending_request ??
+    fallbackRecord?.pending ??
+    fallbackRecord?.hasPendingRequest;
+  const ssid =
+    readString(data.ssid) ??
+    readString(data.stationSsid) ??
+    readString(data.staSsid) ??
+    readString(fallbackRecord?.ssid);
+
+  return {
+    pending: readBoolean(pendingValue) ?? Boolean(ssid),
+    ssid: ssid ?? null,
+    reason:
+      readString(data.reason) ??
+      readString(data.requestReason) ??
+      readString(fallbackRecord?.reason) ??
+      null,
+    timeoutMs:
+      readNumber(data.timeoutMs) ??
+      readNumber(data.timeout_ms) ??
+      readNumber(fallbackRecord?.timeoutMs) ??
+      null,
+    requestId:
+      readString(data.requestId) ??
+      readString(fallbackRecord?.requestId) ??
+      null,
+  };
+}
+
 function responseErrorToMessage(code = "ERR_INTERNAL") {
   if (code === "ERR_NO_PENDING_REQUEST") {
     return "El ESP no tiene una solicitud WiFi pendiente.";
@@ -467,9 +636,16 @@ function createRequestId(prefix: string) {
 }
 
 function readNumber(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value)
-    ? Math.trunc(value)
-    : undefined;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.trunc(value);
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Math.trunc(parsed) : undefined;
+  }
+
+  return undefined;
 }
 
 function readString(value: unknown, key?: string): string | undefined {
@@ -481,6 +657,42 @@ function readString(value: unknown, key?: string): string | undefined {
 
 function toRecord(value: unknown): Record<string, unknown> | undefined {
   return isRecord(value) ? value : undefined;
+}
+
+function readBoolean(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value !== 0;
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    const normalized = value.trim().toLowerCase();
+
+    if (
+      normalized === "true" ||
+      normalized === "1" ||
+      normalized === "yes" ||
+      normalized === "si" ||
+      normalized === "pending"
+    ) {
+      return true;
+    }
+
+    if (
+      normalized === "false" ||
+      normalized === "0" ||
+      normalized === "no" ||
+      normalized === "idle" ||
+      normalized === "none"
+    ) {
+      return false;
+    }
+  }
+
+  return undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

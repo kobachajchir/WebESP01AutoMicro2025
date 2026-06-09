@@ -8,6 +8,7 @@ import { UNERProtocolProvider } from './contexts/UNERProtocolContext.tsx';
 import { ScreenProvider } from './contexts/ScreenContext.tsx';
 import { ScreenStreamModalProvider } from "./contexts/ScreenStreamModalContext.tsx";
 import { CarModeProvider } from "./contexts/CarModeContext.tsx";
+import { SavedOledScreensProvider } from "./contexts/SavedOledScreensContext.tsx";
 import { WifiCredentialsProvider } from "./contexts/WifiCredentialsContext.tsx";
 
 const wsUrl =
@@ -24,9 +25,11 @@ createRoot(document.getElementById("root")!).render(
           <UserProvider>
             <CarModeProvider>
               <ScreenProvider>
-                <ScreenStreamModalProvider>
-                  <App />
-                </ScreenStreamModalProvider>
+                <SavedOledScreensProvider>
+                  <ScreenStreamModalProvider>
+                    <App />
+                  </ScreenStreamModalProvider>
+                </SavedOledScreensProvider>
               </ScreenProvider>
             </CarModeProvider>
           </UserProvider>

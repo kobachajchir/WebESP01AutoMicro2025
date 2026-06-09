@@ -19,6 +19,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/wifi": "Wifi",
   "/statics": "MPU + IR",
   "/protocol": "UNER Studio",
+  "/docs": "Docs",
+  "/oled-editor": "Editor OLED",
   "/bluetooth": "Bluetooth",
   "/home": "Dashboard",
   "/settings": "Configuración",
@@ -37,6 +39,8 @@ export default function PageHeader({
   const navigate = useNavigate();
   const { logout, devMode } = useUser();
   const { open: openScreenStreamModal } = useScreenStreamModal();
+  const inProtocol = location.pathname.startsWith("/protocol");
+  const inDocs = location.pathname.startsWith("/docs");
 
   const toolbarButtonClass =
     "toolbar-btn group flex items-center justify-center gap-2 py-2 px-3 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40";
@@ -71,6 +75,9 @@ export default function PageHeader({
     const path = location.pathname;
     if (titleOverride.length > 0) {
       return titleOverride;
+    }
+    if (path.startsWith("/docs")) {
+      return PAGE_TITLES["/docs"];
     }
     return PAGE_TITLES[path] || "Aplicación";
   };
@@ -138,7 +145,31 @@ export default function PageHeader({
           </svg>
         </button>
 
-        {!location.pathname.includes("protocol") && devMode && (
+        {(inProtocol || inDocs) && (
+          <button
+            aria-label="Ir a Docs"
+            className={toolbarButtonClass}
+            onMouseEnter={() => setHoveredHeaderBtn("docs")}
+            onMouseLeave={() => setHoveredHeaderBtn(null)}
+            onClick={() => navigate("/docs", { viewTransition: true })}
+            style={getToolbarButtonStyle("docs")}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+              className="size-6 transition-transform duration-300 group-hover:scale-110"
+            >
+              <path
+                fillRule="evenodd"
+                d="M6.75 3A3.75 3.75 0 0 0 3 6.75v10.5A3.75 3.75 0 0 0 6.75 21h10.5A3.75 3.75 0 0 0 21 17.25V8.56a2.25 2.25 0 0 0-.659-1.591l-3.31-3.31A2.25 2.25 0 0 0 15.44 3H6.75Zm7.5 1.72c.447 0 .876.178 1.193.494l2.343 2.343a.375.375 0 0 1-.265.64H14.25a.75.75 0 0 1-.75-.75V4.72h.75Z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </button>
+        )}
+
+        {(!inProtocol && (devMode || inDocs)) && (
           <button
             aria-label="Ir a UNER Studio"
             className={toolbarButtonClass}

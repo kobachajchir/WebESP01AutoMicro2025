@@ -7,21 +7,27 @@ export const UNER_V2 = {
 
 export const UNER_V2_NODE = {
   MCU: 0x01,
-  ESP_PC: 0x02,
+  PC_QT: 0x02,
   WEB_APP: 0x03,
   NRF_REMOTE: 0x04,
   BROADCAST: 0x0f,
 } as const;
 
 export const UNER_V2_CMD = {
+  START_SCAN: 0x14,
+  GET_SCAN_RESULTS: 0x15,
   REBOOT_ESP: 0x16,
+  STOP_SCAN: 0x18,
   RESET_MCU: 0x19,
-  TELEMETRY_SET_RATE: 0x20,
-  TELEMETRY_ACK: 0x21,
-  TELEMETRY_DATA: 0x22,
+  WIFI_GET_DETAIL: 0x1a,
+  AUTH_PIN_GRANTED: 0x59,
   GET_CAR_MODE: 0x5b,
+  GET_MPU_SNAPSHOT: 0x60,
+  SET_MPU_STREAM: 0x61,
+  STOP_MPU_STREAM: 0x62,
+  EVT_APP_GET_MPU_READINGS: 0x90,
+  EVT_SCREEN_CHANGED: 0x95,
   EVT_MENU_SELECTION_CHANGED: 0x96,
-  EVT_SCREEN_CHANGED: 0x96,
   EVT_CAR_MODE_CHANGED: 0x97,
 } as const;
 
@@ -59,7 +65,7 @@ export interface UnerV2StreamParser {
 export function buildUnerV2Frame({
   cmd,
   payload = [],
-  source = UNER_V2_NODE.ESP_PC,
+  source = UNER_V2_NODE.WEB_APP,
   destination = UNER_V2_NODE.MCU,
 }: UnerV2FrameOptions): Uint8Array {
   const payloadBytes = Array.from(payload, (byte) => byte & 0xff);
@@ -100,13 +106,28 @@ export function buildGetCarModeFrame(): Uint8Array {
   return buildUnerV2Frame({ cmd: UNER_V2_CMD.GET_CAR_MODE });
 }
 
-export function buildTelemetrySetRateFrame(periodMs: number): Uint8Array {
+export function buildSetMpuStreamFrame(periodMs: number): Uint8Array {
   const normalizedPeriod = Math.max(0, Math.min(0xffff, Math.round(periodMs)));
-  const payload = [normalizedPeriod & 0xff, (normalizedPeriod >> 8) & 0xff];
+  const payload = [
+    0x01,
+    normalizedPeriod & 0xff,
+    (normalizedPeriod >> 8) & 0xff,
+  ];
 
   return buildUnerV2Frame({
-    cmd: UNER_V2_CMD.TELEMETRY_SET_RATE,
+    cmd: UNER_V2_CMD.SET_MPU_STREAM,
     payload,
+  });
+}
+
+export function buildStopMpuStreamFrame(): Uint8Array {
+  return buildUnerV2Frame({ cmd: UNER_V2_CMD.STOP_MPU_STREAM });
+}
+
+export function buildDisableMpuStreamFrame(): Uint8Array {
+  return buildUnerV2Frame({
+    cmd: UNER_V2_CMD.SET_MPU_STREAM,
+    payload: [0x00],
   });
 }
 

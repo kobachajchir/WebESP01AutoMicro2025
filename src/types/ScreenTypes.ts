@@ -41,6 +41,10 @@ export const SCREEN_META_BY_CODE: Record<number, ScreenMeta> = {
   0x020206: screenMeta("WiFi conectado", 0x020206, SCREEN_SOURCES.NOTIFICATION, [0x06, 0x02, 0x02, 0x00, 0x03]),
   0x020207: screenMeta("Busqueda WiFi completada", 0x020207, SCREEN_SOURCES.NOTIFICATION, [0x07, 0x02, 0x02, 0x00, 0x03]),
   0x020208: screenMeta("Busqueda WiFi cancelada", 0x020208, SCREEN_SOURCES.NOTIFICATION, [0x08, 0x02, 0x02, 0x00, 0x03]),
+  0x020209: screenMeta("Detalle de red WiFi", 0x020209, SCREEN_SOURCES.RENDER, [0x09, 0x02, 0x02, 0x00, 0x02]),
+  0x02020a: screenMeta("Credenciales WiFi desde Web", 0x02020a, SCREEN_SOURCES.NOTIFICATION, [0x0a, 0x02, 0x02, 0x00, 0x03]),
+  0x02020b: screenMeta("Credenciales WiFi aceptadas", 0x02020b, SCREEN_SOURCES.NOTIFICATION, [0x0b, 0x02, 0x02, 0x00, 0x03]),
+  0x02020c: screenMeta("Credenciales WiFi fallidas", 0x02020c, SCREEN_SOURCES.NOTIFICATION, [0x0c, 0x02, 0x02, 0x00, 0x03]),
 
   0x020301: screenMeta("Menu Enlace ESP", 0x020301, SCREEN_SOURCES.MENU, [0x01, 0x03, 0x02, 0x00, 0x01]),
   0x020302: screenMeta("Chequeando conexion ESP", 0x020302, SCREEN_SOURCES.NOTIFICATION, [0x02, 0x03, 0x02, 0x00, 0x03]),
@@ -51,6 +55,7 @@ export const SCREEN_META_BY_CODE: Record<number, ScreenMeta> = {
   0x020307: screenMeta("Firmware ESP recibido", 0x020307, SCREEN_SOURCES.NOTIFICATION, [0x07, 0x03, 0x02, 0x00, 0x03]),
   0x020308: screenMeta("Modo ESP actualizado", 0x020308, SCREEN_SOURCES.NOTIFICATION, [0x08, 0x03, 0x02, 0x00, 0x03]),
   0x020309: screenMeta("AP iniciado", 0x020309, SCREEN_SOURCES.NOTIFICATION, [0x09, 0x03, 0x02, 0x00, 0x03]),
+  0x02030a: screenMeta("Seleccion modo reboot ESP", 0x02030a, SCREEN_SOURCES.RENDER, [0x0a, 0x03, 0x02, 0x00, 0x02]),
 
   0x020401: screenMeta("USB conectado", 0x020401, SCREEN_SOURCES.NOTIFICATION, [0x01, 0x04, 0x02, 0x00, 0x03]),
   0x020402: screenMeta("USB desconectado", 0x020402, SCREEN_SOURCES.NOTIFICATION, [0x02, 0x04, 0x02, 0x00, 0x03]),
@@ -61,6 +66,8 @@ export const SCREEN_META_BY_CODE: Record<number, ScreenMeta> = {
   0x030101: screenMeta("Menu Sensores", 0x030101, SCREEN_SOURCES.MENU, [0x01, 0x01, 0x03, 0x00, 0x01]),
   0x030201: screenMeta("Valores IR", 0x030201, SCREEN_SOURCES.RENDER, [0x01, 0x02, 0x03, 0x00, 0x02]),
   0x030301: screenMeta("Valores MPU", 0x030301, SCREEN_SOURCES.RENDER, [0x01, 0x03, 0x03, 0x00, 0x02]),
+  0x030302: screenMeta("MPU stream iniciado", 0x030302, SCREEN_SOURCES.NOTIFICATION, [0x02, 0x03, 0x03, 0x00, 0x03]),
+  0x030303: screenMeta("MPU stream detenido", 0x030303, SCREEN_SOURCES.NOTIFICATION, [0x03, 0x03, 0x03, 0x00, 0x03]),
   0x030401: screenMeta("Radar", 0x030401, SCREEN_SOURCES.RENDER, [0x01, 0x04, 0x03, 0x00, 0x02]),
 
   0x040101: screenMeta("Test de motores", 0x040101, SCREEN_SOURCES.RENDER, [0x01, 0x01, 0x04, 0x00, 0x02]),
@@ -148,7 +155,8 @@ export function normalizeScreenReport(data: unknown): ScreenReport | null {
     readUint32(data.screenCode) ??
     readUint32(data.screen_code) ??
     readUint32(data.screenCodeHex) ??
-    readScreenCodeFromPayload(payload);
+    readScreenCodeFromPayload(payload) ??
+    readScreenCodeFromParts(data);
 
   if (screenCode === null) {
     return null;
@@ -228,6 +236,18 @@ function readPayloadSource(payload: number[] | undefined): number | undefined {
   }
 
   return payload.length >= 5 ? payload[4] : undefined;
+}
+
+function readScreenCodeFromParts(data: Record<string, unknown>): number | null {
+  const menu = readByte(data.menu);
+  const submenu = readByte(data.submenu);
+  const page = readByte(data.page);
+
+  if (menu === undefined || submenu === undefined || page === undefined) {
+    return null;
+  }
+
+  return ((menu << 16) | (submenu << 8) | page) >>> 0;
 }
 
 function readNumberArray(value: unknown): number[] | undefined {

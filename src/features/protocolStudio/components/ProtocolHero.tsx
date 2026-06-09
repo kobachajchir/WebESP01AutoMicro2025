@@ -13,11 +13,8 @@ export function ProtocolHero({ activeSection, onSectionChange }: ProtocolHeroPro
           </div>
           <div className="space-y-2">
             <h2 className="text-2xl font-black uppercase tracking-tight text-white md:text-4xl">
-              Creador y analizador del protocolo
+              Creador / analizador del protocolo
             </h2>
-            <p className="max-w-3xl text-sm leading-6 text-slate-300 md:text-base">
-              Alterna entre la creacion del comando y el traductor con escaneo de bloques. Puedes construir un frame, copiarlo o enviarlo a validar sin salir de la seccion.
-            </p>
           </div>
         </div>
 

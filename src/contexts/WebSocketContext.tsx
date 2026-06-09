@@ -85,7 +85,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
   });
   const [lastHeartbeatAt, setLastHeartbeatAt] = useState<number | null>(null);
 
-  const [sensorRefreshInterval, setSensorRefreshInterval] = useState<number>(500);
+  const [sensorRefreshInterval, setSensorRefreshInterval] = useState<number>(8);
 
   const jsonListeners = useRef(new Map<string, Set<WSMessageHandler>>());
   const rawListeners = useRef(new Set<WSRawHandler>());

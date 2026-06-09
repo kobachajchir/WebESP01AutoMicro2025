@@ -1,6 +1,5 @@
 import { useId, type ReactNode } from "react";
 import {
-  FONT_HEIGHT,
   FONT_WIDTH,
   SSD1306Color,
   SSD1306_HEIGHT,
@@ -9,6 +8,7 @@ import {
   type OledFont,
 } from "../screens";
 import { getOledBitmapAsset } from "../screens/bitmapAssets";
+import OledBitmapText from "./OledBitmapText";
 
 interface OledCommandPreviewProps {
   commands: OledCommand[];
@@ -95,12 +95,12 @@ function renderCommands(commands: OledCommand[]): ReactNode[] {
         break;
       case "drawText":
         elements.push(textNode(command.text, command.font, state, key++));
-        state.cursorX += command.text.length * FONT_WIDTH[command.font];
+        state.cursorX += Array.from(command.text).length * FONT_WIDTH[command.font];
         break;
       case "drawTextMax": {
         const text = command.text.slice(0, command.maxChars);
         elements.push(textNode(text, command.font, state, key++));
-        state.cursorX += text.length * FONT_WIDTH[command.font];
+        state.cursorX += Array.from(text).length * FONT_WIDTH[command.font];
         break;
       }
       case "drawPixel":
@@ -230,21 +230,15 @@ function renderCommands(commands: OledCommand[]): ReactNode[] {
 }
 
 function textNode(text: string, font: OledFont, state: RenderState, key: number) {
-  const fontSize = font === "Font11x18" ? 17 : 9;
-
   return (
-    <text
+    <OledBitmapText
       key={key}
       x={state.cursorX}
-      y={state.cursorY + FONT_HEIGHT[font] - 1}
+      y={state.cursorY}
+      text={text}
+      font={font}
       fill={paint(state)}
-      fontFamily="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
-      fontSize={fontSize}
-      fontWeight={700}
-      letterSpacing={0}
-    >
-      {text}
-    </text>
+    />
   );
 }
 

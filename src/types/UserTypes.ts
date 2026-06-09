@@ -6,6 +6,9 @@ export interface User {
 
 export interface UserContextType {
   user: User | null;
+  loading?: boolean;
+  remotePinAuthenticated?: boolean;
   login: (pin: string) => Promise<boolean>;
+  validatePin?: (pin: string) => Promise<boolean>;
   logout: () => void;
 }

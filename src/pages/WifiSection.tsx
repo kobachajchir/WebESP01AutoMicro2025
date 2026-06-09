@@ -55,6 +55,9 @@ export default function WifiSection() {
   const [availableNetworks, setAvailableNetworks] = useState<WifiNetworkDetail[]>(
     [],
   );
+  const [reportedNetworkCount, setReportedNetworkCount] = useState<number | null>(
+    null,
+  );
   const [selectedNetwork, setSelectedNetwork] = useState<WifiNetworkDetail | null>(
     null,
   );
@@ -74,7 +77,14 @@ export default function WifiSection() {
   const [openSettingsModal, setOpenSettingsModal] = useState(false);
 
   const pendingStationSsidRef = useRef<string | null>(null);
-  const pendingDetailSsidRef = useRef<string | null>(null);
+  const pendingDetailNetworkRef = useRef<{
+    key: string;
+    ssid: string;
+    bssid?: string;
+  } | null>(null);
+  const stationSsidInputRef = useRef<HTMLInputElement | null>(null);
+  const scanRequestInFlightRef = useRef(false);
+  const autoScanRequestedRef = useRef(false);
 
   const requestScan = useCallback(() => {
     if (!connected) {
@@ -85,34 +95,50 @@ export default function WifiSection() {
       return;
     }
 
+    if (scanRequestInFlightRef.current) {
+      console.log("[WiFi scan] pedido ignorado: ya hay un escaneo pendiente.");
+      return;
+    }
+
+    scanRequestInFlightRef.current = true;
     setScanLoading(true);
     setStationFeedback({
       tone: "info",
       text: "Solicitando al ESP el listado de redes detectadas...",
     });
 
-    send("device.command", {
+    const scanRequest = {
       requestId: createRequestId("wifi-scan"),
       target: "esp",
       command: WIFI_SCAN_START_COMMAND,
       params: {},
-    });
+    };
+
+    console.log("[WiFi scan] pidiendo redes:", scanRequest);
+    send("device.command", scanRequest);
   }, [connected, send]);
 
   const requestNetworkDetail = useCallback(
-    (ssid: string) => {
-      if (!connected || !ssid) {
+    (network: WifiNetworkDetail) => {
+      if (!connected) {
         return;
       }
 
-      pendingDetailSsidRef.current = ssid;
+      pendingDetailNetworkRef.current = {
+        key: getWifiNetworkKey(network),
+        ssid: network.ssid,
+        bssid: network.bssid,
+      };
       setDetailLoading(true);
 
       send("device.command", {
         requestId: createRequestId("wifi-detail"),
         target: "esp",
         command: WIFI_NETWORK_DETAIL_COMMAND,
-        params: { ssid },
+        params: {
+          ssid: network.ssid,
+          ...(network.bssid ? { bssid: network.bssid } : {}),
+        },
       });
     },
     [connected, send],
@@ -120,6 +146,7 @@ export default function WifiSection() {
 
   const handleNetworkPick = useCallback(
     (network: WifiNetworkDetail) => {
+      const label = getWifiNetworkLabel(network);
       setSelectedNetwork(network);
       setStationSsid(network.ssid);
       setStationPassword((current) =>
@@ -129,7 +156,14 @@ export default function WifiSection() {
         tone: "info",
         text: `Red seleccionada: ${network.ssid}. Completá la clave para conectar el ESP.`,
       });
-      requestNetworkDetail(network.ssid);
+      setStationFeedback({
+        tone: "info",
+        text: `Red seleccionada: ${label}. Completa la clave para conectar el ESP.`,
+      });
+      window.requestAnimationFrame(() => {
+        stationSsidInputRef.current?.focus();
+      });
+      requestNetworkDetail(network);
     },
     [requestNetworkDetail, stationSsid],
   );
@@ -173,10 +207,13 @@ export default function WifiSection() {
         params: {
           ssid: stationSsid,
           password: stationPassword,
+          ...(selectedNetwork?.bssid && selectedNetwork.ssid === stationSsid
+            ? { bssid: selectedNetwork.bssid }
+            : {}),
         },
       });
     },
-    [connected, send, stationPassword, stationSsid],
+    [connected, selectedNetwork, send, stationPassword, stationSsid],
   );
 
   const submitApCredentials = useCallback(
@@ -222,13 +259,19 @@ export default function WifiSection() {
 
   useEffect(() => {
     if (!connected) {
+      scanRequestInFlightRef.current = false;
+      autoScanRequestedRef.current = false;
       setScanLoading(false);
       setDetailLoading(false);
       setStationPhase("idle");
+      setReportedNetworkCount(null);
       return;
     }
 
-    requestScan();
+    if (!autoScanRequestedRef.current) {
+      autoScanRequestedRef.current = true;
+      requestScan();
+    }
   }, [connected, requestScan]);
 
   useEffect(() => {
@@ -237,23 +280,25 @@ export default function WifiSection() {
       const data = getDeviceEventData(message);
 
       if (eventName === WIFI_SCAN_RESULTS_EVENT) {
-        const networks = readWifiNetworks(data.networks ?? data.items ?? data);
-        setAvailableNetworks(networks);
+        const scanResult = readWifiScanResult(message);
+        logWifiScanArrival("device.event", message, data, scanResult);
+        scanRequestInFlightRef.current = false;
+        setAvailableNetworks(scanResult.networks);
+        setReportedNetworkCount(scanResult.reportedCount);
         setScanLoading(false);
         setStationFeedback({
           tone: "success",
-          text:
-            networks.length > 0
-              ? `Se recibieron ${networks.length} redes desde el ESP.`
-              : "El escaneo termino sin redes visibles.",
+          text: formatScanResultsFeedback(scanResult),
         });
         return;
       }
 
       if (eventName === WIFI_NETWORK_DETAIL_EVENT) {
+        const pendingDetail = pendingDetailNetworkRef.current;
         const detail = normalizeWifiNetwork(
           data.network ?? data.detail ?? data,
-          pendingDetailSsidRef.current,
+          pendingDetail?.ssid,
+          pendingDetail?.bssid,
         );
 
         if (!detail) {
@@ -261,17 +306,20 @@ export default function WifiSection() {
         }
 
         if (
-          pendingDetailSsidRef.current &&
-          detail.ssid !== pendingDetailSsidRef.current
+          pendingDetail &&
+          getWifiNetworkKey(detail) !== pendingDetail.key
         ) {
           return;
         }
 
-        pendingDetailSsidRef.current = null;
+        pendingDetailNetworkRef.current = null;
         setDetailLoading(false);
         setSelectedNetwork(detail);
+        const detailKey = getWifiNetworkKey(detail);
         setAvailableNetworks((current) =>
-          current.map((item) => (item.ssid === detail.ssid ? detail : item)),
+          current.map((item) =>
+            getWifiNetworkKey(item) === detailKey ? detail : item,
+          ),
         );
         return;
       }
@@ -309,7 +357,14 @@ export default function WifiSection() {
       const data = getResponseData(message);
 
       if (command === WIFI_SCAN_START_COMMAND) {
+        console.log("[WiFi scan] respuesta recibida:", {
+          ok,
+          message,
+          data,
+        });
+
         if (!ok) {
+          scanRequestInFlightRef.current = false;
           setScanLoading(false);
           setStationFeedback({
             tone: "error",
@@ -318,13 +373,16 @@ export default function WifiSection() {
           return;
         }
 
-        const networks = readWifiNetworks(data.networks ?? data.items);
-        if (networks.length > 0) {
-          setAvailableNetworks(networks);
+        const scanResult = readWifiScanResult(message);
+        logWifiScanArrival("device.response", message, data, scanResult);
+        if (scanResult.hasExplicitList) {
+          scanRequestInFlightRef.current = false;
+          setAvailableNetworks(scanResult.networks);
+          setReportedNetworkCount(scanResult.reportedCount);
           setScanLoading(false);
           setStationFeedback({
             tone: "success",
-            text: `Se recibieron ${networks.length} redes desde el ESP.`,
+            text: formatScanResultsFeedback(scanResult),
           });
         }
         return;
@@ -341,16 +399,21 @@ export default function WifiSection() {
           return;
         }
 
+        const pendingDetail = pendingDetailNetworkRef.current;
         const detail = normalizeWifiNetwork(
           data.network ?? data.detail ?? data,
-          pendingDetailSsidRef.current,
+          pendingDetail?.ssid,
+          pendingDetail?.bssid,
         );
 
         if (detail) {
-          pendingDetailSsidRef.current = null;
+          pendingDetailNetworkRef.current = null;
           setSelectedNetwork(detail);
+          const detailKey = getWifiNetworkKey(detail);
           setAvailableNetworks((current) =>
-            current.map((item) => (item.ssid === detail.ssid ? detail : item)),
+            current.map((item) =>
+              getWifiNetworkKey(item) === detailKey ? detail : item,
+            ),
           );
         }
         return;
@@ -392,7 +455,7 @@ export default function WifiSection() {
         setApFeedback({
           tone: "success",
           text:
-            readString(data.message) ??
+            getResponseMessage(message) ??
             `Credenciales AP guardadas para ${apSsid}.`,
         });
       }
@@ -473,6 +536,7 @@ export default function WifiSection() {
                     <label className="flex flex-col gap-2 text-sm font-semibold text-slate-200">
                       SSID
                       <input
+                        ref={stationSsidInputRef}
                         className="app-input px-3 py-2 text-sm"
                         value={stationSsid}
                         maxLength={32}
@@ -557,9 +621,10 @@ export default function WifiSection() {
                         Redes detectadas
                       </p>
                       <p className="text-sm text-slate-400">
-                        {availableNetworks.length > 0
-                          ? `${availableNetworks.length} red(es) disponibles.`
-                          : "Todavia no llegaron resultados desde el ESP."}
+                        {formatAvailableNetworksSummary(
+                          availableNetworks.length,
+                          reportedNetworkCount,
+                        )}
                       </p>
                     </div>
 
@@ -575,10 +640,15 @@ export default function WifiSection() {
 
                   <ul className="flex max-h-[420px] flex-col gap-2 overflow-auto pr-1">
                     {availableNetworks.map((network) => {
-                      const selected = selectedNetwork?.ssid === network.ssid;
+                      const key = getWifiNetworkKey(network);
+                      const selected =
+                        selectedNetwork !== null &&
+                        getWifiNetworkKey(selectedNetwork) === key;
+                      const label = getWifiNetworkLabel(network);
+                      const detail = getWifiNetworkDetailText(network);
 
                       return (
-                        <li key={network.ssid}>
+                        <li key={key}>
                           <button
                             type="button"
                             className="w-full rounded-md border px-4 py-3 text-left transition-all duration-200"
@@ -588,9 +658,12 @@ export default function WifiSection() {
                             <div className="flex items-start justify-between gap-3">
                               <div>
                                 <p className="font-semibold text-white">
-                                  {network.ssid}
+                                  {label}
                                 </p>
                                 <p className="mt-1 text-xs text-slate-400">
+                                  {detail}
+                                </p>
+                                <p className="hidden">
                                   {network.signalStrength !== null
                                     ? `${network.signalStrength} dBm`
                                     : "senal sin dato"}{" "}
@@ -612,9 +685,19 @@ export default function WifiSection() {
 
                     {availableNetworks.length === 0 ? (
                       <li className="rounded-md border border-white/10 px-4 py-6 text-center text-sm text-slate-400">
-                        {scanLoading
-                          ? "Esperando respuesta del escaneo..."
-                          : "No hay redes en memoria todavia. Usa Actualizar redes para pedir un nuevo barrido al ESP."}
+                        {scanLoading ? (
+                          <div className="flex flex-col items-center justify-center gap-3 text-cyan-100">
+                            <span
+                              className="h-9 w-9 animate-spin rounded-full border-2 border-cyan-300/25 border-t-cyan-200"
+                              aria-hidden="true"
+                            />
+                            <span className="font-semibold">
+                              Adquiriendo redes
+                            </span>
+                          </div>
+                        ) : (
+                          "No hay redes en memoria todavia. Usa Actualizar redes para pedir un nuevo barrido al ESP."
+                        )}
                       </li>
                     ) : null}
                   </ul>
@@ -864,54 +947,234 @@ function readWifiCredentialsStatus(
 }
 
 function readWifiNetworks(value: unknown): WifiNetworkDetail[] {
+  const bytePayload = readByteArray(value);
+  if (bytePayload) {
+    return readWifiNetworksFromBytes(bytePayload);
+  }
+
   if (!Array.isArray(value)) {
     return [];
   }
 
   return value
-    .map((item) => normalizeWifiNetwork(item))
+    .map((item, index) => normalizeWifiNetwork(item, undefined, undefined, index))
     .filter((item): item is WifiNetworkDetail => item !== null);
+}
+
+interface WifiScanResult {
+  networks: WifiNetworkDetail[];
+  reportedCount: number | null;
+  hasExplicitList: boolean;
+}
+
+function readWifiScanResult(value: unknown): WifiScanResult {
+  const record = toRecord(value);
+  const payload = toRecord(record?.payload);
+  const rawPayloadData = payload?.data;
+  const rawData = record?.data;
+  const payloadData = toRecord(payload?.data);
+  const data = toRecord(record?.data);
+  const networksValue =
+    payloadData?.networks ??
+    payloadData?.networkSsids ??
+    payloadData?.ssids ??
+    data?.networks ??
+    data?.networkSsids ??
+    data?.ssids ??
+    record?.networks ??
+    record?.networkSsids ??
+    record?.ssids ??
+    record?.items ??
+    rawPayloadData ??
+    rawData ??
+    value;
+  const countSource = payloadData ?? data ?? record;
+  const hasExplicitList =
+    Array.isArray(networksValue) ||
+    Array.isArray(record?.networks) ||
+    Array.isArray(record?.networkSsids) ||
+    Array.isArray(record?.ssids) ||
+    Array.isArray(record?.items);
+  const networks = readWifiNetworks(networksValue);
+  const reportedCount = readReportedNetworkCount(countSource, networks.length);
+
+  return {
+    networks,
+    reportedCount,
+    hasExplicitList,
+  };
+}
+
+function logWifiScanArrival(
+  source: "device.event" | "device.response",
+  message: unknown,
+  data: unknown,
+  scanResult: WifiScanResult,
+) {
+  const label = scanResult.hasExplicitList
+    ? "[WiFi scan] llegaron redes:"
+    : "[WiFi scan] ACK sin lista, esperando wifi.scan.results:";
+
+  console.log(label, {
+    source,
+    message,
+    data,
+    scanResult,
+    networks: scanResult.networks,
+  });
+}
+
+function readReportedNetworkCount(
+  value: Record<string, unknown> | undefined,
+  visibleCount: number,
+) {
+  const count =
+    readNumber(value?.count) ??
+    readNumber(value?.total) ??
+    readNumber(value?.totalCount) ??
+    readNumber(value?.networkCount) ??
+    readNumber(value?.networksCount);
+
+  if (count === undefined) {
+    return visibleCount > 0 ? visibleCount : null;
+  }
+
+  return Math.max(count, visibleCount);
+}
+
+function formatScanResultsFeedback(scanResult: WifiScanResult) {
+  const visibleCount = scanResult.networks.length;
+  const reportedCount = scanResult.reportedCount;
+
+  if (visibleCount === 0) {
+    return "El escaneo termino sin redes visibles.";
+  }
+
+  if (reportedCount !== null && reportedCount > visibleCount) {
+    return `El ESP detecto ${reportedCount} redes, pero esta tanda trae ${visibleCount}. La lista puede estar truncada por el cache del firmware.`;
+  }
+
+  return `Se recibieron ${visibleCount} redes desde el ESP.`;
+}
+
+function formatAvailableNetworksSummary(
+  visibleCount: number,
+  reportedCount: number | null,
+) {
+  if (visibleCount === 0) {
+    return "Todavia no llegaron resultados desde el ESP.";
+  }
+
+  if (reportedCount !== null && reportedCount > visibleCount) {
+    return `${visibleCount} red(es) visibles de ${reportedCount} detectadas.`;
+  }
+
+  return `${visibleCount} red(es) disponibles.`;
+}
+
+function getWifiNetworkKey(network: WifiNetworkDetail) {
+  return (
+    network.bssid ??
+    (network.index !== undefined
+      ? `scan-${network.index}-${network.ssid}-${network.channel}-${network.signalStrength}`
+      : `${network.ssid}-${network.channel}-${network.signalStrength}`)
+  );
+}
+
+function getWifiNetworkLabel(network: WifiNetworkDetail) {
+  return network.ssid || "(red oculta)";
+}
+
+function getWifiNetworkDetailText(network: WifiNetworkDetail) {
+  const bssid = network.bssid ?? "sin BSSID";
+  const channel =
+    network.channel !== null ? String(network.channel) : "sin dato";
+  const signal =
+    network.signalStrength !== null
+      ? `${network.signalStrength} dBm`
+      : "senal sin dato";
+  const encryption = formatEncryption(network.encryptionType);
+
+  return `${bssid} · canal ${channel} · ${signal} · ${encryption}`;
 }
 
 function normalizeWifiNetwork(
   value: unknown,
   fallbackSsid?: string | null,
+  fallbackBssid?: string | null,
+  fallbackIndex?: number,
 ): WifiNetworkDetail | null {
+  if (typeof value === "string") {
+    return {
+      ssid: value,
+      ...(fallbackBssid ? { bssid: fallbackBssid } : {}),
+      signalStrength: null,
+      encryptionType: null,
+      channel: null,
+      ...(fallbackIndex !== undefined ? { index: fallbackIndex } : {}),
+    };
+  }
+
   if (!isRecord(value)) {
-    return fallbackSsid
+    return fallbackSsid !== undefined || fallbackBssid
       ? {
-          ssid: fallbackSsid,
+          ssid: fallbackSsid ?? "",
+          ...(fallbackBssid ? { bssid: fallbackBssid } : {}),
           signalStrength: null,
           encryptionType: null,
           channel: null,
+          ...(fallbackIndex !== undefined ? { index: fallbackIndex } : {}),
         }
       : null;
   }
 
+  const ssidBytes =
+    readByteArray(value.ssidBytes) ??
+    readByteArray(value.ssidRaw) ??
+    readByteArray(value.ssid_bytes) ??
+    readByteArray(value.ssid);
+  const bssid =
+    readString(value.bssid) ??
+    readString(value.BSSID) ??
+    readString(value.mac) ??
+    readString(value.macAddress) ??
+    fallbackBssid ??
+    undefined;
   const ssid =
-    readString(value.ssid) ??
-    readString(value.name) ??
-    readString(value.networkName) ??
+    decodeWifiSsid(ssidBytes) ??
+    readAnyString(value.ssid) ??
+    readAnyString(value.SSID) ??
+    readAnyString(value.name) ??
+    readAnyString(value.networkName) ??
+    readAnyString(value.network_name) ??
     fallbackSsid;
 
-  if (!ssid) {
+  if (ssid === undefined && !bssid) {
     return null;
   }
 
+  const rssi = readNumber(value.rssi);
+  const security = readNumber(value.security);
+
   return {
-    ssid,
+    ssid: ssid ?? "",
+    ...(ssidBytes ? { ssidBytes } : {}),
+    ...(bssid ? { bssid } : {}),
     signalStrength:
       readNumber(value.signalStrength) ??
-      readNumber(value.rssi) ??
+      rssi ??
       readNumber(value.rssiDbm) ??
       null,
+    ...(rssi !== undefined ? { rssi } : {}),
     encryptionType:
       readString(value.encryptionType) ??
       readString(value.securityLabel) ??
       readNumber(value.encryptionType) ??
-      readNumber(value.security) ??
+      security ??
       null,
+    ...(security !== undefined ? { security } : {}),
     channel: readNumber(value.channel) ?? null,
+    index: readNumber(value.index) ?? readNumber(value.scanIndex) ?? fallbackIndex,
   };
 }
 
@@ -964,6 +1227,78 @@ function getResponseData(message: unknown) {
   return toRecord(message.data) ?? toRecord(payload?.data) ?? {};
 }
 
+function getResponseMessage(message: unknown) {
+  if (!isRecord(message)) {
+    return undefined;
+  }
+
+  const payload = toRecord(message.payload);
+  const data = getResponseData(message);
+
+  return (
+    readString(message.message) ??
+    readString(payload?.message) ??
+    readString(data.message)
+  );
+}
+
+const wifiSsidDecoder = new TextDecoder();
+
+function readByteArray(value: unknown): number[] | undefined {
+  if (
+    !Array.isArray(value) ||
+    value.some((item) => typeof item !== "number" || !Number.isFinite(item))
+  ) {
+    return undefined;
+  }
+
+  return value.map((item) => Math.trunc(item) & 0xff);
+}
+
+function decodeWifiSsid(bytes: number[] | undefined): string | undefined {
+  if (!bytes) {
+    return undefined;
+  }
+
+  return wifiSsidDecoder.decode(Uint8Array.from(bytes)).replace(/\0/g, "");
+}
+
+function readWifiNetworksFromBytes(bytes: number[]): WifiNetworkDetail[] {
+  const parse = (offset: number, count: number) => {
+    const networks: WifiNetworkDetail[] = [];
+    let cursor = offset;
+
+    for (let index = 0; index < count && cursor < bytes.length; index += 1) {
+      const ssidLen = bytes[cursor++] ?? 0;
+      if (ssidLen < 0 || cursor + ssidLen > bytes.length) {
+        return [];
+      }
+
+      const ssidBytes = bytes.slice(cursor, cursor + ssidLen);
+      cursor += ssidLen;
+      networks.push({
+        ssid: decodeWifiSsid(ssidBytes) ?? "",
+        ssidBytes,
+        signalStrength: null,
+        encryptionType: null,
+        channel: null,
+        index,
+      });
+    }
+
+    return networks;
+  };
+
+  const countFirst = bytes[0] ?? 0;
+  const statusThenCount = bytes[1] ?? 0;
+  const candidates = [
+    parse(1, countFirst),
+    parse(2, statusThenCount),
+  ].filter((items) => items.length > 0);
+
+  return candidates.sort((a, b) => b.length - a.length)[0] ?? [];
+}
+
 function getResponseErrorCode(message: unknown) {
   if (!isRecord(message)) {
     return "ERR_INTERNAL";
@@ -992,6 +1327,10 @@ function createRequestId(prefix: string) {
 
 function readString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function readAnyString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
 }
 
 function readNumber(value: unknown) {

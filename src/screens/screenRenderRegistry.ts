@@ -19,6 +19,9 @@ import {
   buildScreen020206WifiConnectedCommands,
   buildScreen020207WifiSearchCompleteNotificationCommands,
   buildScreen020208WifiSearchCanceledNotificationCommands,
+  buildScreen02020aWifiCredentialsWebCommands,
+  buildScreen02020bWifiCredentialsSucceededCommands,
+  buildScreen02020cWifiCredentialsFailedCommands,
   buildScreen020302EspCheckingConnectionNotificationCommands,
   buildScreen020303EspFirmwareRequestNotificationCommands,
   buildScreen020304EspResetSentNotificationCommands,
@@ -88,6 +91,9 @@ import {
   SCREEN_CODE_CONNECTIVITY_WEB_SERVER_UP,
   SCREEN_CODE_CONNECTIVITY_WIFI_CONNECTED,
   SCREEN_CODE_CONNECTIVITY_WIFI_CONNECTING,
+  SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_FAILED,
+  SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_SUCCEEDED,
+  SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_WEB,
   SCREEN_CODE_CONNECTIVITY_WIFI_MENU,
   SCREEN_CODE_CONNECTIVITY_WIFI_NOT_CONNECTED,
   SCREEN_CODE_CONNECTIVITY_WIFI_RESULTS,
@@ -177,7 +183,7 @@ export function resolveOledScreen(input: ScreenRenderInput): ResolvedOledScreen 
     case SCREEN_CODE_CONNECTIVITY_WIFI_SEARCHING:
       return resolved(input, "WiFi search with timer", "transient state screen", "buildScreen020202WifiSearchCommands", "Busqueda de redes con contador y accion de cancelar.", buildScreen020202WifiSearchCommands({ secondsRemaining: readNumber(data.secondsRemaining) ?? 10 }));
     case SCREEN_CODE_CONNECTIVITY_WIFI_RESULTS:
-      return resolved(input, "WiFi results menu", "menu screen", "buildScreen020203WifiResultsMenuCommands", "Lista de SSIDs detectados. Sin lista dinamica se muestra el fallback del builder.", buildScreen020203WifiResultsMenuCommands({ ...readMenuArgs(data), networkSsids: readStringArray(data.networkSsids) }));
+      return resolved(input, "WiFi results menu", "menu screen", "buildScreen020203WifiResultsMenuCommands", "Lista de SSIDs detectados. Sin lista dinamica se muestra el fallback del builder.", buildScreen020203WifiResultsMenuCommands({ ...readMenuArgs(data), networkSsids: readWifiResultSsids(data) }));
     case SCREEN_CODE_CONNECTIVITY_WIFI_NOT_CONNECTED:
       return resolved(input, "WiFi not connected notification", "notification", "buildScreen020204WifiNotConnectedNotificationCommands", "Aviso transitorio de WiFi sin conexion.", buildScreen020204WifiNotConnectedNotificationCommands(progress));
     case SCREEN_CODE_CONNECTIVITY_WIFI_CONNECTING:
@@ -188,6 +194,12 @@ export function resolveOledScreen(input: ScreenRenderInput): ResolvedOledScreen 
       return resolved(input, "WiFi search complete", "notification", "buildScreen020207WifiSearchCompleteNotificationCommands", "Aviso transitorio de busqueda WiFi completada.", buildScreen020207WifiSearchCompleteNotificationCommands(progress));
     case SCREEN_CODE_CONNECTIVITY_WIFI_SEARCH_CANCELED:
       return resolved(input, "WiFi search canceled", "notification", "buildScreen020208WifiSearchCanceledNotificationCommands", "Aviso transitorio de busqueda WiFi cancelada.", buildScreen020208WifiSearchCanceledNotificationCommands(progress));
+    case SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_WEB:
+      return resolved(input, "WiFi credentials requested from Web", "notification", "buildScreen02020aWifiCredentialsWebCommands", "Solicitud de credenciales WiFi pendiente en la Web; usa el SSID informado por ESP si STM no lo incluye.", buildScreen02020aWifiCredentialsWebCommands({ ssid: readCredentialsSsid(data) }, progress));
+    case SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_SUCCEEDED:
+      return resolved(input, "WiFi credentials accepted", "notification", "buildScreen02020bWifiCredentialsSucceededCommands", "Credenciales WiFi aceptadas por Web/ESP.", buildScreen02020bWifiCredentialsSucceededCommands({ ssid: readCredentialsSsid(data) }, progress));
+    case SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_FAILED:
+      return resolved(input, "WiFi credentials failed", "notification", "buildScreen02020cWifiCredentialsFailedCommands", "Credenciales WiFi rechazadas o fallidas.", buildScreen02020cWifiCredentialsFailedCommands({ ssid: readCredentialsSsid(data) }, progress));
 
     case SCREEN_CODE_CONNECTIVITY_ESP_MENU:
       return resolved(input, "ESP submenu", "menu screen", "buildScreen020301EspMenuCommands", "Submenu de enlace ESP con chequeo, firmware y reset.", buildScreen020301EspMenuCommands(readMenuArgs(data)));
@@ -328,6 +340,16 @@ function readWifiStatusArgs(data: Record<string, unknown>): WifiStatusArgs {
   };
 }
 
+function readCredentialsSsid(data: Record<string, unknown>): string | undefined {
+  return (
+    readString(data.ssid) ??
+    readString(data.webCredentialsSsid) ??
+    readString(data.pendingWifiCredentialsSsid) ??
+    readString(data.stationSsid) ??
+    readString(data.staSsid)
+  );
+}
+
 function readMpuArgs(data: Record<string, unknown>) {
   return {
     accelX: readNumber(data.accelX) ?? 120,
@@ -385,11 +407,42 @@ function readString(value: unknown): string | undefined {
 }
 
 function readBoolean(value: unknown): boolean | undefined {
-  return typeof value === "boolean" ? value : undefined;
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value !== 0;
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "si") {
+      return true;
+    }
+    if (normalized === "false" || normalized === "0" || normalized === "no") {
+      return false;
+    }
+  }
+
+  return undefined;
 }
 
 function readNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? Math.trunc(value) : undefined;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.trunc(value);
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    const trimmed = value.trim();
+    const parsed = trimmed.toLowerCase().startsWith("0x")
+      ? Number.parseInt(trimmed.slice(2), 16)
+      : Number(trimmed);
+
+    return Number.isFinite(parsed) ? Math.trunc(parsed) : undefined;
+  }
+
+  return undefined;
 }
 
 function readNumberArray(value: unknown, length: number): number[] | undefined {
@@ -407,4 +460,42 @@ function readStringArray(value: unknown): string[] | undefined {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string" && item.length > 0)
     : undefined;
+}
+
+function readWifiResultSsids(data: Record<string, unknown>): string[] | undefined {
+  return (
+    readStringArray(data.networkSsids) ??
+    readStringArray(data.ssids) ??
+    readStringArray(data.wifiSsids) ??
+    readNetworkObjectSsids(data.networks) ??
+    readNetworkObjectSsids(data.items)
+  );
+}
+
+function readNetworkObjectSsids(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const ssids = value
+    .map((item) => {
+      if (typeof item === "string") {
+        return item;
+      }
+
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+
+      const record = item as Record<string, unknown>;
+      return (
+        readString(record.ssid) ??
+        readString(record.SSID) ??
+        readString(record.name) ??
+        readString(record.networkName)
+      );
+    })
+    .filter((ssid): ssid is string => Boolean(ssid));
+
+  return ssids.length > 0 ? ssids : undefined;
 }

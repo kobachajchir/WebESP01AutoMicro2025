@@ -14,6 +14,9 @@ import RedirectRoot from "./components/RedirectRoot";
 import RootLayout from "./components/RootLayout";
 import ControlSection from "./pages/ControlSection";
 import EstadoSection from "./pages/EstadoSection";
+import DocsSection from "./pages/DocsSection";
+import DocTopicSection from "./pages/DocTopicSection";
+import OledEditorSection from "./pages/OledEditorSection";
 import ProtocolSection from "./pages/ProtocolSection";
 import { applyThemeColors, loadThemeColors } from "./utils/theme";
 
@@ -76,6 +79,30 @@ const App: React.FC = () => {
           element: (
             <ProtectedRoute>
               <ProtocolSection />
+            </ProtectedRoute>
+          ),
+        },
+        {
+          path: "docs",
+          element: (
+            <ProtectedRoute>
+              <DocsSection />
+            </ProtectedRoute>
+          ),
+        },
+        {
+          path: "docs/:topicSlug",
+          element: (
+            <ProtectedRoute>
+              <DocTopicSection />
+            </ProtectedRoute>
+          ),
+        },
+        {
+          path: "oled-editor",
+          element: (
+            <ProtectedRoute>
+              <OledEditorSection />
             </ProtectedRoute>
           ),
         },

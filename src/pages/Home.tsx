@@ -566,10 +566,10 @@ const Home: React.FC = () => {
       </div>
 
       {/* Accesos */}
-      <div className="flex flex-col md:flex-row flex-1 min-h-[18rem] w-full md:w-11/12 max-w-6xl items-center justify-between gap-6">
+      <div className="grid flex-1 min-h-[18rem] w-full max-w-6xl grid-cols-1 gap-6 px-2 md:grid-cols-2 xl:grid-cols-3">
         {/* 1) Estado — cyan → indigo */}
         <button
-          className={`group relative w-3/4 md:w-1/3 h-3/5 rounded-2xl transition-all duration-300 text-slate-900`}
+          className={`group relative w-full min-h-[16rem] rounded-2xl transition-all duration-300 text-slate-900`}
           style={
             connected
               ? hoveredBtn === "estado"
@@ -615,7 +615,7 @@ const Home: React.FC = () => {
 
         {/* 2) Control — indigo → fuchsia */}
         <button
-          className={`group relative w-3/4 md:w-1/3 h-3/5 rounded-2xl transition-all duration-300 text-slate-900`}
+          className={`group relative w-full min-h-[16rem] rounded-2xl transition-all duration-300 text-slate-900`}
           style={
             connected
               ? hoveredBtn === "control"
@@ -662,7 +662,7 @@ const Home: React.FC = () => {
 
         {/* 3) Wi-Fi — fuchsia → teal */}
         <button
-          className={`group relative w-3/4 md:w-1/3 h-3/5 rounded-2xl transition-all duration-300 text-slate-900`}
+          className={`group relative w-full min-h-[16rem] rounded-2xl transition-all duration-300 text-slate-900 md:col-span-2 xl:col-span-1`}
           style={
             connected
               ? hoveredBtn === "wifi"
@@ -705,6 +705,7 @@ const Home: React.FC = () => {
             </p>
           </div>
         </button>
+
       </div>
       {openInfoModal && (
         <Modal

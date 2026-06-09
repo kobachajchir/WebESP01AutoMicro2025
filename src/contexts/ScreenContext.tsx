@@ -13,7 +13,6 @@ import {
   createUnerV2StreamParser,
 } from "../api/UnerFrameV2";
 import { useWebSocket } from "../hooks/useWebSocket";
-import { useUser } from "./UserContext";
 import {
   SCREEN_GET_CURRENT_COMMAND,
   normalizeScreenReport,
@@ -22,11 +21,21 @@ import {
   type ScreenUpdateKind,
 } from "../types/ScreenTypes";
 import {
+  SCREEN_CODE_CONNECTIVITY_ESP_MENU,
+  SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_FAILED,
+  SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_SUCCEEDED,
+  SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_WEB,
+  SCREEN_CODE_CONNECTIVITY_WIFI_MENU,
+  SCREEN_CODE_CONNECTIVITY_WIFI_RESULTS,
+  SCREEN_CODE_CORE_MAIN_MENU,
+  SCREEN_CODE_SENSORS_MENU,
+  SCREEN_CODE_SETTINGS_MENU,
   getScreenDefinition,
   getValidationPinDigitsCount,
   isPermissionValidationScreenCode,
 } from "../screens/screenCodes";
 import { useCarMode, type CarModeLabel } from "./CarModeContext";
+import { useWifiCredentials } from "./WifiCredentialsContext";
 
 const MENU_ITEMS_PER_PAGE = 3;
 
@@ -58,23 +67,27 @@ interface ScreenProviderProps {
 
 export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
   const { connected, send, subscribe, subscribeRaw } = useWebSocket();
-  const { user, loading } = useUser();
   const {
     mode: carMode,
     applyCarModeValue,
   } = useCarMode();
+  const { state: wifiCredentials } = useWifiCredentials();
 
   const [currentScreen, setCurrentScreen] = useState<ScreenViewModel | null>(
-    () => createInitialCurrentScreen(),
+    null,
   );
 
   const pendingScreenRequestsRef = useRef(new Set<string>());
-  const lastSyncAuthKeyRef = useRef<string | null>(null);
+  const initialSyncDoneRef = useRef(false);
   const rawScreenParserRef = useRef(createUnerV2StreamParser());
 
   const applyScreenReport = useCallback(
     (data: unknown, updateKind: ScreenUpdateKind, requestId?: string) => {
-      const report = normalizeScreenReport(data);
+      const screenData = mergeWifiCredentialsIntoScreenData(
+        data,
+        wifiCredentials,
+      );
+      const report = normalizeScreenReport(screenData);
 
       if (!report) {
         console.warn("[screen] Payload de pantalla inválido:", data);
@@ -82,25 +95,30 @@ export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
       }
 
       const baseScreen = toCurrentScreen(report, updateKind, requestId);
-      const reportedCarMode = readCarModeLabelFromScreenData(data);
+      const reportedCarMode = readCarModeLabelFromScreenData(screenData);
 
       if (reportedCarMode) {
         applyCarModeValue(reportedCarMode, "screen-report");
       }
 
       const effectiveCarMode = reportedCarMode ?? carMode;
-      const nextScreen = enrichCurrentScreen(baseScreen, data, {
+      const nextScreen = enrichCurrentScreen(baseScreen, screenData, {
         carMode: effectiveCarMode,
         sensoresVisible: effectiveCarMode === "TEST",
       });
-      setCurrentScreen(nextScreen);
+      setCurrentScreen((previousScreen) =>
+        normalizeMenuSelectionForRender(
+          preservePreviousMenuCountForShortSelection(nextScreen, previousScreen),
+          previousScreen,
+        ),
+      );
       return true;
     },
-    [applyCarModeValue, carMode],
+    [applyCarModeValue, carMode, wifiCredentials],
   );
 
   const requestCurrentScreen = useCallback(() => {
-    if (!connected || !user) {
+    if (!connected) {
       return null;
     }
 
@@ -119,7 +137,7 @@ export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
     }, 10000);
 
     return requestId;
-  }, [connected, send, user]);
+  }, [connected, send]);
 
   useEffect(() => {
     const offDeviceEvent = subscribe("device.event", (payload: unknown) => {
@@ -127,19 +145,33 @@ export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
         return;
       }
 
-      const eventName = readString(payload.event);
+      const eventName = getScreenEventName(payload);
 
       if (eventName === "screen.changed" || eventName === "screen.current") {
-        applyScreenReport(payload.data, eventName);
+        applyScreenReport(unwrapScreenEventData(payload), eventName);
         return;
       }
 
+      const eventData = unwrapScreenEventData(payload);
       if (
         eventName === "stm.event" &&
-        (hasScreenReportCmd(payload.data) || hasScreenReportCmd(payload))
+        (hasScreenReportCmd(eventData) || hasScreenReportCmd(payload))
       ) {
-        applyScreenReport(payload.data ?? payload, "screen.changed");
+        applyScreenReport(eventData, "screen.changed");
+        return;
       }
+
+      if (eventName === undefined && hasScreenIdentity(eventData)) {
+        applyScreenReport(eventData, "screen.changed");
+      }
+    });
+
+    const offDirectScreenChanged = subscribe("screen.changed", (payload: unknown) => {
+      applyScreenReport(unwrapScreenEventData(payload), "screen.changed");
+    });
+
+    const offDirectScreenCurrent = subscribe("screen.current", (payload: unknown) => {
+      applyScreenReport(unwrapScreenEventData(payload), "screen.current");
     });
 
     const offDeviceResponse = subscribe(
@@ -149,20 +181,25 @@ export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
           return;
         }
 
-        const requestId = readString(payload.requestId);
+        const requestId = getScreenResponseRequestId(payload);
         const isPendingScreenRequest = requestId
           ? pendingScreenRequestsRef.current.has(requestId)
           : false;
 
         const isCurrentScreenResponse =
-          readString(payload.command) === SCREEN_GET_CURRENT_COMMAND ||
-          readString(payload.payloadCommand) === SCREEN_GET_CURRENT_COMMAND;
+          getScreenResponseCommand(payload) === SCREEN_GET_CURRENT_COMMAND;
 
         if (!isPendingScreenRequest && !isCurrentScreenResponse) {
           return;
         }
 
-        if (applyScreenReport(payload.data, "device.response", requestId)) {
+        if (
+          applyScreenReport(
+            unwrapScreenEventData(payload),
+            "device.response",
+            requestId,
+          )
+        ) {
           if (requestId) {
             pendingScreenRequestsRef.current.delete(requestId);
           }
@@ -171,8 +208,9 @@ export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
     );
 
     const offStmEvent = subscribe("stm.event", (payload: unknown) => {
-      if (hasScreenReportCmd(payload)) {
-        applyScreenReport(payload, "screen.changed");
+      const eventData = unwrapScreenEventData(payload);
+      if (hasScreenReportCmd(eventData) || hasScreenReportCmd(payload)) {
+        applyScreenReport(eventData, "screen.changed");
       }
     });
 
@@ -181,7 +219,10 @@ export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
         incoming instanceof Uint8Array ? incoming : new Uint8Array(incoming);
 
       for (const frame of rawScreenParserRef.current.push(bytes)) {
-        if (frame.cmd !== UNER_V2_CMD.EVT_MENU_SELECTION_CHANGED) {
+        if (
+          frame.cmd !== UNER_V2_CMD.EVT_SCREEN_CHANGED &&
+          frame.cmd !== UNER_V2_CMD.EVT_MENU_SELECTION_CHANGED
+        ) {
           continue;
         }
 
@@ -197,6 +238,8 @@ export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
 
     return () => {
       offDeviceEvent();
+      offDirectScreenChanged();
+      offDirectScreenCurrent();
       offDeviceResponse();
       offStmEvent();
       offRawScreenEvent();
@@ -205,29 +248,38 @@ export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
 
   useEffect(() => {
     if (!connected) {
+      initialSyncDoneRef.current = false;
       rawScreenParserRef.current.reset();
+      setCurrentScreen(null);
+      return;
     }
-  }, [connected]);
+
+    if (initialSyncDoneRef.current) {
+      return;
+    }
+
+    initialSyncDoneRef.current = true;
+    requestCurrentScreen();
+  }, [connected, requestCurrentScreen]);
 
   useEffect(() => {
-    if (!connected) {
-      lastSyncAuthKeyRef.current = null;
-      return;
-    }
+    setCurrentScreen((screen) => {
+      if (!screen) {
+        return screen;
+      }
 
-    if (loading || !user) {
-      return;
-    }
+      const screenData = mergeWifiCredentialsIntoScreenData(
+        screen.rawData ?? screen,
+        wifiCredentials,
+      );
+      const refreshedScreen = enrichCurrentScreen(screen, screenData, {
+        carMode,
+        sensoresVisible: carMode === "TEST",
+      });
 
-    const authKey = user.id;
-
-    if (lastSyncAuthKeyRef.current === authKey) {
-      return;
-    }
-
-    lastSyncAuthKeyRef.current = authKey;
-    requestCurrentScreen();
-  }, [connected, loading, requestCurrentScreen, user]);
+      return normalizeMenuSelectionForRender(refreshedScreen, screen);
+    });
+  }, [carMode, wifiCredentials]);
 
   return (
     <ScreenContext.Provider value={{ currentScreen, requestCurrentScreen }}>
@@ -259,8 +311,22 @@ function enrichCurrentScreen(
 ): ScreenViewModel {
   const meta = extractScreenMeta(rawData);
 
-  const itemsCount = clampByte(meta.itemsCount ?? (meta.hasMenuItems ? 1 : 0));
-  const hasMenuItems = itemsCount > 0 || meta.hasMenuItems === true;
+  const knownMenuItemsCount = getKnownMenuItemsCount(
+    baseScreen.screenCode,
+    rawData,
+    globalMeta.sensoresVisible,
+  );
+  const reportedItemsCount =
+    meta.itemsCount !== undefined ? clampByte(meta.itemsCount) : undefined;
+  const itemsCount = clampByte(
+    knownMenuItemsCount !== undefined
+      ? Math.max(knownMenuItemsCount, reportedItemsCount ?? 0)
+      : reportedItemsCount ?? (meta.hasMenuItems ? MENU_ITEMS_PER_PAGE : 0),
+  );
+  const hasMenuItems =
+    knownMenuItemsCount !== undefined ||
+    itemsCount > 0 ||
+    meta.hasMenuItems === true;
   const selectedIndex =
     meta.selectedIndex !== undefined ? clampByte(meta.selectedIndex) : null;
 
@@ -301,7 +367,7 @@ function enrichCurrentScreen(
 
   return {
     ...baseScreen,
-    rawData: enrichRawScreenData(baseScreen.rawData, {
+    rawData: enrichRawScreenData(rawData, {
       carMode: globalMeta.carMode,
       firstVisibleIndex,
       hasMenuItems,
@@ -349,6 +415,231 @@ function enrichRawScreenData(
   }
 
   return enriched;
+}
+
+function normalizeMenuSelectionForRender(
+  nextScreen: ScreenViewModel,
+  previousScreen: ScreenViewModel | null,
+): ScreenViewModel {
+  if (!nextScreen.hasMenuItems) {
+    return nextScreen;
+  }
+
+  const enteredNewMenu =
+    !previousScreen || previousScreen.screenCode !== nextScreen.screenCode;
+
+  if (!enteredNewMenu && nextScreen.selectedIndex !== null) {
+    return nextScreen;
+  }
+
+  return withMenuSelectedIndex(nextScreen, 0);
+}
+
+function withMenuSelectedIndex(
+  screen: ScreenViewModel,
+  selectedIndex: number,
+): ScreenViewModel {
+  const normalizedSelectedIndex =
+    screen.itemsCount > 0
+      ? Math.min(clampByte(selectedIndex), screen.itemsCount - 1)
+      : 0;
+  const currentMenuPage =
+    Math.floor(normalizedSelectedIndex / MENU_ITEMS_PER_PAGE) + 1;
+  const firstVisibleIndex = (currentMenuPage - 1) * MENU_ITEMS_PER_PAGE;
+  const visibleStartIndex = firstVisibleIndex + 1;
+  const visibleEndIndex = Math.min(
+    screen.itemsCount,
+    visibleStartIndex + MENU_ITEMS_PER_PAGE - 1,
+  );
+  const rawData = isRecord(screen.rawData) ? { ...screen.rawData } : {};
+
+  rawData.itemCount = screen.itemsCount;
+  rawData.itemsCount = screen.itemsCount;
+  rawData.hasMenuItems = true;
+  rawData.selectedIndex = normalizedSelectedIndex;
+  rawData.firstVisibleIndex = firstVisibleIndex;
+
+  return {
+    ...screen,
+    currentMenuPage,
+    selectedIndex: normalizedSelectedIndex,
+    visibleStartIndex,
+    visibleEndIndex,
+    rawData,
+  };
+}
+
+function preservePreviousMenuCountForShortSelection(
+  nextScreen: ScreenViewModel,
+  previousScreen: ScreenViewModel | null,
+): ScreenViewModel {
+  if (
+    !previousScreen ||
+    previousScreen.screenCode !== nextScreen.screenCode ||
+    !previousScreen.hasMenuItems ||
+    !nextScreen.hasMenuItems ||
+    previousScreen.itemsCount <= nextScreen.itemsCount ||
+    !isShortMenuSelectionReport(nextScreen.rawData)
+  ) {
+    return nextScreen;
+  }
+
+  return withMenuItemsCount(nextScreen, previousScreen.itemsCount);
+}
+
+function withMenuItemsCount(
+  screen: ScreenViewModel,
+  itemsCount: number,
+): ScreenViewModel {
+  const normalizedItemsCount = clampByte(itemsCount);
+  const hasMenuItems = normalizedItemsCount > 0;
+  const totalMenuPages = hasMenuItems
+    ? Math.max(1, Math.ceil(normalizedItemsCount / MENU_ITEMS_PER_PAGE))
+    : 1;
+  const normalizedSelectedIndex =
+    screen.selectedIndex !== null && hasMenuItems
+      ? Math.min(screen.selectedIndex, normalizedItemsCount - 1)
+      : screen.selectedIndex;
+  const currentMenuPage =
+    hasMenuItems && normalizedSelectedIndex !== null
+      ? Math.floor(normalizedSelectedIndex / MENU_ITEMS_PER_PAGE) + 1
+      : Math.min(Math.max(1, screen.currentMenuPage), totalMenuPages);
+  const firstVisibleIndex = hasMenuItems
+    ? (currentMenuPage - 1) * MENU_ITEMS_PER_PAGE
+    : 0;
+  const visibleStartIndex = hasMenuItems ? firstVisibleIndex + 1 : 0;
+  const visibleEndIndex = hasMenuItems
+    ? Math.min(normalizedItemsCount, visibleStartIndex + MENU_ITEMS_PER_PAGE - 1)
+    : 0;
+  const rawData = isRecord(screen.rawData) ? { ...screen.rawData } : {};
+
+  rawData.itemCount = normalizedItemsCount;
+  rawData.itemsCount = normalizedItemsCount;
+  rawData.hasMenuItems = hasMenuItems;
+  rawData.firstVisibleIndex = firstVisibleIndex;
+
+  if (normalizedSelectedIndex !== null) {
+    rawData.selectedIndex = normalizedSelectedIndex;
+  }
+
+  return {
+    ...screen,
+    itemsCount: normalizedItemsCount,
+    hasMenuItems,
+    totalMenuPages,
+    currentMenuPage,
+    selectedIndex: normalizedSelectedIndex,
+    visibleStartIndex,
+    visibleEndIndex,
+    rawData,
+  };
+}
+
+function unwrapScreenEventData(payload: unknown): unknown {
+  if (!isRecord(payload)) {
+    return payload;
+  }
+
+  const nestedPayload = toRecord(payload.payload);
+  const nestedData = toRecord(payload.data);
+  const nestedPayloadData = nestedPayload?.data;
+
+  return (
+    payload.screen ??
+    nestedPayload?.screen ??
+    nestedData?.screen ??
+    payload.currentScreen ??
+    nestedPayload?.currentScreen ??
+    nestedData?.currentScreen ??
+    (nestedData && isScreenLikeRecord(nestedData) ? nestedData : undefined) ??
+    (isScreenLikeRecord(nestedPayloadData) ? nestedPayloadData : undefined) ??
+    payload.data ??
+    nestedPayloadData ??
+    (nestedPayload && isScreenLikeRecord(nestedPayload)
+      ? nestedPayload
+      : payload)
+  );
+}
+
+function mergeWifiCredentialsIntoScreenData(
+  data: unknown,
+  credentials: {
+    status: string;
+    ssid: string | null;
+    reason: string | null;
+    timeoutMs: number | null;
+    requestId: string | null;
+  },
+): Record<string, unknown> {
+  const enriched: Record<string, unknown> = isRecord(data)
+    ? { ...data }
+    : {};
+
+  enriched.webCredentialsStatus = credentials.status;
+
+  if (credentials.ssid) {
+    enriched.webCredentialsSsid = credentials.ssid;
+    enriched.pendingWifiCredentialsSsid = credentials.ssid;
+
+    if (
+      isWifiCredentialsScreenCode(readScreenCodeValue(enriched)) &&
+      readString(enriched.ssid) === undefined
+    ) {
+      enriched.ssid = credentials.ssid;
+    }
+  }
+
+  if (credentials.reason) {
+    enriched.webCredentialsReason = credentials.reason;
+  }
+
+  if (credentials.timeoutMs !== null) {
+    enriched.webCredentialsTimeoutMs = credentials.timeoutMs;
+  }
+
+  if (credentials.requestId) {
+    enriched.webCredentialsRequestId = credentials.requestId;
+  }
+
+  return enriched;
+}
+
+function isWifiCredentialsScreenCode(screenCode: number | null): boolean {
+  return (
+    screenCode === SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_WEB ||
+    screenCode === SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_SUCCEEDED ||
+    screenCode === SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_FAILED
+  );
+}
+
+function readScreenCodeValue(data: Record<string, unknown>): number | null {
+  const direct =
+    readNumber(data.screenCode) ??
+    readNumber(data.screen_code) ??
+    readNumber(data.screenCodeHex);
+
+  if (direct !== undefined) {
+    return direct >>> 0;
+  }
+
+  const payload = readPayloadBytes(data);
+  if (payload && payload.length >= 4) {
+    return (
+      payload[0] |
+      (payload[1] << 8) |
+      (payload[2] << 16) |
+      (payload[3] << 24)
+    ) >>> 0;
+  }
+
+  const menu = readNumber(data.menu);
+  const submenu = readNumber(data.submenu);
+  const page = readNumber(data.page);
+  if (menu === undefined || submenu === undefined || page === undefined) {
+    return null;
+  }
+
+  return ((menu & 0xff) << 16) | ((submenu & 0xff) << 8) | (page & 0xff);
 }
 
 function readCarModeLabelFromScreenData(data: unknown): CarModeLabel | null {
@@ -424,13 +715,24 @@ function extractScreenMeta(data: unknown): {
 
   const directSelectedIndexZeroBased =
     readNumber(data.selectedIndexZeroBased) ??
-    readNumber(data.selected_index_zero_based);
+    readNumber(data.selected_index_zero_based) ??
+    readNumber(data.cursor) ??
+    readNumber(data.menuCursor) ??
+    readNumber(data.menu_cursor) ??
+    readNumber(data.selectedItemZeroBased) ??
+    readNumber(data.selected_item_zero_based) ??
+    readNumber(data.currentItemZeroBased) ??
+    readNumber(data.current_item_zero_based);
 
   const directSelectedIndexFromStm =
     readNumber(data.selectedIndex) ??
     readNumber(data.selected_index) ??
     readNumber(data.menuSelectedIndex) ??
-    readNumber(data.menu_selected_index);
+    readNumber(data.menu_selected_index) ??
+    readNumber(data.selectedItem) ??
+    readNumber(data.selected_item) ??
+    readNumber(data.currentItem) ??
+    readNumber(data.current_item);
 
   const directSelectedIndex =
     directSelectedIndexZeroBased ??
@@ -453,15 +755,36 @@ function extractScreenMeta(data: unknown): {
     return {};
   }
 
+  const cmd = readNumber(data.cmd);
+
   /*
    * Formatos soportados:
    * 1) ScreenReport extendido:
    *    [screen_code_le(4), item_count, source]
    * 2) MenuSelectionReport:
    *    [screen_code_le(4), selected_index, item_count, source]
-   * 3) Legacy:
+   * 3) MenuSelectionReport corto:
+   *    [screen_code_le(4), selected_index, source]
+   * 4) Legacy:
    *    [screen_code_le(4), source]
    */
+
+  if (cmd === UNER_V2_CMD.EVT_MENU_SELECTION_CHANGED) {
+    if (payload.length >= 7) {
+      return {
+        hasMenuItems: payload[5] > 0,
+        selectedIndex: normalizeStmMenuIndex(payload[4], payload[5]),
+        itemsCount: payload[5],
+      };
+    }
+
+    if (payload.length >= 6) {
+      return {
+        hasMenuItems: true,
+        selectedIndex: normalizeStmMenuIndex(payload[4]),
+      };
+    }
+  }
 
   if (payload.length >= 7) {
     return {
@@ -479,6 +802,45 @@ function extractScreenMeta(data: unknown): {
   }
 
   return {};
+}
+
+function getKnownMenuItemsCount(
+  screenCode: number,
+  data: unknown,
+  sensoresVisible: boolean,
+): number | undefined {
+  switch (screenCode) {
+    case SCREEN_CODE_CORE_MAIN_MENU:
+      return sensoresVisible ? 4 : 3;
+    case SCREEN_CODE_CONNECTIVITY_WIFI_MENU:
+    case SCREEN_CODE_CONNECTIVITY_ESP_MENU:
+    case SCREEN_CODE_SENSORS_MENU:
+      return 4;
+    case SCREEN_CODE_SETTINGS_MENU:
+      return 3;
+    case SCREEN_CODE_CONNECTIVITY_WIFI_RESULTS:
+      return getWifiResultSsidCount(data) + 2;
+    default:
+      return undefined;
+  }
+}
+
+function getWifiResultSsidCount(data: unknown): number {
+  if (!isRecord(data)) {
+    return 1;
+  }
+
+  const values =
+    readArray(data.networkSsids) ??
+    readArray(data.ssids) ??
+    readArray(data.networks) ??
+    readArray(data.items);
+
+  return values ? Math.max(1, values.length) : 1;
+}
+
+function readArray(value: unknown): unknown[] | undefined {
+  return Array.isArray(value) ? value : undefined;
 }
 
 function readPayloadBytes(data: unknown): number[] | undefined {
@@ -527,39 +889,110 @@ function createRequestId(): string {
     : `screen-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function createInitialCurrentScreen(): ScreenViewModel {
-  const initialRawData = {
-    screenCode: 0x010101,
-    screenCodeHex: "0x010101",
-    menu: 1,
-    submenu: 1,
-    page: 1,
-    source: 0x02,
-    sourceName: "RENDER",
-    payload: [0x01, 0x01, 0x01, 0x00, 0x00, 0x02],
-    itemCount: 0,
-    hasMenuItems: false,
-  };
-
-  const report = normalizeScreenReport(initialRawData);
-
-  if (!report) {
-    throw new Error("No se pudo crear la pantalla inicial Dashboard.");
-  }
-
-  return enrichCurrentScreen(
-    toCurrentScreen(report, "screen.current"),
-    initialRawData,
-  );
-}
-
 function hasScreenReportCmd(data: unknown): boolean {
   if (!isRecord(data)) {
     return false;
   }
 
   const cmd = readNumber(data.cmd);
-  return cmd === UNER_V2_CMD.EVT_MENU_SELECTION_CHANGED || cmd === 0x95;
+  return (
+    cmd === UNER_V2_CMD.EVT_SCREEN_CHANGED ||
+    cmd === UNER_V2_CMD.EVT_MENU_SELECTION_CHANGED
+  );
+}
+
+function getScreenEventName(payload: unknown): string | undefined {
+  if (!isRecord(payload)) {
+    return undefined;
+  }
+
+  const nestedPayload = toRecord(payload.payload);
+  const nestedData = toRecord(payload.data);
+
+  return (
+    readString(payload.event) ??
+    readString(nestedPayload?.event) ??
+    readString(nestedData?.event)
+  );
+}
+
+function getScreenResponseRequestId(payload: unknown): string | undefined {
+  if (!isRecord(payload)) {
+    return undefined;
+  }
+
+  const nestedPayload = toRecord(payload.payload);
+  const nestedData = toRecord(payload.data);
+
+  return (
+    readString(payload.requestId) ??
+    readString(nestedPayload?.requestId) ??
+    readString(nestedData?.requestId)
+  );
+}
+
+function getScreenResponseCommand(payload: unknown): string | undefined {
+  if (!isRecord(payload)) {
+    return undefined;
+  }
+
+  const nestedPayload = toRecord(payload.payload);
+  const nestedData = toRecord(payload.data);
+
+  return (
+    readString(payload.command) ??
+    readString(payload.payloadCommand) ??
+    readString(nestedPayload?.command) ??
+    readString(nestedPayload?.payloadCommand) ??
+    readString(nestedData?.command) ??
+    readString(nestedData?.payloadCommand)
+  );
+}
+
+function isShortMenuSelectionReport(data: unknown): boolean {
+  if (!isRecord(data) || readNumber(data.cmd) !== UNER_V2_CMD.EVT_MENU_SELECTION_CHANGED) {
+    return false;
+  }
+
+  const payload = readPayloadBytes(data);
+  return payload !== undefined && payload.length >= 6 && payload.length < 7;
+}
+
+function isScreenLikeRecord(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    readNumber(value.screenCode) !== undefined ||
+    readNumber(value.screen_code) !== undefined ||
+    readNumber(value.screenCodeHex) !== undefined ||
+    (readNumber(value.menu) !== undefined &&
+      readNumber(value.submenu) !== undefined &&
+      readNumber(value.page) !== undefined) ||
+    hasScreenReportCmd(value) ||
+    readPayloadBytes(value) !== undefined
+  );
+}
+
+function hasScreenIdentity(value: unknown): boolean {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    readNumber(value.screenCode) !== undefined ||
+    readNumber(value.screen_code) !== undefined ||
+    readNumber(value.screenCodeHex) !== undefined ||
+    (readNumber(value.menu) !== undefined &&
+      readNumber(value.submenu) !== undefined &&
+      readNumber(value.page) !== undefined) ||
+    hasScreenReportCmd(value)
+  );
+}
+
+function toRecord(value: unknown): Record<string, unknown> | undefined {
+  return isRecord(value) ? value : undefined;
 }
 
 function readString(value: unknown): string | undefined {

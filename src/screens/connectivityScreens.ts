@@ -25,6 +25,9 @@ import {
   SCREEN_CODE_CONNECTIVITY_WEB_SERVER_UP,
   SCREEN_CODE_CONNECTIVITY_WIFI_CONNECTED,
   SCREEN_CODE_CONNECTIVITY_WIFI_CONNECTING,
+  SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_FAILED,
+  SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_SUCCEEDED,
+  SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_WEB,
   SCREEN_CODE_CONNECTIVITY_WIFI_NOT_CONNECTED,
   SCREEN_CODE_CONNECTIVITY_WIFI_SEARCH_CANCELED,
   SCREEN_CODE_CONNECTIVITY_WIFI_SEARCH_COMPLETE,
@@ -153,6 +156,44 @@ export function buildScreen020208WifiSearchCanceledNotificationCommands(progress
     ...drawXbm(2, 12, 19, 16, "Icon_Wifi_NotConnected_bits"),
     ...textAt(27, baselineY(30, "Font11x18"), "Busqueda", "Font11x18"),
     ...textAt(10, baselineY(50, "Font11x18"), "cancelada", "Font11x18"),
+  ], progress);
+}
+
+export const screen02020aWifiCredentialsWebCode = SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_WEB;
+
+export function buildScreen02020aWifiCredentialsWebCommands(args: { ssid?: string }, progress?: NotificationProgressArgs): OledCommand[] {
+  return simpleNotification([
+    clear(),
+    setWhite(),
+    ...drawXbm(2, 11, 19, 16, "Icon_Wifi_100_bits"),
+    ...textAt(28, baselineY(24, "Font7x10"), "Cred. Web", "Font7x10"),
+    ...textAt(28, baselineY(38, "Font7x10"), "Esperando", "Font7x10"),
+    ...textMaxAt(4, baselineY(58, "Font7x10"), args.ssid ?? "SSID pendiente", 17, "Font7x10"),
+  ], progress);
+}
+
+export const screen02020bWifiCredentialsSucceededCode = SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_SUCCEEDED;
+
+export function buildScreen02020bWifiCredentialsSucceededCommands(args: { ssid?: string }, progress?: NotificationProgressArgs): OledCommand[] {
+  return simpleNotification([
+    clear(),
+    setWhite(),
+    ...drawXbm(2, 12, 19, 16, "Icon_Wifi_100_bits"),
+    ...textAt(28, baselineY(30, "Font11x18"), "WiFi OK", "Font11x18"),
+    ...textMaxAt(4, baselineY(58, "Font7x10"), args.ssid ?? "Credenciales", 17, "Font7x10"),
+  ], progress);
+}
+
+export const screen02020cWifiCredentialsFailedCode = SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_FAILED;
+
+export function buildScreen02020cWifiCredentialsFailedCommands(args: { ssid?: string }, progress?: NotificationProgressArgs): OledCommand[] {
+  return simpleNotification([
+    clear(),
+    setWhite(),
+    ...drawXbm(2, 12, 19, 16, "Icon_Wifi_NotConnected_bits"),
+    ...textAt(28, baselineY(30, "Font11x18"), "WiFi", "Font11x18"),
+    ...textAt(8, baselineY(48, "Font11x18"), "fallo", "Font11x18"),
+    ...textMaxAt(4, baselineY(62, "Font7x10"), args.ssid ?? "Credenciales", 17, "Font7x10"),
   ], progress);
 }
 

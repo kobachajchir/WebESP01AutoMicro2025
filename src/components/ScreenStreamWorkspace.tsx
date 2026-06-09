@@ -1,5 +1,6 @@
 // src/components/ScreenStreamWorkspace.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useSavedOledScreens } from "../contexts/SavedOledScreensContext";
 import { useScreen } from "../contexts/ScreenContext";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { formatScreenCodeHex } from "../types/ScreenTypes";
@@ -8,18 +9,33 @@ import OledCommandPreview from "./OledCommandPreview";
 import PinScreenModal from "./PinScreenModal";
 import useUser from "../contexts/UserContext";
 import { useCarMode } from "../contexts/CarModeContext";
+import {
+  getStmRemoteCommandMode,
+  STM_LEGACY_REMOTE_COMMANDS,
+  STM_REMOTE_AUTH_COMMANDS,
+  STM_REMOTE_COMMAND_MODE,
+  STM_REMOTE_INPUT_COMMANDS,
+  toRemotePressKindLabel,
+} from "../types/RemoteBridgeTypes";
+import {
+  SCREEN_CODE_CONNECTIVITY_ESP_MENU,
+  SCREEN_CODE_CONNECTIVITY_WIFI_MENU,
+  SCREEN_CODE_CONNECTIVITY_WIFI_RESULTS,
+  SCREEN_CODE_CORE_MAIN_MENU,
+  SCREEN_CODE_SENSORS_MENU,
+  SCREEN_CODE_SETTINGS_MENU,
+  SCREEN_CODE_WARNING_PERMISSION_DENIED,
+  SCREEN_CODE_WARNING_PIN_BLOCKED,
+  SCREEN_CODE_WARNING_PIN_DENIED,
+  SCREEN_CODE_WARNING_PIN_ENTRY,
+  SCREEN_CODE_WARNING_PIN_TIMEOUT,
+  SCREEN_CODE_WARNING_PIN_WAITING,
+} from "../screens/screenCodes";
+import type { PinAuthResult } from "../types/PinAuthTypes";
 
 const LONG_PRESS_THRESHOLD_MS = 2000;
 const POST_COMMAND_SCREEN_REFRESH_DELAY_MS = 120;
-
-const UNER_CMD_GET_CURRENT_SCREEN = "0x52";
-const UNER_CMD_MENU_ITEM_CLICK = "0x53";
-const UNER_CMD_TRIGGER_ENCODER_BUTTON = "0x54";
-const UNER_CMD_TRIGGER_USER_BUTTON = "0x55";
-const UNER_CMD_REQUEST_SCREEN_PAGE = "0x56";
-const UNER_CMD_TRIGGER_ENCODER_ROTATE_LEFT = "0x57";
-const UNER_CMD_TRIGGER_ENCODER_ROTATE_RIGHT = "0x58";
-const UNER_CMD_AUTH_PIN_GRANTED = "0x59";
+const MENU_VISIBLE_ITEMS = 3;
 
 const UNER_SCREEN_PAGE_DIR_UP = 0x00;
 const UNER_SCREEN_PAGE_DIR_DOWN = 0x01;
@@ -29,6 +45,11 @@ const UNER_PRESS_KIND_LONG = 0x01;
 
 type ScreenPageDirection = "up" | "down";
 type AuxButtonKind = "encoder" | "user";
+type PendingPinGrantState = {
+  initialScreenKey: string;
+  resolve: (result: PinAuthResult) => void;
+  timeoutId: number;
+};
 
 const Icon_Encoder_bits = new Uint8Array([
   0xf8, 0x03, 0xfc, 0x07, 0x0e, 0x0e, 0xf7, 0x1d, 0xfb, 0x1b, 0xfb, 0x1b, 0xfb,
@@ -90,10 +111,12 @@ export default function ScreenStreamWorkspace({
 }: {
   isModal?: boolean;
 }) {
-  const { validatePin } = useUser();
+  const { validatePin, remotePinAuthenticated } = useUser();
   const { connected, send } = useWebSocket();
   const { currentScreen, requestCurrentScreen } = useScreen();
   const { requestCarMode } = useCarMode();
+  const { savedScreens } = useSavedOledScreens();
+  const stmRemoteCommandMode = getStmRemoteCommandMode();
 
   const [hoverSync, setHoverSync] = useState(false);
   const [hoverSync2, setHoverSync2] = useState(false);
@@ -114,6 +137,7 @@ export default function ScreenStreamWorkspace({
   const [hoverUserBtn, setHoverUserBtn] = useState(false);
   const [hoverRotateLeft, setHoverRotateLeft] = useState(false);
   const [hoverRotateRight, setHoverRotateRight] = useState(false);
+  const [savedScreensOpen, setSavedScreensOpen] = useState(false);
 
   const [pressedMenuItem, setPressedMenuItem] = useState<number | null>(null);
   const [pressedScrollDir, setPressedScrollDir] =
@@ -143,6 +167,8 @@ export default function ScreenStreamWorkspace({
     user: null,
   });
 
+  const currentScreenRef = useRef(currentScreen);
+  const pendingPinGrantRef = useRef<PendingPinGrantState | null>(null);
   const refreshTimeoutRef = useRef<number | null>(null);
   const previewMeasureRef = useRef<HTMLDivElement | null>(null);
   const [previewHeight, setPreviewHeight] = useState<number>(256);
@@ -161,8 +187,17 @@ export default function ScreenStreamWorkspace({
     [currentScreen],
   );
 
-  const itemsCount = Math.max(0, currentScreen?.itemsCount ?? 0);
-  const screenHasMenuItems = currentScreen?.hasMenuItems ?? itemsCount > 0;
+  const isKnownSelectableScreen = isMenuControlScreenCode(
+    currentScreen?.screenCode,
+  );
+  const itemsCount = Math.max(
+    0,
+    currentScreen?.itemsCount ?? (isKnownSelectableScreen ? MENU_VISIBLE_ITEMS : 0),
+  );
+  const screenHasMenuItems = Boolean(
+    currentScreen &&
+      (currentScreen.hasMenuItems || itemsCount > 0 || isKnownSelectableScreen),
+  );
   const isValidationScreen = currentScreen?.isValidationScreen ?? false;
   const pinDigitsCount = Math.max(0, currentScreen?.pinDigitsCount ?? 0);
 
@@ -175,8 +210,18 @@ export default function ScreenStreamWorkspace({
   const [openPinValidationModal, setOpenPinValidationModal] = useState(false);
 
   const visibleButtonsCount = screenHasMenuItems
-    ? Math.max(0, visibleEndIndex - visibleStartIndex + 1)
+    ? Math.max(
+        1,
+        visibleEndIndex >= visibleStartIndex
+          ? visibleEndIndex - visibleStartIndex + 1
+          : 0,
+        Math.min(MENU_VISIBLE_ITEMS, itemsCount || MENU_VISIBLE_ITEMS),
+      )
     : 0;
+
+  useEffect(() => {
+    currentScreenRef.current = currentScreen;
+  }, [currentScreen]);
 
   useEffect(() => {
     const target = previewMeasureRef.current;
@@ -207,8 +252,58 @@ export default function ScreenStreamWorkspace({
       if (refreshTimeoutRef.current !== null) {
         window.clearTimeout(refreshTimeoutRef.current);
       }
+
+      if (pendingPinGrantRef.current) {
+        window.clearTimeout(pendingPinGrantRef.current.timeoutId);
+        pendingPinGrantRef.current = null;
+      }
     };
   }, []);
+
+  const clearPendingPinGrant = (result?: PinAuthResult) => {
+    const pending = pendingPinGrantRef.current;
+    if (!pending) {
+      return;
+    }
+
+    window.clearTimeout(pending.timeoutId);
+    pendingPinGrantRef.current = null;
+
+    if (result !== undefined) {
+      pending.resolve(result);
+    }
+  };
+
+  useEffect(() => {
+    if (!currentScreen) {
+      return;
+    }
+
+    const pending = pendingPinGrantRef.current;
+    if (!pending) {
+      return;
+    }
+
+    const nextScreenKey = getScreenTransitionKey(currentScreen);
+    if (nextScreenKey === pending.initialScreenKey) {
+      return;
+    }
+
+    const outcome = getPinGrantOutcome(currentScreen);
+    if (outcome === "pending") {
+      return;
+    }
+
+    clearPendingPinGrant(
+      outcome === "success"
+        ? { ok: true }
+        : {
+            ok: false,
+            reason: "grant-rejected",
+            message: "La STM rechazo o cancelo el granted.",
+          },
+    );
+  }, [currentScreen]);
 
   const scheduleScreenRefresh = () => {
     if (refreshTimeoutRef.current !== null) {
@@ -221,23 +316,54 @@ export default function ScreenStreamWorkspace({
     }, POST_COMMAND_SCREEN_REFRESH_DELAY_MS);
   };
 
-  const dispatchUnerCommand = (
-    cmdHex: string,
-    payload: number[],
-    description: string,
+  const dispatchStmCommand = (
+    legacyCommand: string,
+    payloadOrOptionsOrDescription:
+      | number[]
+      | {
+          payload?: number[];
+          jsonCommand?: string;
+          jsonParams?: Record<string, unknown>;
+        }
+      | string,
+    descriptionOrOptions?:
+      | string
+      | {
+          payload?: number[];
+          jsonCommand?: string;
+          jsonParams?: Record<string, unknown>;
+        },
   ) => {
+    const description =
+      typeof payloadOrOptionsOrDescription === "string"
+        ? payloadOrOptionsOrDescription
+        : typeof descriptionOrOptions === "string"
+          ? descriptionOrOptions
+          : "Sin descripcion";
+    const options = normalizeStmCommandOptions(
+      payloadOrOptionsOrDescription,
+      descriptionOrOptions,
+    );
+    const payload = options.payload ?? [];
+    const useJsonCommand =
+      stmRemoteCommandMode === STM_REMOTE_COMMAND_MODE.JSON &&
+      Boolean(options.jsonCommand);
+    const command = useJsonCommand ? options.jsonCommand! : legacyCommand;
+
     console.log("[UNER][WEB->MCU] comando solicitado", {
-      cmdHex,
+      command,
       description,
+      bridgeMode: useJsonCommand ? "json" : "legacy-hex",
       payloadHex: payload
         .map((byte) => byte.toString(16).toUpperCase().padStart(2, "0"))
         .join(" "),
       payloadBytes: payload,
+      params: options.jsonParams,
     });
 
     if (!connected) {
       console.warn("[UNER][WEB->MCU] no conectado, comando ignorado", {
-        cmdHex,
+        command,
         description,
       });
       return null;
@@ -248,8 +374,10 @@ export default function ScreenStreamWorkspace({
     send("device.command", {
       requestId,
       target: "stm",
-      command: cmdHex,
-      payload,
+      command,
+      ...(useJsonCommand
+        ? { params: options.jsonParams ?? {} }
+        : { payload }),
     });
 
     return requestId;
@@ -359,10 +487,10 @@ export default function ScreenStreamWorkspace({
 
     const payload = buildMenuItemClickPayload(currentScreen.screenCode, item);
 
-    dispatchUnerCommand(
-      UNER_CMD_MENU_ITEM_CLICK,
-      payload,
+    dispatchStmCommand(
+      STM_LEGACY_REMOTE_COMMANDS.MENU_ITEM_CLICK,
       `Emular click físico sobre item visible ${item}`,
+      { payload },
     );
 
     scheduleScreenRefresh();
@@ -386,9 +514,9 @@ export default function ScreenStreamWorkspace({
 
     const payload = buildScreenPagePayload(currentScreen.screenCode, direction);
 
-    dispatchUnerCommand(
-      UNER_CMD_REQUEST_SCREEN_PAGE,
-      payload,
+    dispatchStmCommand(
+      STM_LEGACY_REMOTE_COMMANDS.REQUEST_SCREEN_PAGE,
+      { payload },
       direction === "up"
         ? "Solicitar página anterior de la screen actual"
         : "Solicitar página siguiente de la screen actual",
@@ -448,16 +576,27 @@ export default function ScreenStreamWorkspace({
         ? UNER_PRESS_KIND_LONG
         : UNER_PRESS_KIND_SHORT;
 
-    const cmdHex =
+    const legacyCommand =
       kind === "encoder"
-        ? UNER_CMD_TRIGGER_ENCODER_BUTTON
-        : UNER_CMD_TRIGGER_USER_BUTTON;
+        ? STM_LEGACY_REMOTE_COMMANDS.ENCODER_BUTTON
+        : STM_LEGACY_REMOTE_COMMANDS.USER_BUTTON;
+    const jsonCommand =
+      kind === "encoder"
+        ? STM_REMOTE_INPUT_COMMANDS.ENCODER_BUTTON
+        : STM_REMOTE_INPUT_COMMANDS.USER_BUTTON;
 
     const payload = buildAuxButtonPayload(currentScreen.screenCode, pressKind);
 
-    dispatchUnerCommand(
-      cmdHex,
-      payload,
+    dispatchStmCommand(
+      legacyCommand,
+      {
+        payload,
+        jsonCommand,
+        jsonParams: {
+          screenCode: currentScreen.screenCode,
+          pressKind: toRemotePressKindLabel(pressKind),
+        },
+      },
       `${kind === "encoder" ? "Emular botón encoder" : "Emular botón user"} como ${
         pressKind === UNER_PRESS_KIND_LONG ? "longpress" : "shortpress"
       }`,
@@ -477,16 +616,27 @@ export default function ScreenStreamWorkspace({
 
     animateRotatePress(direction);
 
-    const cmdHex =
-      direction === "left"
-        ? UNER_CMD_TRIGGER_ENCODER_ROTATE_LEFT
-        : UNER_CMD_TRIGGER_ENCODER_ROTATE_RIGHT;
+    const bridgeDirection = direction === "left" ? "right" : "left";
+    const legacyCommand =
+      bridgeDirection === "left"
+        ? STM_LEGACY_REMOTE_COMMANDS.ROTATE_LEFT
+        : STM_LEGACY_REMOTE_COMMANDS.ROTATE_RIGHT;
+    const jsonCommand =
+      bridgeDirection === "left"
+        ? STM_REMOTE_INPUT_COMMANDS.ROTATE_LEFT
+        : STM_REMOTE_INPUT_COMMANDS.ROTATE_RIGHT;
 
     const payload = buildEncoderRotatePayload(currentScreen.screenCode);
 
-    dispatchUnerCommand(
-      cmdHex,
-      payload,
+    dispatchStmCommand(
+      legacyCommand,
+      {
+        payload,
+        jsonCommand,
+        jsonParams: {
+          screenCode: currentScreen.screenCode,
+        },
+      },
       direction === "left"
         ? "Emular giro físico del encoder hacia la izquierda"
         : "Emular giro físico del encoder hacia la derecha",
@@ -495,38 +645,103 @@ export default function ScreenStreamWorkspace({
     scheduleScreenRefresh();
   };
 
-const handleValidatePin = async (pin: string) => {
+const legacyHandleValidatePin = async (pin: string) => {
   if (!currentScreen) {
     console.warn("[PIN] No hay currentScreen activa para validar");
-    return false;
+    return {
+      ok: false,
+      reason: "unknown" as const,
+      message: "No hay pantalla STM activa para validar.",
+    };
   }
 
-  const ok = await validatePin(pin);
+  const validation = await validatePin(pin);
 
   console.log("[PIN][WEB->ESP] resultado validación", {
     pin,
-    ok,
+    validation,
     screenCode:
       currentScreen.screenCodeHex ??
       formatScreenCodeHex(currentScreen.screenCode ?? 0),
   });
 
-  if (!ok) {
-    return false;
+  if (!validation.ok) {
+    return validation;
   }
 
   const payload = screenCodeToLeBytes(currentScreen.screenCode);
 
-  dispatchUnerCommand(
-    UNER_CMD_AUTH_PIN_GRANTED,
+  dispatchStmCommand(
+    STM_LEGACY_REMOTE_COMMANDS.PIN_GRANTED,
     payload,
     `Notificar a STM que el PIN fue validado para screen ${currentScreen.screenCodeHex ?? formatScreenCodeHex(currentScreen.screenCode)}`,
   );
 
   scheduleScreenRefresh();
 
-  return true;
+  return { ok: true };
 };
+
+void legacyHandleValidatePin;
+
+  const handleValidatePin = async (pin: string) => {
+    const screenAtSubmit = currentScreenRef.current;
+
+    if (!screenAtSubmit) {
+      console.warn("[PIN] No hay currentScreen activa para validar");
+      return {
+        ok: false,
+        reason: "unknown" as const,
+        message: "No hay pantalla STM activa para validar.",
+      };
+    }
+
+    const validation = await validatePin(pin);
+
+    console.log("[PIN][WEB->ESP] resultado validacion", {
+      pin,
+      validation,
+      screenCode:
+        screenAtSubmit.screenCodeHex ??
+        formatScreenCodeHex(screenAtSubmit.screenCode ?? 0),
+    });
+
+    if (!validation.ok) {
+      return validation;
+    }
+
+    clearPendingPinGrant();
+
+    const payload = screenCodeToLeBytes(screenAtSubmit.screenCode);
+
+    dispatchStmCommand(
+      STM_LEGACY_REMOTE_COMMANDS.PIN_GRANTED,
+      {
+        payload,
+        jsonCommand: STM_REMOTE_AUTH_COMMANDS.PIN_GRANTED,
+        jsonParams: {
+          screenCode: screenAtSubmit.screenCode,
+        },
+      },
+      `Notificar a STM que el PIN fue validado para screen ${screenAtSubmit.screenCodeHex ?? formatScreenCodeHex(screenAtSubmit.screenCode)}`,
+    );
+
+    scheduleScreenRefresh();
+
+    return new Promise<PinAuthResult>((resolve) => {
+      pendingPinGrantRef.current = {
+        initialScreenKey: getScreenTransitionKey(screenAtSubmit),
+        resolve,
+        timeoutId: window.setTimeout(() => {
+          clearPendingPinGrant({
+            ok: false,
+            reason: "timeout",
+            message: "La STM no confirmo el granted antes del timeout.",
+          });
+        }, 12000),
+      };
+    });
+  };
 
   const screenLabel = currentScreen
     ? currentScreen.known
@@ -560,6 +775,22 @@ const handleValidatePin = async (pin: string) => {
           borderColor: "rgba(34,211,238,0.3)",
           color: "var(--ui-accent)",
         };
+
+  const logSendSavedScreen = (screenId: string) => {
+    const savedScreen = savedScreens.find((screen) => screen.id === screenId);
+
+    if (!savedScreen) {
+      return;
+    }
+
+    console.log("[OLED][WEB->AUTO][MOCK]", {
+      action: "send_saved_screen",
+      screenId: savedScreen.id,
+      title: savedScreen.title,
+      commands: savedScreen.commands,
+      document: savedScreen.document,
+    });
+  };
 
   return (
     <div className={`flex w-full flex-col ${isModal ? "min-h-[72vh]" : ""}`}>
@@ -833,6 +1064,11 @@ const handleValidatePin = async (pin: string) => {
                     <p className="text-xs text-slate-400">
                       Esta pantalla requiere ingreso de PIN.
                     </p>
+                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-cyan-200/80">
+                      {remotePinAuthenticated
+                        ? "Sesion remota autenticada en ESP"
+                        : "Sin sesion remota autenticada"}
+                    </p>
                   </div>
 
                   <button
@@ -840,6 +1076,7 @@ const handleValidatePin = async (pin: string) => {
                     className="w-full rounded-md border px-3 py-2 text-sm font-semibold transition"
                     style={getAccentButtonStyle(false, false)}
                     onClick={() => setOpenPinValidationModal(true)}
+                    disabled={!connected}
                     aria-label="Validar PIN"
                     title="Validar PIN"
                   >
@@ -986,12 +1223,8 @@ const handleValidatePin = async (pin: string) => {
           type="button"
           className="w-fit rounded-md border px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40"
           onClick={() => {
-            dispatchUnerCommand(
-              UNER_CMD_GET_CURRENT_SCREEN,
-              [],
-              "Solicitar snapshot actual de pantalla",
-            );
             requestCurrentScreen();
+            requestCarMode();
           }}
           disabled={!connected}
           onMouseEnter={() => setHoverSync(true)}
@@ -1120,11 +1353,100 @@ const handleValidatePin = async (pin: string) => {
           </div>
         </div>
       )}
+
+      <section className="mt-4 flex flex-col gap-4 rounded-xl border border-white/10 bg-slate-950/45 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+              Pantallas guardadas
+            </div>
+            <p className="mt-1 text-sm text-slate-300">
+              Mini previews listas para mandar al auto cuando terminemos el bridge.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setSavedScreensOpen((current) => !current)}
+            className="flex items-center gap-2 rounded-full border border-cyan-300/25 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:border-cyan-300/50 hover:bg-cyan-400/15"
+          >
+            <span>Pantallas guardadas ({savedScreens.length})</span>
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 20 20"
+              fill="none"
+              className="h-4 w-4 transition-transform duration-200"
+              style={{
+                transform: savedScreensOpen ? "rotate(180deg)" : "rotate(0deg)",
+              }}
+            >
+              <path
+                d="M6 8l4 4 4-4"
+                stroke="currentColor"
+                strokeWidth={1.8}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
+
+        {savedScreensOpen ? (
+          savedScreens.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {savedScreens.map((screen) => (
+                <article
+                  key={screen.id}
+                  className="rounded-2xl border border-white/10 bg-slate-950/55 p-3"
+                >
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-bold text-white">
+                        {screen.title}
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        {new Date(screen.updatedAt).toLocaleString("es-AR")}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => logSendSavedScreen(screen.id)}
+                      className="rounded-md border border-cyan-300/70 px-3 py-1.5 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-400 hover:text-slate-950"
+                    >
+                      Mandar
+                    </button>
+                  </div>
+
+                  <div className="rounded-xl border border-cyan-300/15 bg-slate-950/80 p-2">
+                    <OledCommandPreview
+                      commands={screen.commands}
+                      className="mx-auto max-w-[220px]"
+                    />
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-white/10 bg-slate-950/35 px-4 py-5 text-sm text-slate-400">
+              Todavia no hay pantallas guardadas para mostrar en el visor.
+            </div>
+          )
+        ) : null}
+      </section>
+
       <PinScreenModal
         isOpen={openPinValidationModal}
-        onClose={() => setOpenPinValidationModal(false)}
+        onClose={() => {
+          clearPendingPinGrant({
+            ok: false,
+            reason: "grant-rejected",
+            message: "La validacion remota fue cancelada.",
+          });
+          setOpenPinValidationModal(false);
+        }}
         title="Validar PIN"
-        subtitle="Ingresá el PIN para validar esta acción."
+        subtitle="Ingresa el PIN para validarlo en la ESP y esperar la confirmacion real de la STM."
         kicker="Validación"
         submitLabel="Validar PIN"
         digitsCount={currentScreen?.pinDigitsCount ?? 4}
@@ -1136,11 +1458,105 @@ const handleValidatePin = async (pin: string) => {
           requestCarMode();
         }}
         idleMessage="Ingresá el PIN para continuar."
-        errorMessage="PIN inválido."
-        loadingMessage="Validando..."
+        errorMessage="No se pudo validar el PIN remoto."
+        loadingMessage="Validando con ESP y esperando screen.changed..."
       />
     </div>
   );
+}
+
+function normalizeStmCommandOptions(
+  payloadOrOptionsOrDescription:
+    | number[]
+    | {
+        payload?: number[];
+        jsonCommand?: string;
+        jsonParams?: Record<string, unknown>;
+      }
+    | string,
+  descriptionOrOptions?:
+    | string
+    | {
+        payload?: number[];
+        jsonCommand?: string;
+        jsonParams?: Record<string, unknown>;
+      },
+) {
+  if (Array.isArray(payloadOrOptionsOrDescription)) {
+    return {
+      ...(isStmCommandOptions(descriptionOrOptions) ? descriptionOrOptions : {}),
+      payload: payloadOrOptionsOrDescription,
+    };
+  }
+
+  if (isStmCommandOptions(payloadOrOptionsOrDescription)) {
+    return payloadOrOptionsOrDescription;
+  }
+
+  if (isStmCommandOptions(descriptionOrOptions)) {
+    return descriptionOrOptions;
+  }
+
+  return {};
+}
+
+function isStmCommandOptions(
+  value: unknown,
+): value is {
+  payload?: number[];
+  jsonCommand?: string;
+  jsonParams?: Record<string, unknown>;
+} {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isMenuControlScreenCode(screenCode: number | undefined): boolean {
+  return (
+    screenCode === SCREEN_CODE_CORE_MAIN_MENU ||
+    screenCode === SCREEN_CODE_CONNECTIVITY_WIFI_MENU ||
+    screenCode === SCREEN_CODE_CONNECTIVITY_WIFI_RESULTS ||
+    screenCode === SCREEN_CODE_CONNECTIVITY_ESP_MENU ||
+    screenCode === SCREEN_CODE_SENSORS_MENU ||
+    screenCode === SCREEN_CODE_SETTINGS_MENU
+  );
+}
+
+function getScreenTransitionKey(screen: {
+  screenCode: number;
+  source?: number;
+  sourceName?: string;
+}) {
+  return [
+    screen.screenCode,
+    screen.sourceName ?? "",
+    typeof screen.source === "number" ? screen.source : "",
+  ].join(":");
+}
+
+function getPinGrantOutcome(screen: {
+  screenCode: number;
+  sourceName?: string;
+}): "pending" | "success" | "error" {
+  const isPermissionSource = screen.sourceName === "PERMISSION";
+
+  if (
+    isPermissionSource &&
+    (screen.screenCode === SCREEN_CODE_WARNING_PIN_ENTRY ||
+      screen.screenCode === SCREEN_CODE_WARNING_PIN_WAITING)
+  ) {
+    return "pending";
+  }
+
+  if (
+    screen.screenCode === SCREEN_CODE_WARNING_PIN_DENIED ||
+    screen.screenCode === SCREEN_CODE_WARNING_PIN_TIMEOUT ||
+    screen.screenCode === SCREEN_CODE_WARNING_PIN_BLOCKED ||
+    screen.screenCode === SCREEN_CODE_WARNING_PERMISSION_DENIED
+  ) {
+    return "error";
+  }
+
+  return "success";
 }
 
 function ControlBlock({

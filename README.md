@@ -1,113 +1,91 @@
 # Web ESP01 Auto Micro 2025
 
-## Reinicios desde la configuracion principal
+Frontend React/Vite para operar la UI Web del auto, hablar con la ESP por WebSocket y, cuando corresponde, mandar frames UNER v2 hacia la STM.
 
-La configuracion de la pagina principal emite paquetes WebSocket JSON a la ESP. La web no manda bytes binarios crudos; cuando el destino logico es la STM, el mensaje viaja como `stmPacket` con los bytes en `payload.data`:
+## Contrato Web / ESP / STM
 
-- `Reiniciar ESP`: envia `{"type":"stmPacket","payload":{"action":"resetEsp","cmd":"CMD_REBOOT_ESP","data":[85,78,69,82,0,58,2,33,22,3]}}`.
-  - `CMD_REBOOT_ESP = 0x16`, ruta `0x21` (`src=0x02`, `dst=0x01`).
-  - Frame UNER equivalente: `55 4E 45 52 00 3A 02 21 16 03`.
-  - Es normal perder el enlace WebSocket si el firmware termina reiniciando la ESP.
+La web usa dos carriles:
 
-- `Reiniciar STM32`: envia `{"type":"stmPacket","payload":{"action":"resetMcu","cmd":"CMD_RESET_MCU","data":[85,78,69,82,0,58,2,33,25,12]}}`.
-  - `CMD_RESET_MCU = 0x19`, ruta `0x21` (`src=0x02`, `dst=0x01`).
-  - Frame UNER equivalente: `55 4E 45 52 00 3A 02 21 19 0C`.
-  - Es normal perder comunicacion mientras la STM32 reinicia.
+- JSON WebSocket directo a ESP para WiFi, auth remota y sesiones.
+- `stmPacket` para comandos que deben llegar a STM como bytes UNER v2 en `payload.data`.
+
+Referencia de cierre: [docs/web-esp-stm-readiness.md](docs/web-esp-stm-readiness.md).
+
+## UNER v2 por WebSocket
+
+Cuando el destino logico es STM, el frame viaja asi:
+
+```json
+{
+  "type": "stmPacket",
+  "payload": {
+    "action": "setMpuStream",
+    "cmd": "SET_MPU_STREAM",
+    "periodMs": 8,
+    "data": [85, 78, 69, 82, 3, 58, 2, 49, 97, 1, 8, 0, 110]
+  }
+}
+```
+
+El frame UNER usa ruta `0x31` (`src=WEB_APP=0x3`, `dst=MCU=0x1`) y checksum XOR.
 
 Mas detalle: [docs/uner-websocket-events.md](docs/uner-websocket-events.md).
 
-## Telemetria real en Sensores/Visor
+## Telemetria MPU real
 
-La pantalla Sensores/Visor controla el stream real de MPU6050 con `TELEMETRY_SET_RATE = 0x20`:
+La vista `MPU + IR` esta alineada con el contrato de firmware:
 
-- Payload `u16 LE periodMs`: `periodMs > 0` inicia o actualiza el stream.
-- Payload `00 00`: finalizador explicito para detenerlo.
-- ACK esperado: `TELEMETRY_ACK = 0x21` con `[code, periodMsLow, periodMsHigh]`.
-- Datos esperados: `TELEMETRY_DATA = 0x22` con payload de 17 bytes.
-- Modo temporizado: duracion maxima `240s`; al vencer envia automaticamente `00 00`.
-- Modo constante: queda activo hasta `Detener`, que envia `00 00`.
+- `SET_MPU_STREAM = 0x61` inicia o actualiza el stream.
+- `STOP_MPU_STREAM = 0x62` corta la transmision.
+- `EVT_APP_GET_MPU_READINGS = 0x90` trae snapshot de 42 bytes.
+- El periodo minimo que envia la UI es `8 ms`.
+- `roll`, `pitch` y `yaw` llegan en milideg, se convierten a grados y alimentan el panel Euler, el grafico y el modelo 3D.
 
 Mas detalle: [docs/telemetry-session-protocol.md](docs/telemetry-session-protocol.md).
 
-## Comandos ESP pendientes de firmware
+## WiFi y redes ESP
 
-La web usa dos comandos UNER nuevos para preferencias persistidas en NVS:
+La seccion WiFi ya pide redes y credenciales por JSON directo al ESP:
 
-- `CMD.APP_PIN_CONFIG = 0x60`
-  - Validar PIN actual: payload `[0x01, pin_ascii_4]`.
-  - Cambiar PIN: payload `[0x02, pin_actual_ascii_4, pin_nuevo_ascii_4]`.
-  - ACK esperado: respuesta con el mismo `CMD.APP_PIN_CONFIG` y payload `[action, code]`.
+- `wifi.scan.start`
+- `wifi.detail.get`
+- `wifi.credentials.submit`
+- `wifi.credentials.cancel`
+- `wifi.ap.credentials.set`
+- evento global `wifi.credentials.requested`
 
-- `CMD.APP_THEME_CONFIG = 0x61`
-  - Guardar tema: payload `[base_r, base_g, base_b, accent_r, accent_g, accent_b]`.
-  - ACK esperado: respuesta con el mismo `CMD.APP_THEME_CONFIG` y payload `[code]`.
+La password real no se guarda en storage, no debe loguearse y no debe reenviarse a STM.
 
-Codigos de ACK usados por la web: `0 = OK`, `1 = INVALID_PIN`, `2 = ARG`, `3 = SAVE_FAIL`, `4 = BUSY`.
+Mas detalle: [docs/WIFI_WEB_ESP_STM_FLOW.md](docs/WIFI_WEB_ESP_STM_FLOW.md).
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## PIN, permisos y granted
 
-Currently, two official plugins are available:
+La web separa responsabilidades:
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- valida PIN remoto contra ESP con `esp.auth.pin.login` / `esp.auth.pin.validateScreen`;
+- concede una accion pendiente en STM con `AUTH_PIN_GRANTED (0x59)` o `stm.auth.pin.grant`;
+- espera `screen.changed` / `screen.current` antes de considerar exitoso el grant.
 
-## Expanding the ESLint configuration
+La UI escucha `EVT_SCREEN_CHANGED (0x95)` y `EVT_MENU_SELECTION_CHANGED (0x96)` para no conceder sobre una pantalla vieja.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+Mas detalle: [docs/remote-auth-web-flow.md](docs/remote-auth-web-flow.md).
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Reinicios
 
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
+Desde configuracion:
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- Reiniciar ESP normal: `REBOOT_ESP (0x16)` payload `[0x00]`.
+- Reiniciar ESP en AP: `REBOOT_ESP (0x16)` payload `[0x01]`.
+- Reiniciar STM32: `RESET_MCU (0x19)` payload vacio.
+
+Es normal perder WebSocket durante un reinicio.
+
+## Desarrollo
+
+```bash
+npm install
+npm run dev
+npm run build
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+En desarrollo, si no se define `VITE_WS_URL`, la app usa `ws://<host>/ws/mock`.

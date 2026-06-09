@@ -1,5 +1,6 @@
 // src/components/PinScreen.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { PinAuthResult, PinSubmitResult } from "../types/PinAuthTypes";
 
 type PinScreenStatus = "idle" | "loading" | "error";
 
@@ -11,7 +12,7 @@ interface PinScreenProps {
   digitsCount?: number;
   canClose?: boolean;
   onClose?: () => void;
-  onSubmit: (pin: string) => Promise<boolean> | boolean;
+  onSubmit: (pin: string) => Promise<PinSubmitResult> | PinSubmitResult;
   successAction?: () => void;
   idleMessage?: string;
   errorMessage?: string;
@@ -20,7 +21,7 @@ interface PinScreenProps {
 
 export default function PinScreen({
   title = "Ingresar PIN",
-  subtitle = "Usa el PIN de 4 dígitos guardado en el ESP.",
+  subtitle = "Usa el PIN de 4 digitos guardado en el ESP.",
   kicker = "Acceso seguro",
   submitLabel = "Entrar",
   digitsCount = 4,
@@ -28,13 +29,14 @@ export default function PinScreen({
   onClose,
   onSubmit,
   successAction,
-  idleMessage = "Escribí los dígitos con el teclado.",
-  errorMessage = "PIN incorrecto o sin respuesta del ESP.",
+  idleMessage = "Escribi los digitos con el teclado.",
+  errorMessage = "No se pudo validar el PIN.",
   loadingMessage = "Validando...",
 }: PinScreenProps) {
   const pinRef = useRef<HTMLInputElement>(null);
   const [pin, setPin] = useState("");
   const [status, setStatus] = useState<PinScreenStatus>("idle");
+  const [failure, setFailure] = useState<PinAuthResult | null>(null);
 
   const safeDigitsCount = Math.max(1, digitsCount);
   const valid = useMemo(() => {
@@ -45,35 +47,47 @@ export default function PinScreen({
   useEffect(() => {
     setPin("");
     setStatus("idle");
+    setFailure(null);
     window.setTimeout(() => pinRef.current?.focus(), 50);
   }, [safeDigitsCount, title]);
 
   function handlePinChange(value: string) {
     setStatus("idle");
+    setFailure(null);
     setPin(value.replace(/\D/g, "").slice(0, safeDigitsCount));
+  }
+
+  function resetAttempt() {
+    setPin("");
+    setStatus("idle");
+    setFailure(null);
+    window.setTimeout(() => pinRef.current?.focus(), 50);
   }
 
   async function sendAttempt() {
     if (!valid || status === "loading") return;
 
     setStatus("loading");
+    setFailure(null);
 
     try {
-      const ok = await onSubmit(pin);
-      setStatus(ok ? "idle" : "error");
+      const result = normalizePinSubmitResult(await onSubmit(pin), errorMessage);
+      setStatus(result.ok ? "idle" : "error");
 
-      if (ok) {
+      if (result.ok) {
         successAction?.();
         return;
       }
 
-      setPin("");
-      window.setTimeout(() => pinRef.current?.focus(), 50);
+      setFailure(result);
     } catch (error) {
       console.error("[PinScreen] error ejecutando onSubmit", error);
       setStatus("error");
-      setPin("");
-      window.setTimeout(() => pinRef.current?.focus(), 50);
+      setFailure({
+        ok: false,
+        reason: "transport-error",
+        message: "No se pudo completar la validacion con la ESP.",
+      });
     }
   }
 
@@ -125,65 +139,115 @@ export default function PinScreen({
             sendAttempt();
           }}
         >
-          <label htmlFor="pin" className="sr-only">
-            PIN
-          </label>
-
-          <input
-            ref={pinRef}
-            id="pin"
-            value={pin}
-            onChange={(event) => handlePinChange(event.target.value)}
-            inputMode="numeric"
-            pattern="[0-9]*"
-            maxLength={safeDigitsCount}
-            autoComplete="one-time-code"
-            autoFocus
-            className="sr-only"
-          />
-
-          <button
-            type="button"
-            className={`grid w-full gap-3`}
-            style={{
-              gridTemplateColumns: `repeat(${safeDigitsCount}, minmax(0, 1fr))`,
-            }}
-            onClick={() => pinRef.current?.focus()}
-            aria-label="Editar PIN"
-          >
-            {Array.from({ length: safeDigitsCount }).map((_, index) => (
-              <span
-                key={index}
-                className={`app-panel-strong flex aspect-square items-center justify-center text-3xl font-black ${
-                  pin[index] ? "text-cyan-200" : "text-slate-500"
-                }`}
+          {failure ? (
+            <div className="flex w-full flex-col items-center gap-5">
+              <div
+                className="w-full rounded-md border border-rose-300/30 bg-rose-500/10 p-4 text-center"
+                role="alert"
               >
-                {pin[index] ? "•" : index + 1}
-              </span>
-            ))}
-          </button>
+                <p className="text-lg font-black text-rose-100">
+                  {failure.reason === "invalid-pin"
+                    ? "PIN incorrecto"
+                    : "No se pudo validar el PIN"}
+                </p>
+                <p className="mt-2 text-sm text-rose-100/90">
+                  {failure.message ?? errorMessage}
+                </p>
+              </div>
 
-          {status === "error" ? (
-            <p className="text-sm font-semibold text-rose-300">
-              {errorMessage}
-            </p>
-          ) : status === "loading" ? (
-            <p className="text-sm font-semibold text-cyan-200">
-              {loadingMessage}
-            </p>
+              <button
+                type="button"
+                className="app-button w-full px-4 py-3 text-base font-bold"
+                onClick={resetAttempt}
+              >
+                Volver a intentar
+              </button>
+            </div>
           ) : (
-            <p className="text-sm text-slate-400">{idleMessage}</p>
-          )}
+            <>
+              <label htmlFor="pin" className="sr-only">
+                PIN
+              </label>
 
-          <button
-            type="submit"
-            disabled={!valid || status === "loading"}
-            className="app-button w-full px-4 py-3 text-base font-bold"
-          >
-            {status === "loading" ? loadingMessage : submitLabel}
-          </button>
+              <input
+                ref={pinRef}
+                id="pin"
+                value={pin}
+                onChange={(event) => handlePinChange(event.target.value)}
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={safeDigitsCount}
+                autoComplete="one-time-code"
+                autoFocus
+                className="sr-only"
+              />
+
+              <button
+                type="button"
+                className="grid w-full gap-3"
+                style={{
+                  gridTemplateColumns: `repeat(${safeDigitsCount}, minmax(0, 1fr))`,
+                }}
+                onClick={() => pinRef.current?.focus()}
+                aria-label="Editar PIN"
+              >
+                {Array.from({ length: safeDigitsCount }).map((_, index) => (
+                  <span
+                    key={index}
+                    className={`app-panel-strong flex aspect-square items-center justify-center text-3xl font-black ${
+                      pin[index] ? "text-cyan-200" : "text-slate-500"
+                    }`}
+                  >
+                    {pin[index] ? "*" : index + 1}
+                  </span>
+                ))}
+              </button>
+
+              {status === "loading" ? (
+                <p className="text-sm font-semibold text-cyan-200">
+                  {loadingMessage}
+                </p>
+              ) : (
+                <p className="text-sm text-slate-400">{idleMessage}</p>
+              )}
+
+              <button
+                type="submit"
+                disabled={!valid || status === "loading"}
+                className="app-button w-full px-4 py-3 text-base font-bold"
+              >
+                {status === "loading" ? loadingMessage : submitLabel}
+              </button>
+            </>
+          )}
         </form>
       </div>
     </div>
   );
+}
+
+function normalizePinSubmitResult(
+  result: PinSubmitResult,
+  fallbackMessage: string,
+): PinAuthResult {
+  if (typeof result === "boolean") {
+    return result
+      ? { ok: true }
+      : {
+          ok: false,
+          reason: "unknown",
+          message: fallbackMessage,
+        };
+  }
+
+  if (result.ok) {
+    return { ok: true };
+  }
+
+  return {
+    ok: false,
+    reason: result.reason ?? "unknown",
+    message: result.message ?? fallbackMessage,
+    code: result.code,
+  };
 }

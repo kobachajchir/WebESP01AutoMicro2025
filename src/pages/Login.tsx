@@ -15,7 +15,7 @@ export default function Login() {
       canClose={false}
       onSubmit={login}
       idleMessage="Escribí los 4 dígitos con el teclado."
-      errorMessage="PIN incorrecto o sin respuesta del ESP."
+      errorMessage="No se pudo validar el PIN."
       loadingMessage="Validando..."
     />
   );

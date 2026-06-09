@@ -2,6 +2,7 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import PinScreen from "./PinScreen";
+import type { PinSubmitResult } from "../types/PinAuthTypes";
 
 interface PinScreenModalProps {
   isOpen: boolean;
@@ -12,7 +13,7 @@ interface PinScreenModalProps {
   submitLabel?: string;
   digitsCount?: number;
   canClose?: boolean;
-  onSubmit: (pin: string) => Promise<boolean> | boolean;
+  onSubmit: (pin: string) => Promise<PinSubmitResult> | PinSubmitResult;
   successAction?: () => void;
   idleMessage?: string;
   errorMessage?: string;

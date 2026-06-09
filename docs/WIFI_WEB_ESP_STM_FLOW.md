@@ -61,6 +61,7 @@ Evento con resultados:
     "event": "wifi.scan.results",
     "origin": "esp",
     "data": {
+      "count": 24,
       "networks": [
         {
           "ssid": "MiWifi",
@@ -73,6 +74,11 @@ Evento con resultados:
   }
 }
 ```
+
+Notas:
+
+- `count` representa el total detectado por el firmware.
+- Si el cache interno del ESP esta acotado, `networks[]` puede traer menos elementos que `count`.
 
 ## 2. Detalle de una red
 
@@ -220,6 +226,10 @@ Response:
   }
 }
 ```
+
+Compatibilidad:
+
+- La web acepta tanto `payload.data.message` como `payload.message`.
 
 ## 5. Solicitud de credenciales originada en STM
 
