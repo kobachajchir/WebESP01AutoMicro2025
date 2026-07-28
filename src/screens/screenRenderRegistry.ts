@@ -4,6 +4,7 @@ import {
   buildScreen010102ModeChangeCommands,
 } from "./dashboardScreens";
 import {
+  buildMenuScreenCommands,
   buildScreen010201MainMenuCommands,
   buildScreen020101WifiMenuCommands,
   buildScreen020203WifiResultsMenuCommands,
@@ -22,11 +23,15 @@ import {
   buildScreen02020aWifiCredentialsWebCommands,
   buildScreen02020bWifiCredentialsSucceededCommands,
   buildScreen02020cWifiCredentialsFailedCommands,
+  buildScreen02020dWifiCredentialsAtCommands,
   buildScreen020302EspCheckingConnectionNotificationCommands,
   buildScreen020303EspFirmwareRequestNotificationCommands,
   buildScreen020304EspResetSentNotificationCommands,
   buildScreen020305EspCheckConnectionRequiredNotificationCommands,
   buildScreen020306EspBootReceivedNotificationCommands,
+  buildScreen02030bEspUnresponsiveNotificationCommands,
+  buildScreen02030cEspWatchdogResetNotificationCommands,
+  buildScreen02030dEspExceptionResetNotificationCommands,
   buildScreen020307EspFirmwareReceivedNotificationCommands,
   buildScreen020307EspFirmwareScreenCommands,
   buildScreen020308EspModeChangedNotificationCommands,
@@ -36,6 +41,8 @@ import {
   buildScreen020501WebServerUpNotificationCommands,
   buildScreen020502WebClientConnectedNotificationCommands,
   buildScreen020503WebClientDisconnectedNotificationCommands,
+  buildScreen020601ApDeviceConnectedNotificationCommands,
+  buildScreen020602ApDeviceDisconnectedNotificationCommands,
 } from "./connectivityScreens";
 import type { WifiStatusArgs } from "./connectivityScreens";
 import {
@@ -43,6 +50,10 @@ import {
   buildScreen030301MpuValuesCommands,
   buildScreen030401RadarCommands,
 } from "./sensorScreens";
+import {
+  buildScreen030500DisplayMenuCommands,
+  buildScreen030503OledCanvasReadyCommands,
+} from "./displayScreens";
 import {
   buildScreen040101MotorTestCommands,
 } from "./motorScreens";
@@ -52,6 +63,9 @@ import {
   buildScreen050301WarningTimeCommands,
 } from "./settingsScreens";
 import {
+  buildScreen010105RemoteModeChangedNotificationCommands,
+  buildScreen050417UnerForwardingEnabledNotificationCommands,
+  buildScreen050418UnerForwardingDisabledNotificationCommands,
   buildScreen060101ControllerConnectedNotificationCommands,
   buildScreen060102ControllerDisconnectedNotificationCommands,
   buildScreen060201CommandReceivedNotificationCommands,
@@ -75,8 +89,14 @@ import {
   buildScreen080109PermissionDeniedNotificationCommands,
 } from "./warningScreens";
 import {
+  buildIdentifiedNotificationCommands,
+  buildIdentifiedScreenCommands,
+} from "./identifiedScreens";
+import * as ScreenCodes from "./screenCodes";
+import {
   SCREEN_CODE_CONNECTIVITY_ESP_AP_STARTED,
   SCREEN_CODE_CONNECTIVITY_ESP_BOOT_RECEIVED,
+  SCREEN_CODE_CONNECTIVITY_ESP_EXCEPTION_RESET,
   SCREEN_CODE_CONNECTIVITY_ESP_CHECK_REQUIRED,
   SCREEN_CODE_CONNECTIVITY_ESP_CHECKING,
   SCREEN_CODE_CONNECTIVITY_ESP_FIRMWARE_RECEIVED,
@@ -84,13 +104,18 @@ import {
   SCREEN_CODE_CONNECTIVITY_ESP_MENU,
   SCREEN_CODE_CONNECTIVITY_ESP_MODE_CHANGED,
   SCREEN_CODE_CONNECTIVITY_ESP_RESET_SENT,
+  SCREEN_CODE_CONNECTIVITY_ESP_UNRESPONSIVE,
+  SCREEN_CODE_CONNECTIVITY_ESP_WATCHDOG_RESET,
   SCREEN_CODE_CONNECTIVITY_USB_CONNECTED,
   SCREEN_CODE_CONNECTIVITY_USB_DISCONNECTED,
   SCREEN_CODE_CONNECTIVITY_WEB_CLIENT_CONNECTED,
   SCREEN_CODE_CONNECTIVITY_WEB_CLIENT_DISCONNECTED,
   SCREEN_CODE_CONNECTIVITY_WEB_SERVER_UP,
+  SCREEN_CODE_CONNECTIVITY_AP_DEVICE_CONNECTED,
+  SCREEN_CODE_CONNECTIVITY_AP_DEVICE_DISCONNECTED,
   SCREEN_CODE_CONNECTIVITY_WIFI_CONNECTED,
   SCREEN_CODE_CONNECTIVITY_WIFI_CONNECTING,
+  SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_AT,
   SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_FAILED,
   SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_SUCCEEDED,
   SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_WEB,
@@ -104,6 +129,7 @@ import {
   SCREEN_CODE_CORE_DASHBOARD,
   SCREEN_CODE_CORE_MAIN_MENU,
   SCREEN_CODE_CORE_MODE_CHANGE,
+  SCREEN_CODE_CORE_REMOTE_MODE_CHANGED,
   SCREEN_CODE_CORE_STARTUP,
   SCREEN_CODE_DIAG_COMMAND_RECEIVED,
   SCREEN_CODE_DIAG_CONTROLLER_CONNECTED,
@@ -112,6 +138,8 @@ import {
   SCREEN_CODE_DIAG_ESP_CONN_SUCCEEDED,
   SCREEN_CODE_DIAG_PING_RECEIVED,
   SCREEN_CODE_MOTOR_TEST,
+  SCREEN_CODE_SENSORS_DISPLAY_MENU,
+  SCREEN_CODE_SENSORS_DISPLAY_OLED_CANVAS,
   SCREEN_CODE_SENSORS_IR_VALUES,
   SCREEN_CODE_SENSORS_MENU,
   SCREEN_CODE_SENSORS_MPU_VALUES,
@@ -120,6 +148,8 @@ import {
   SCREEN_CODE_SETTINGS_ABOUT_PROJECT,
   SCREEN_CODE_SETTINGS_ABOUT_REPO,
   SCREEN_CODE_SETTINGS_MENU,
+  SCREEN_CODE_SETTINGS_PREFS_UNER_FORWARDING_DISABLED,
+  SCREEN_CODE_SETTINGS_PREFS_UNER_FORWARDING_ENABLED,
   SCREEN_CODE_SETTINGS_WARNING_TIME,
   SCREEN_CODE_WARNING_LOCKED,
   SCREEN_CODE_WARNING_PERMISSION_DENIED,
@@ -137,10 +167,155 @@ import type {
   ModeChangeScreenArgs,
 } from "./dashboardScreens";
 import type { MotorDirection, MotorSelection } from "./motorScreens";
-import type { OledCommand } from "./types";
+import type { MenuScreenItem, NotificationProgressArgs, OledCommand } from "./types";
 
 const SOURCE_RENDER = 0x02;
 const SOURCE_PERMISSION = 0x04;
+
+interface IdentifiedMenuDefinition {
+  variant: string;
+  description: string;
+  items: MenuScreenItem[];
+}
+
+interface IdentifiedScreenDefinition {
+  variant: string;
+  category: string;
+  description: string;
+  lines: string[];
+  footer?: string;
+}
+
+const item = (label: string, iconRef = "Icon_Tool_bits"): MenuScreenItem => ({ label, iconRef });
+const backItem = (): MenuScreenItem => item("Volver", "Icon_Volver_bits");
+
+const IDENTIFIED_MENUS: Record<number, IdentifiedMenuDefinition> = {
+  [ScreenCodes.SCREEN_CODE_SENSORS_IR_MENU]: {
+    variant: "IR test menu",
+    description: "Submenu fisico de infrarrojos.",
+    items: [item("Valores IR"), item("Test ruta"), backItem()],
+  },
+  [ScreenCodes.SCREEN_CODE_SENSORS_MPU_MENU]: {
+    variant: "MPU test menu",
+    description: "Submenu fisico del MPU.",
+    items: [item("Valores MPU"), item("Recalibrar", "Icon_Refrescar_bits"), backItem()],
+  },
+  [ScreenCodes.SCREEN_CODE_MOTOR_MENU]: {
+    variant: "Motor test menu",
+    description: "Seleccion de motor para prueba individual.",
+    items: [item("Motor izquierdo"), item("Motor derecho"), backItem()],
+  },
+  [ScreenCodes.SCREEN_CODE_BALANCE_MENU]: {
+    variant: "Balance PID menu",
+    description: "Menu de estado, log y ganancias del control de balance.",
+    items: [item("Estado PID", "Icon_Info_bits"), item("Log PID", "Icon_Config_bits"), item("Kp"), item("Ki"), item("Kd"), backItem()],
+  },
+  [ScreenCodes.SCREEN_CODE_SETTINGS_ABOUT_MENU]: {
+    variant: "About menu",
+    description: "Menu Acerca de de la F4.",
+    items: [item("Info", "Icon_Info_bits"), item("Repositorio", "Icon_Info_bits"), item("Build", "Icon_Info_bits"), backItem()],
+  },
+  [ScreenCodes.SCREEN_CODE_SETTINGS_PREFS_MENU]: {
+    variant: "Preferences menu",
+    description: "Menu raiz de preferencias persistentes.",
+    items: [item("Encoder", "Icon_Encoder_bits"), item("Pantalla", "Icon_Smartphone_bits"), item("Seguridad", "Icon_Config_bits"), item("Rotacion", "Icon_Smartphone_bits"), item("Sistema", "Icon_Config_bits"), item("UNER Router", "Icon_Link_bits"), item("Motores"), item("Linea", "Icon_Sensors_bits"), backItem()],
+  },
+  [ScreenCodes.SCREEN_CODE_SETTINGS_PREFS_ENCODER_MENU]: {
+    variant: "Encoder preferences menu",
+    description: "Preferencias del encoder.",
+    items: [item("Invertir giro", "Icon_Config_bits"), backItem()],
+  },
+  [ScreenCodes.SCREEN_CODE_SETTINGS_PREFS_DISPLAY_MENU]: {
+    variant: "Display preferences menu",
+    description: "Preferencias de bloqueo y timeout de pantalla.",
+    items: [item("Bloq pantalla", "Icon_Config_bits"), item("T.s bloqueo", "Icon_Smartphone_bits"), backItem()],
+  },
+  [ScreenCodes.SCREEN_CODE_SETTINGS_PREFS_MOTORS_MENU]: {
+    variant: "Motor preferences menu",
+    description: "Preferencias persistentes de motores.",
+    items: [item("PWM Minimo"), backItem()],
+  },
+  [ScreenCodes.SCREEN_CODE_SETTINGS_PREFS_MOTOR_PWM_MENU]: {
+    variant: "Minimum PWM menu",
+    description: "Ajuste de PWM minimo por motor.",
+    items: [item("Motor izq"), item("Motor der"), backItem()],
+  },
+  [ScreenCodes.SCREEN_CODE_SETTINGS_PREFS_SYSTEM_MENU]: {
+    variant: "System preferences menu",
+    description: "Timeout de acciones y periodo Alive USB.",
+    items: [item("T.s accion", "Icon_Config_bits"), item("Alive USB", "Icon_USB_bits"), backItem()],
+  },
+  [ScreenCodes.SCREEN_CODE_SETTINGS_PREFS_ROTATION_MENU]: {
+    variant: "Rotation preferences menu",
+    description: "Preferencias de rotacion automatica.",
+    items: [item("Rot. automatica", "Icon_Config_bits"), backItem()],
+  },
+  [ScreenCodes.SCREEN_CODE_SETTINGS_PREFS_UNER_ROUTER_MENU]: {
+    variant: "UNER router preferences menu",
+    description: "Preferencias de forwarding UNER.",
+    items: [item("Forwarding", "Icon_Config_bits"), backItem()],
+  },
+  [ScreenCodes.SCREEN_CODE_SETTINGS_PREFS_LINE_MENU]: {
+    variant: "Line preferences menu",
+    description: "Preferencias del seguidor de linea.",
+    items: [item("Ancho cinta", "Icon_Sensors_bits"), backItem()],
+  },
+  [ScreenCodes.SCREEN_CODE_SETTINGS_PREFS_SECURITY_MENU]: {
+    variant: "Security preferences menu",
+    description: "Preferencias del bloqueo por PIN.",
+    items: [item("Bloqueo PIN", "Icon_Config_bits"), backItem()],
+  },
+  [ScreenCodes.SCREEN_CODE_SERVICE_UNER_ROUTER_MENU]: {
+    variant: "UNER router service menu",
+    description: "Seleccion de transporte para la prueba del router UNER.",
+    items: [item("USB CDC", "Icon_USB_bits"), item("UART ESP", "Icon_Link_bits"), item("NRF24", "Icon_RF_bits"), backItem()],
+  },
+};
+
+const IDENTIFIED_SCREENS: Record<number, IdentifiedScreenDefinition> = {
+  [ScreenCodes.SCREEN_CODE_CORE_STABILIZE_PROMPT]: { variant: "Stabilize prompt", category: "transient state screen", description: "Solicitud de estabilizacion previa al modo seleccionado.", lines: ["Estabilizar", "vehiculo"], footer: "Click: aceptar" },
+  [ScreenCodes.SCREEN_CODE_CORE_MODE_PROMPT]: { variant: "Mode prompt", category: "transient state screen", description: "Confirmacion local del modo del auto.", lines: ["Confirmar modo"], footer: "Click: aceptar" },
+  [ScreenCodes.SCREEN_CODE_CONNECTIVITY_WIFI_DETAILS]: { variant: "WiFi details", category: "connectivity screen", description: "Detalle de la red WiFi seleccionada.", lines: ["Detalle WiFi", "Red seleccionada"], footer: "Click: volver" },
+  [ScreenCodes.SCREEN_CODE_CONNECTIVITY_ESP_REBOOT_MODE]: { variant: "ESP reboot mode", category: "connectivity screen", description: "Seleccion o confirmacion del modo de reinicio ESP.", lines: ["Reinicio ESP", "Modo de arranque"], footer: "Click: volver" },
+  [ScreenCodes.SCREEN_CODE_SENSORS_ROUTE_ALIGNMENT]: { variant: "Route alignment", category: "sensor screen", description: "Prueba de alineacion sobre la ruta.", lines: ["Test ruta", "Alineacion"], footer: "Click: volver" },
+  [ScreenCodes.SCREEN_CODE_SENSORS_MPU_CALIBRATION]: { variant: "MPU calibration", category: "sensor screen", description: "Calibracion local del MPU en progreso.", lines: ["Calibrando MPU", "No mover"], footer: "Click: cancelar" },
+  [ScreenCodes.SCREEN_CODE_SENSORS_DISPLAY_ROTATION_TEST]: { variant: "OLED rotation test", category: "display test screen", description: "Prueba manual de orientacion OLED.", lines: ["Test orient.", "Pantalla OLED"], footer: "Click: volver" },
+  [ScreenCodes.SCREEN_CODE_SENSORS_DISPLAY_ROTATION_MPU_TEST]: { variant: "OLED MPU rotation test", category: "display test screen", description: "Prueba de rotacion OLED asistida por MPU.", lines: ["Auto MPU", "Rotacion OLED"], footer: "Click: volver" },
+  [ScreenCodes.SCREEN_CODE_MOTOR_LEFT_TEST]: { variant: "Left motor test", category: "motor/control screen", description: "Prueba individual del motor izquierdo.", lines: ["Motor izquierdo", "Prueba manual"], footer: "Click: volver" },
+  [ScreenCodes.SCREEN_CODE_MOTOR_RIGHT_TEST]: { variant: "Right motor test", category: "motor/control screen", description: "Prueba individual del motor derecho.", lines: ["Motor derecho", "Prueba manual"], footer: "Click: volver" },
+  [ScreenCodes.SCREEN_CODE_BALANCE_PID_STATUS]: { variant: "Balance PID status", category: "balance screen", description: "Estado del controlador PID de balance.", lines: ["Estado PID", "Balance"], footer: "Click: volver" },
+  [ScreenCodes.SCREEN_CODE_BALANCE_PID_LOG]: { variant: "Balance PID log", category: "balance screen", description: "Configuracion del log PID.", lines: ["Log PID", "Balance"], footer: "Click: volver" },
+  [ScreenCodes.SCREEN_CODE_BALANCE_PID_KP]: { variant: "Balance Kp", category: "balance screen", description: "Edicion de ganancia proporcional.", lines: ["Balance PID", "Ganancia Kp"], footer: "Click: guardar" },
+  [ScreenCodes.SCREEN_CODE_BALANCE_PID_KI]: { variant: "Balance Ki", category: "balance screen", description: "Edicion de ganancia integral.", lines: ["Balance PID", "Ganancia Ki"], footer: "Click: guardar" },
+  [ScreenCodes.SCREEN_CODE_BALANCE_PID_KD]: { variant: "Balance Kd", category: "balance screen", description: "Edicion de ganancia derivativa.", lines: ["Balance PID", "Ganancia Kd"], footer: "Click: guardar" },
+  [ScreenCodes.SCREEN_CODE_SETTINGS_ABOUT_BUILD]: { variant: "Firmware build", category: "settings/info screen", description: "Informacion de compilacion del firmware F4.", lines: ["Build F4", "Firmware"], footer: "Click: volver" },
+  [ScreenCodes.SCREEN_CODE_SETTINGS_PREFS_ENCODER_INVERT]: { variant: "Encoder direction preference", category: "settings screen", description: "Estado identificado del ajuste de inversion del encoder.", lines: ["Invertir giro", "Encoder"], footer: "Click: cambiar" },
+  [ScreenCodes.SCREEN_CODE_SETTINGS_PREFS_DISPLAY_LOCK]: { variant: "Screen lock preference", category: "settings screen", description: "Estado identificado del bloqueo automatico de pantalla.", lines: ["Bloq pantalla", "Preferencia"], footer: "Click: cambiar" },
+  [ScreenCodes.SCREEN_CODE_SETTINGS_PREFS_DISPLAY_TIMEOUT]: { variant: "Screen lock timeout", category: "settings screen", description: "Edicion del timeout de bloqueo OLED.", lines: ["T.s bloqueo", "Editar valor"], footer: "Click: guardar" },
+  [ScreenCodes.SCREEN_CODE_SETTINGS_PREFS_MOTOR_PWM_LEFT]: { variant: "Left minimum PWM", category: "settings screen", description: "Edicion del PWM minimo izquierdo.", lines: ["PWM minimo", "Motor izq"], footer: "Click: guardar" },
+  [ScreenCodes.SCREEN_CODE_SETTINGS_PREFS_MOTOR_PWM_RIGHT]: { variant: "Right minimum PWM", category: "settings screen", description: "Edicion del PWM minimo derecho.", lines: ["PWM minimo", "Motor der"], footer: "Click: guardar" },
+  [ScreenCodes.SCREEN_CODE_SETTINGS_PREFS_SYSTEM_ACTION_TIMEOUT]: { variant: "System action timeout", category: "settings screen", description: "Edicion del timeout de acciones.", lines: ["T.s accion", "Editar valor"], footer: "Click: guardar" },
+  [ScreenCodes.SCREEN_CODE_SETTINGS_PREFS_ROTATION_TEST]: { variant: "Preference rotation test", category: "display test screen", description: "Prueba de rotacion desde preferencias.", lines: ["Test rotacion", "Pantalla OLED"], footer: "Click: volver" },
+  [ScreenCodes.SCREEN_CODE_SETTINGS_PREFS_ROTATION_MPU_TEST]: { variant: "Preference MPU rotation test", category: "display test screen", description: "Prueba MPU desde preferencias.", lines: ["Test MPU", "Rotacion OLED"], footer: "Click: volver" },
+  [ScreenCodes.SCREEN_CODE_SETTINGS_PREFS_ROTATION_AUTO]: { variant: "Automatic rotation preference", category: "settings screen", description: "Estado identificado de la rotacion OLED automatica.", lines: ["Rot. automatica", "Pantalla OLED"], footer: "Click: cambiar" },
+  [ScreenCodes.SCREEN_CODE_SETTINGS_PREFS_UNER_ROUTER_FORWARDING]: { variant: "UNER forwarding preference", category: "settings screen", description: "Estado identificado del forwarding del router UNER.", lines: ["UNER Router", "Forwarding"], footer: "Click: cambiar" },
+  [ScreenCodes.SCREEN_CODE_SETTINGS_PREFS_LINE_WIDTH]: { variant: "Line width preference", category: "settings screen", description: "Edicion del ancho de cinta negra.", lines: ["Ancho cinta", "Editar valor"], footer: "Click: guardar" },
+  [ScreenCodes.SCREEN_CODE_SETTINGS_PREFS_SYSTEM_USB_ALIVE]: { variant: "USB Alive period", category: "settings screen", description: "Edicion del periodo Alive USB.", lines: ["Alive USB", "Editar periodo"], footer: "Click: guardar" },
+  [ScreenCodes.SCREEN_CODE_SETTINGS_PREFS_SECURITY_PIN_LOCK]: { variant: "PIN lock preference", category: "settings screen", description: "Estado identificado del bloqueo local por PIN.", lines: ["Bloqueo PIN", "Seguridad"], footer: "Click: cambiar" },
+  [ScreenCodes.SCREEN_CODE_SERVICE_UNER_ROUTER_USB]: { variant: "UNER router USB test", category: "service screen", description: "Prueba del router UNER por USB CDC.", lines: ["UNER Router", "USB CDC"], footer: "Click: volver" },
+  [ScreenCodes.SCREEN_CODE_SERVICE_UNER_ROUTER_UART]: { variant: "UNER router UART test", category: "service screen", description: "Prueba del router UNER por UART ESP.", lines: ["UNER Router", "UART ESP"], footer: "Click: volver" },
+  [ScreenCodes.SCREEN_CODE_SERVICE_UNER_ROUTER_NRF]: { variant: "UNER router NRF test", category: "service screen", description: "Prueba reservada del router UNER por NRF24.", lines: ["UNER Router", "NRF24"], footer: "Click: volver" },
+};
+
+const IDENTIFIED_NOTIFICATIONS: Record<number, IdentifiedScreenDefinition> = {
+  [ScreenCodes.SCREEN_CODE_SENSORS_MPU_STREAM_STARTED]: { variant: "MPU stream started", category: "notification", description: "Aviso de stream MPU activado.", lines: ["Stream MPU", "iniciado"] },
+  [ScreenCodes.SCREEN_CODE_SENSORS_MPU_STREAM_STOPPED]: { variant: "MPU stream stopped", category: "notification", description: "Aviso de stream MPU detenido.", lines: ["Stream MPU", "detenido"] },
+  [ScreenCodes.SCREEN_CODE_SENSORS_MPU_CALIBRATION_NOTICE]: { variant: "MPU calibration notice", category: "notification", description: "Aviso previo a calibrar el MPU.", lines: ["Calibrar MPU", "No mover"] },
+  [ScreenCodes.SCREEN_CODE_SENSORS_MPU_CALIBRATION_DONE]: { variant: "MPU calibration complete", category: "notification", description: "Aviso de calibracion MPU finalizada.", lines: ["MPU calibrado", "con exito"] },
+  [ScreenCodes.SCREEN_CODE_WARNING_REMOTE_AUTHENTICATED]: { variant: "Remote authenticated", category: "notification", description: "Aviso de sesion remota autenticada.", lines: ["Remoto", "autenticado"] },
+  [ScreenCodes.SCREEN_CODE_WARNING_PIN_CORRECT]: { variant: "PIN correct", category: "notification", description: "Aviso de PIN correcto.", lines: ["PIN correcto"] },
+  [ScreenCodes.SCREEN_CODE_WARNING_PIN_BYPASSED]: { variant: "PIN bypassed", category: "notification", description: "Aviso de permiso sin validacion PIN por configuracion.", lines: ["PIN omitido", "por config."] },
+};
 
 export interface ScreenRenderInput {
   screenCode: number;
@@ -161,10 +336,19 @@ export interface ResolvedOledScreen {
 
 export function resolveOledScreen(input: ScreenRenderInput): ResolvedOledScreen | null {
   const data = input.rawData ?? {};
+  const totalMs = readNumber(data.totalMs);
+  const remainingMs = readNumber(data.remainingMs);
   const progress = {
-    elapsedTicks: readNumber(data.elapsedTicks) ?? readNumber(data.progressTicks) ?? 1,
-    totalTicks: readNumber(data.totalTicks) ?? 8,
+    elapsedTicks: totalMs != null && remainingMs != null
+      ? Math.max(0, totalMs - remainingMs)
+      : readNumber(data.elapsedTicks) ?? readNumber(data.progressTicks) ?? 1,
+    totalTicks: totalMs ?? readNumber(data.totalTicks) ?? 8,
   };
+
+  const identified = resolveIdentifiedScreen(input, data, progress);
+  if (identified) {
+    return identified;
+  }
 
   switch (input.screenCode) {
     case SCREEN_CODE_CORE_STARTUP:
@@ -173,6 +357,8 @@ export function resolveOledScreen(input: ScreenRenderInput): ResolvedOledScreen 
       return resolved(input, "Dashboard", "dashboard screen", "buildScreen010101DashboardCommands", "Estado principal del STM: conectividad, modo del auto y accesos a Menu/Modo.", buildScreen010101DashboardCommands(readDashboardArgs(data)));
     case SCREEN_CODE_CORE_MODE_CHANGE:
       return resolved(input, "Mode change selector", "transient state screen", "buildScreen010102ModeChangeCommands", "Selector de modo del auto con flechas y confirmacion por encoder.", buildScreen010102ModeChangeCommands(readModeChangeArgs(data)));
+    case SCREEN_CODE_CORE_REMOTE_MODE_CHANGED:
+      return resolved(input, "Cambio de modo remoto", "notification", "buildScreen010105RemoteModeChangedNotificationCommands", "Aviso transitorio mostrado por F4 luego de aceptar un cambio de modo desde la Web.", buildScreen010105RemoteModeChangedNotificationCommands({ mode: readString(data.carMode) ?? readString(data.mode) ?? "MODO" }, progress));
     case SCREEN_CODE_CORE_MAIN_MENU:
       return resolved(input, "Main menu", "menu screen", "buildScreen010201MainMenuCommands", "Menu principal. La identidad oficial sigue siendo screenCode; el indice solo ajusta el cursor si el bridge lo informa.", buildScreen010201MainMenuCommands(readMenuArgs(data)));
 
@@ -200,6 +386,19 @@ export function resolveOledScreen(input: ScreenRenderInput): ResolvedOledScreen 
       return resolved(input, "WiFi credentials accepted", "notification", "buildScreen02020bWifiCredentialsSucceededCommands", "Credenciales WiFi aceptadas por Web/ESP.", buildScreen02020bWifiCredentialsSucceededCommands({ ssid: readCredentialsSsid(data) }, progress));
     case SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_FAILED:
       return resolved(input, "WiFi credentials failed", "notification", "buildScreen02020cWifiCredentialsFailedCommands", "Credenciales WiFi rechazadas o fallidas.", buildScreen02020cWifiCredentialsFailedCommands({ ssid: readCredentialsSsid(data) }, progress));
+    case SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_AT:
+      return resolved(
+        input,
+        "WiFi credentials entered locally over AT",
+        "connectivity screen",
+        "buildScreen02020dWifiCredentialsAtCommands",
+        "Ingreso local de la clave WiFi con encoder cuando el backend activo es AT.",
+        buildScreen02020dWifiCredentialsAtCommands({
+          ssid: readCredentialsSsid(data),
+          passwordLength: readNumber(data.passwordLength) ?? readNumber(data.password_length) ?? 0,
+          selectedCharacter: readString(data.selectedCharacter) ?? readString(data.selected_character) ?? "A",
+        }),
+      );
 
     case SCREEN_CODE_CONNECTIVITY_ESP_MENU:
       return resolved(input, "ESP submenu", "menu screen", "buildScreen020301EspMenuCommands", "Submenu de enlace ESP con chequeo, firmware y reset.", buildScreen020301EspMenuCommands(readMenuArgs(data)));
@@ -213,6 +412,12 @@ export function resolveOledScreen(input: ScreenRenderInput): ResolvedOledScreen 
       return resolved(input, "ESP check required", "notification", "buildScreen020305EspCheckConnectionRequiredNotificationCommands", "Aviso para ejecutar un chequeo de conexion ESP.", buildScreen020305EspCheckConnectionRequiredNotificationCommands(progress));
     case SCREEN_CODE_CONNECTIVITY_ESP_BOOT_RECEIVED:
       return resolved(input, "ESP boot received", "notification", "buildScreen020306EspBootReceivedNotificationCommands", "Aviso de boot recibido desde el ESP.", buildScreen020306EspBootReceivedNotificationCommands(progress));
+    case SCREEN_CODE_CONNECTIVITY_ESP_UNRESPONSIVE:
+      return resolved(input, "ESP unresponsive", "notification", "buildScreen02030bEspUnresponsiveNotificationCommands", "La F4 agoto los heartbeats y perdio respuesta del ESP.", buildScreen02030bEspUnresponsiveNotificationCommands(progress));
+    case SCREEN_CODE_CONNECTIVITY_ESP_WATCHDOG_RESET:
+      return resolved(input, "ESP watchdog reset", "notification", "buildScreen02030cEspWatchdogResetNotificationCommands", "El ESP volvio a iniciar e informo reset por watchdog.", buildScreen02030cEspWatchdogResetNotificationCommands(progress));
+    case SCREEN_CODE_CONNECTIVITY_ESP_EXCEPTION_RESET:
+      return resolved(input, "ESP exception reset", "notification", "buildScreen02030dEspExceptionResetNotificationCommands", "El ESP volvio a iniciar e informo reset por excepcion.", buildScreen02030dEspExceptionResetNotificationCommands(progress));
     case SCREEN_CODE_CONNECTIVITY_ESP_FIRMWARE_RECEIVED: {
       const firmwareVersion = readString(data.firmwareVersion) ?? readString(data.version) ?? "ESP01";
       const useFullScreen = input.source === SOURCE_RENDER;
@@ -232,9 +437,17 @@ export function resolveOledScreen(input: ScreenRenderInput): ResolvedOledScreen 
       return resolved(input, "Web client connected", "notification", "buildScreen020502WebClientConnectedNotificationCommands", "Aviso de cliente web conectado.", buildScreen020502WebClientConnectedNotificationCommands(progress));
     case SCREEN_CODE_CONNECTIVITY_WEB_CLIENT_DISCONNECTED:
       return resolved(input, "Web client disconnected", "notification", "buildScreen020503WebClientDisconnectedNotificationCommands", "Aviso de cliente web desconectado.", buildScreen020503WebClientDisconnectedNotificationCommands(progress));
+    case SCREEN_CODE_CONNECTIVITY_AP_DEVICE_CONNECTED:
+      return resolved(input, "AP device connected", "notification", "buildScreen020601ApDeviceConnectedNotificationCommands", "Aviso de dispositivo asociado al Access Point.", buildScreen020601ApDeviceConnectedNotificationCommands(progress));
+    case SCREEN_CODE_CONNECTIVITY_AP_DEVICE_DISCONNECTED:
+      return resolved(input, "AP device disconnected", "notification", "buildScreen020602ApDeviceDisconnectedNotificationCommands", "Aviso de dispositivo que abandono el Access Point.", buildScreen020602ApDeviceDisconnectedNotificationCommands(progress));
 
     case SCREEN_CODE_SENSORS_MENU:
       return resolved(input, "Sensors menu", "menu screen", "buildScreen030101SensorsMenuCommands", "Menu de sensores: IR, MPU y test de motores.", buildScreen030101SensorsMenuCommands(readMenuArgs(data)));
+    case SCREEN_CODE_SENSORS_DISPLAY_MENU:
+      return resolved(input, "Display test menu", "menu screen", "buildScreen030500DisplayMenuCommands", "Submenu Testeo > Pantalla con las pruebas OLED y OLED Canvas.", buildScreen030500DisplayMenuCommands(readMenuArgs(data)));
+    case SCREEN_CODE_SENSORS_DISPLAY_OLED_CANVAS:
+      return resolved(input, "OLED Canvas ready", "service screen", "buildScreen030503OledCanvasReadyCommands", "Pantalla exclusiva que habilita la recepcion transaccional del framebuffer.", buildScreen030503OledCanvasReadyCommands());
     case SCREEN_CODE_SENSORS_IR_VALUES:
       return resolved(input, "IR values live graph", "sensor screen", "buildScreen030201IrValuesCommands", "Grafico de ocho sensores IR; sin datos dinamicos usa una muestra estable.", buildScreen030201IrValuesCommands({ irValues: readNumberArray(data.irValues, 8) ?? [0, 512, 1024, 1536, 2048, 2560, 3072, 4095] }));
     case SCREEN_CODE_SENSORS_MPU_VALUES:
@@ -251,6 +464,10 @@ export function resolveOledScreen(input: ScreenRenderInput): ResolvedOledScreen 
       return resolved(input, "About repo QR", "settings/info screen", "buildScreen050202AboutRepoCommands", "Pantalla con QR del repositorio y flecha de regreso.", buildScreen050202AboutRepoCommands());
     case SCREEN_CODE_SETTINGS_WARNING_TIME:
       return resolved(input, "Warning time config", "settings screen", "buildScreen050301WarningTimeCommands", "Configuracion de segundos para avisos.", buildScreen050301WarningTimeCommands({ seconds: readNumber(data.seconds) ?? 10 }));
+    case SCREEN_CODE_SETTINGS_PREFS_UNER_FORWARDING_ENABLED:
+      return resolved(input, "Port forwarding activado", "notification", "buildScreen050417UnerForwardingEnabledNotificationCommands", "Aviso transitorio luego de persistir y aplicar PF ON en la F4.", buildScreen050417UnerForwardingEnabledNotificationCommands(progress));
+    case SCREEN_CODE_SETTINGS_PREFS_UNER_FORWARDING_DISABLED:
+      return resolved(input, "Port forwarding desactivado", "notification", "buildScreen050418UnerForwardingDisabledNotificationCommands", "Aviso transitorio luego de persistir y aplicar PF OFF en la F4.", buildScreen050418UnerForwardingDisabledNotificationCommands(progress));
     case SCREEN_CODE_DIAG_CONTROLLER_CONNECTED:
       return resolved(input, "Controller connected", "notification", "buildScreen060101ControllerConnectedNotificationCommands", "Aviso de control conectado.", buildScreen060101ControllerConnectedNotificationCommands(progress));
     case SCREEN_CODE_DIAG_CONTROLLER_DISCONNECTED:
@@ -308,15 +525,74 @@ function resolved(
   };
 }
 
+function resolveIdentifiedScreen(
+  input: ScreenRenderInput,
+  data: Record<string, unknown>,
+  progress: NotificationProgressArgs,
+): ResolvedOledScreen | null {
+  const menu = IDENTIFIED_MENUS[input.screenCode];
+  if (menu) {
+    const menuArgs = readMenuArgs(data);
+    return resolved(
+      input,
+      menu.variant,
+      "menu screen",
+      "buildMenuScreenCommands",
+      menu.description,
+      buildMenuScreenCommands({
+        screenCode: input.screenCode,
+        items: menu.items,
+        selectedIndex: menuArgs.selectedIndex,
+        firstVisibleIndex: menuArgs.firstVisibleIndex,
+      }),
+    );
+  }
+
+  const notification = IDENTIFIED_NOTIFICATIONS[input.screenCode];
+  if (notification) {
+    return resolved(
+      input,
+      notification.variant,
+      notification.category,
+      "buildIdentifiedNotificationCommands",
+      notification.description,
+      buildIdentifiedNotificationCommands(notification.lines, progress),
+    );
+  }
+
+  const screen = IDENTIFIED_SCREENS[input.screenCode];
+  if (!screen) {
+    return null;
+  }
+
+  return resolved(
+    input,
+    screen.variant,
+    screen.category,
+    "buildIdentifiedScreenCommands",
+    screen.description,
+    buildIdentifiedScreenCommands({
+      lines: screen.lines,
+      footer: screen.footer,
+    }),
+  );
+}
+
 function readDashboardArgs(data: Record<string, unknown>) {
   return {
+    espPresent: readBoolean(data.espPresent),
     connection: readConnection(data.connection),
     ssid: readString(data.ssid),
     ipAddress: readString(data.ipAddress),
+    backend: readDashboardBackend(data.backend),
     usbActive: readBoolean(data.usbActive),
     rfActive: readBoolean(data.rfActive),
     carMode: readCarMode(data.carMode),
   };
+}
+
+function readDashboardBackend(value: unknown): "WEB" | "AT" | "No ESP" {
+  return value === "WEB" || value === "AT" ? value : "No ESP";
 }
 
 function readModeChangeArgs(data: Record<string, unknown>): ModeChangeScreenArgs {
@@ -325,7 +601,7 @@ function readModeChangeArgs(data: Record<string, unknown>): ModeChangeScreenArgs
 
 function readMenuArgs(data: Record<string, unknown>) {
   return {
-    selectedIndex: readNumber(data.selectedIndex) ?? readNumber(data.cursor) ?? 0,
+    selectedIndex: readNumber(data.selectedIndex) ?? readNumber(data.cursor),
     firstVisibleIndex: readNumber(data.firstVisibleIndex),
     sensoresVisible: readBoolean(data.sensoresVisible) ?? readBoolean(data.sensorsVisible),
   };

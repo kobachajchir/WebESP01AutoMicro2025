@@ -1,102 +1,121 @@
-import { useEffect, useState, type CSSProperties } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
+import DocsFirmwareSelector from "../features/docs/DocsFirmwareSelector";
 import {
+  DOC_FIRMWARE_PROFILES,
   DOC_TOPICS,
-  renderDocTopicIcon,
+  docsTopicHref,
+  getDocFirmwareTarget,
+  type DocFirmwareTarget,
   type DocTopicSlug,
-} from "../features/docs/docsCatalog";
+} from "../features/docs/docsContent";
+import { renderDocTopicIcon } from "../features/docs/docsCatalog";
 
 export default function DocsSection() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [hoveredTopic, setHoveredTopic] = useState<DocTopicSlug | null>(null);
-  const [accentBorder30, setAccentBorder30] = useState("rgba(34,211,238,0.3)");
+  const activeTarget = getDocFirmwareTarget(searchParams.get("firmware"));
+  const profile = DOC_FIRMWARE_PROFILES[activeTarget];
 
-  useEffect(() => {
-    try {
-      const raw =
-        getComputedStyle(document.documentElement).getPropertyValue(
-          "--ui-accent",
-        ) || "#22d3ee";
-      const hex = raw.trim();
-      const match = hex.match(/^#?([0-9a-fA-F]{6})$/);
-
-      if (match) {
-        const value = match[1];
-        const red = parseInt(value.slice(0, 2), 16);
-        const green = parseInt(value.slice(2, 4), 16);
-        const blue = parseInt(value.slice(4, 6), 16);
-        setAccentBorder30(`rgba(${red}, ${green}, ${blue}, 0.3)`);
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
+  function handleTargetChange(nextTarget: DocFirmwareTarget) {
+    const nextSearchParams = new URLSearchParams(searchParams);
+    nextSearchParams.set("firmware", nextTarget);
+    setSearchParams(nextSearchParams, { replace: true });
+  }
 
   return (
-    <section className="min-h-screen w-full bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-slate-100">
-      <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-6 p-6">
-        <PageHeader titleOverride="Docs" />
+    <section className="docs-dashboard-shell min-h-screen w-full text-slate-100">
+      <div className="docs-dashboard-frame mx-auto flex w-full max-w-[1800px] flex-col gap-6 p-6">
+        <PageHeader
+          className="app-page-header home-page-header"
+          titleOverride={`Docs · ${profile.label}`}
+        />
 
-        <div className="rounded-[28px] border border-white/10 bg-slate-950/45 p-6 shadow-[0_24px_80px_rgba(2,6,23,0.4)] backdrop-blur">
-          <div className="app-kicker mb-3">Project docs</div>
-          <h2 className="text-3xl font-black tracking-tight text-white md:text-4xl">
-            Documentacion central del desarrollo
-          </h2>
-          <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-300 md:text-base">
-            Este espacio concentra la referencia viva del proyecto. Cada bloque
-            resume lo que ya construimos, como se integra con el resto del
-            sistema y que puntos conviene dejar anotados para seguir iterando
-            sin perder contexto.
-          </p>
+        <div className="relative pt-7">
+          <div className="pointer-events-none absolute left-1/2 top-0 z-10 -translate-x-1/2">
+            <div className="pointer-events-auto">
+              <DocsFirmwareSelector
+                activeTarget={activeTarget}
+                onChange={handleTargetChange}
+              />
+            </div>
+          </div>
+
+          <div className="docs-hero-card app-panel-strong px-6 pb-6 pt-14">
+            <div className="app-kicker mb-3">{profile.eyebrow}</div>
+            <h2 className="text-3xl font-black tracking-tight text-white md:text-4xl">
+              {profile.title}
+            </h2>
+            <p className="mt-3 max-w-5xl text-sm leading-6 text-slate-300 md:text-base">
+              {profile.description}
+            </p>
+
+            <dl className="docs-profile-grid mt-6">
+              <ProfileFact label="Fuente de autoridad" value={profile.authority} />
+              <ProfileFact label="Recorrido principal" value={profile.transport} />
+              <ProfileFact label="Qué documentamos" value={profile.output} />
+            </dl>
+          </div>
         </div>
 
-        <div className="flex flex-wrap gap-6">
-          {DOC_TOPICS.map((topic) => (
-            <button
-              key={topic.slug}
-              type="button"
-              className="group relative min-h-[16rem] w-full rounded-2xl text-slate-900 transition-all duration-300 md:w-[calc(50%-0.75rem)] xl:w-[calc(33.333%-1rem)]"
-              style={cardStyle(hoveredTopic === topic.slug, accentBorder30)}
-              onClick={() =>
-                navigate(`/docs/${topic.slug}`, { viewTransition: true })
-              }
-              onMouseEnter={() => setHoveredTopic(topic.slug)}
-              onMouseLeave={() => setHoveredTopic(null)}
-              aria-label={`Abrir documentacion de ${topic.title}`}
-            >
-              <div className="flex h-full w-full flex-col items-center justify-center rounded-2xl bg-transparent px-6 py-8 text-center text-slate-100 transition-all duration-300">
-                {renderDocTopicIcon(
-                  topic.slug,
-                  "size-24 md:size-32 transition-transform duration-300 group-hover:scale-105",
-                )}
-                <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
-                  {topic.kicker}
-                </p>
-                <p className="mt-1 text-2xl font-extrabold uppercase">
-                  {topic.title}
-                </p>
-                <p className="mt-3 text-sm text-slate-300">{topic.summary}</p>
-              </div>
-            </button>
-          ))}
+        <div className="docs-topic-grid">
+          {DOC_TOPICS.map((topic) => {
+            const variant = topic.variants[activeTarget];
+
+            return (
+              <button
+                key={topic.slug}
+                type="button"
+                className={`docs-topic-card group ${
+                  hoveredTopic === topic.slug ? "docs-topic-card--active" : ""
+                }`}
+                onClick={() =>
+                  navigate(docsTopicHref(topic.slug, activeTarget), {
+                    viewTransition: true,
+                  })
+                }
+                onMouseEnter={() => setHoveredTopic(topic.slug)}
+                onMouseLeave={() => setHoveredTopic(null)}
+                aria-label={`Abrir documentación ${profile.label} de ${topic.title}`}
+              >
+                <div className="flex h-full w-full flex-col items-center justify-center rounded-2xl bg-transparent px-6 py-8 text-center text-slate-100 transition-all duration-300">
+                  {renderDocTopicIcon(
+                    topic.slug,
+                    "size-24 md:size-32 transition-transform duration-300 group-hover:scale-105",
+                  )}
+                  <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
+                    {topic.kicker} · {profile.label}
+                  </p>
+                  <p className="mt-1 text-2xl font-extrabold uppercase">
+                    {topic.title}
+                  </p>
+                  <p className="mt-3 text-sm leading-6 text-slate-300">
+                    {variant.summary}
+                  </p>
+                  <div className="mt-5 flex flex-wrap justify-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                    <span>{variant.sections.length} capítulos</span>
+                    <span aria-hidden="true">·</span>
+                    <span>{variant.flow.length} módulos</span>
+                    <span aria-hidden="true">·</span>
+                    <span>{variant.media.length} evidencias</span>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
     </section>
   );
 }
 
-function cardStyle(active: boolean, accentBorder30: string): CSSProperties {
-  return active
-    ? {
-        borderColor: "white",
-        color: "white",
-        borderStyle: "solid",
-        borderWidth: "2px",
-      }
-    : {
-        borderColor: accentBorder30,
-        borderStyle: "solid",
-        borderWidth: "2px",
-      };
+function ProfileFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="docs-profile-fact">
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
 }

@@ -1,3 +1,5 @@
+import StopDiscontinuityGlyph from "./StopDiscontinuityGlyph";
+
 export type BlockKind = "ramp" | "hold" | "pivot" | "arc" | "stop";
 
 interface Props {
@@ -118,9 +120,7 @@ export default function MotorBlock({
         )}
 
         {kind === "stop" && (
-          <svg viewBox="0 0 24 24" className="h-10 w-10" fill="currentColor">
-            <rect x="7" y="7" width="10" height="10" rx="2" />
-          </svg>
+          <StopDiscontinuityGlyph className="h-10 w-10 text-current" />
         )}
       </div>
 

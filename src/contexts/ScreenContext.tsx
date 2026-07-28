@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 // src/contexts/ScreenContext.tsx
 import React, {
   createContext,
@@ -10,7 +11,6 @@ import React, {
 } from "react";
 import {
   UNER_V2_CMD,
-  createUnerV2StreamParser,
 } from "../api/UnerFrameV2";
 import { useWebSocket } from "../hooks/useWebSocket";
 import {
@@ -28,6 +28,8 @@ import {
   SCREEN_CODE_CONNECTIVITY_WIFI_MENU,
   SCREEN_CODE_CONNECTIVITY_WIFI_RESULTS,
   SCREEN_CODE_CORE_MAIN_MENU,
+  SCREEN_CODE_CORE_DASHBOARD,
+  SCREEN_CODE_SENSORS_DISPLAY_MENU,
   SCREEN_CODE_SENSORS_MENU,
   SCREEN_CODE_SETTINGS_MENU,
   getScreenDefinition,
@@ -36,6 +38,8 @@ import {
 } from "../screens/screenCodes";
 import { useCarMode, type CarModeLabel } from "./CarModeContext";
 import { useWifiCredentials } from "./WifiCredentialsContext";
+import { normalizeStmMenuIndex } from "../protocol/screenMenuState";
+import { useUser } from "./UserContext";
 
 const MENU_ITEMS_PER_PAGE = 3;
 
@@ -66,7 +70,8 @@ interface ScreenProviderProps {
 }
 
 export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
-  const { connected, send, subscribe, subscribeRaw } = useWebSocket();
+  const { connected, request, subscribe } = useWebSocket();
+  const { remotePinAuthenticated } = useUser();
   const {
     mode: carMode,
     applyCarModeValue,
@@ -79,7 +84,7 @@ export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
 
   const pendingScreenRequestsRef = useRef(new Set<string>());
   const initialSyncDoneRef = useRef(false);
-  const rawScreenParserRef = useRef(createUnerV2StreamParser());
+  const dashboardHydrationReceivedAtRef = useRef<number | null>(null);
 
   const applyScreenReport = useCallback(
     (data: unknown, updateKind: ScreenUpdateKind, requestId?: string) => {
@@ -107,10 +112,7 @@ export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
         sensoresVisible: effectiveCarMode === "TEST",
       });
       setCurrentScreen((previousScreen) =>
-        normalizeMenuSelectionForRender(
-          preservePreviousMenuCountForShortSelection(nextScreen, previousScreen),
-          previousScreen,
-        ),
+        preservePreviousMenuCountForShortSelection(nextScreen, previousScreen),
       );
       return true;
     },
@@ -118,26 +120,22 @@ export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
   );
 
   const requestCurrentScreen = useCallback(() => {
-    if (!connected) {
+    if (!connected || !remotePinAuthenticated) {
       return null;
     }
 
     const requestId = createRequestId();
     pendingScreenRequestsRef.current.add(requestId);
 
-    send("device.command", {
-      requestId,
-      target: "stm",
-      command: SCREEN_GET_CURRENT_COMMAND,
-      params: {},
-    });
+    void request(SCREEN_GET_CURRENT_COMMAND, {}, { requestId, timeoutMs: 3_000 })
+      .catch(() => pendingScreenRequestsRef.current.delete(requestId));
 
     window.setTimeout(() => {
       pendingScreenRequestsRef.current.delete(requestId);
     }, 10000);
 
     return requestId;
-  }, [connected, send]);
+  }, [connected, remotePinAuthenticated, request]);
 
   useEffect(() => {
     const offDeviceEvent = subscribe("device.event", (payload: unknown) => {
@@ -148,7 +146,11 @@ export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
       const eventName = getScreenEventName(payload);
 
       if (eventName === "screen.changed" || eventName === "screen.current") {
-        applyScreenReport(unwrapScreenEventData(payload), eventName);
+        applyScreenReport(
+          unwrapScreenEventData(payload),
+          eventName,
+          getScreenResponseRequestId(payload),
+        );
         return;
       }
 
@@ -214,42 +216,18 @@ export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
       }
     });
 
-    const offRawScreenEvent = subscribeRaw((incoming) => {
-      const bytes =
-        incoming instanceof Uint8Array ? incoming : new Uint8Array(incoming);
-
-      for (const frame of rawScreenParserRef.current.push(bytes)) {
-        if (
-          frame.cmd !== UNER_V2_CMD.EVT_SCREEN_CHANGED &&
-          frame.cmd !== UNER_V2_CMD.EVT_MENU_SELECTION_CHANGED
-        ) {
-          continue;
-        }
-
-        applyScreenReport(
-          {
-            cmd: frame.cmd,
-            payload: Array.from(frame.payload),
-          },
-          "screen.changed",
-        );
-      }
-    });
-
     return () => {
       offDeviceEvent();
       offDirectScreenChanged();
       offDirectScreenCurrent();
       offDeviceResponse();
       offStmEvent();
-      offRawScreenEvent();
     };
-  }, [applyScreenReport, subscribe, subscribeRaw]);
+  }, [applyScreenReport, subscribe]);
 
   useEffect(() => {
-    if (!connected) {
+    if (!connected || !remotePinAuthenticated) {
       initialSyncDoneRef.current = false;
-      rawScreenParserRef.current.reset();
       setCurrentScreen(null);
       return;
     }
@@ -260,7 +238,23 @@ export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
 
     initialSyncDoneRef.current = true;
     requestCurrentScreen();
-  }, [connected, requestCurrentScreen]);
+  }, [connected, remotePinAuthenticated, requestCurrentScreen]);
+
+  useEffect(() => {
+    if (currentScreen?.screenCode !== SCREEN_CODE_CORE_DASHBOARD) {
+      dashboardHydrationReceivedAtRef.current = null;
+      return;
+    }
+
+    if (
+      currentScreen.updateKind === "screen.changed" &&
+      currentScreen.rawData?.backend === undefined &&
+      dashboardHydrationReceivedAtRef.current !== currentScreen.receivedAt
+    ) {
+      dashboardHydrationReceivedAtRef.current = currentScreen.receivedAt;
+      requestCurrentScreen();
+    }
+  }, [currentScreen, requestCurrentScreen]);
 
   useEffect(() => {
     setCurrentScreen((screen) => {
@@ -277,7 +271,7 @@ export const ScreenProvider: React.FC<ScreenProviderProps> = ({ children }) => {
         sensoresVisible: carMode === "TEST",
       });
 
-      return normalizeMenuSelectionForRender(refreshedScreen, screen);
+      return refreshedScreen;
     });
   }, [carMode, wifiCredentials]);
 
@@ -319,9 +313,9 @@ function enrichCurrentScreen(
   const reportedItemsCount =
     meta.itemsCount !== undefined ? clampByte(meta.itemsCount) : undefined;
   const itemsCount = clampByte(
-    knownMenuItemsCount !== undefined
-      ? Math.max(knownMenuItemsCount, reportedItemsCount ?? 0)
-      : reportedItemsCount ?? (meta.hasMenuItems ? MENU_ITEMS_PER_PAGE : 0),
+    reportedItemsCount ??
+      knownMenuItemsCount ??
+      (meta.hasMenuItems ? MENU_ITEMS_PER_PAGE : 0),
   );
   const hasMenuItems =
     knownMenuItemsCount !== undefined ||
@@ -415,58 +409,6 @@ function enrichRawScreenData(
   }
 
   return enriched;
-}
-
-function normalizeMenuSelectionForRender(
-  nextScreen: ScreenViewModel,
-  previousScreen: ScreenViewModel | null,
-): ScreenViewModel {
-  if (!nextScreen.hasMenuItems) {
-    return nextScreen;
-  }
-
-  const enteredNewMenu =
-    !previousScreen || previousScreen.screenCode !== nextScreen.screenCode;
-
-  if (!enteredNewMenu && nextScreen.selectedIndex !== null) {
-    return nextScreen;
-  }
-
-  return withMenuSelectedIndex(nextScreen, 0);
-}
-
-function withMenuSelectedIndex(
-  screen: ScreenViewModel,
-  selectedIndex: number,
-): ScreenViewModel {
-  const normalizedSelectedIndex =
-    screen.itemsCount > 0
-      ? Math.min(clampByte(selectedIndex), screen.itemsCount - 1)
-      : 0;
-  const currentMenuPage =
-    Math.floor(normalizedSelectedIndex / MENU_ITEMS_PER_PAGE) + 1;
-  const firstVisibleIndex = (currentMenuPage - 1) * MENU_ITEMS_PER_PAGE;
-  const visibleStartIndex = firstVisibleIndex + 1;
-  const visibleEndIndex = Math.min(
-    screen.itemsCount,
-    visibleStartIndex + MENU_ITEMS_PER_PAGE - 1,
-  );
-  const rawData = isRecord(screen.rawData) ? { ...screen.rawData } : {};
-
-  rawData.itemCount = screen.itemsCount;
-  rawData.itemsCount = screen.itemsCount;
-  rawData.hasMenuItems = true;
-  rawData.selectedIndex = normalizedSelectedIndex;
-  rawData.firstVisibleIndex = firstVisibleIndex;
-
-  return {
-    ...screen,
-    currentMenuPage,
-    selectedIndex: normalizedSelectedIndex,
-    visibleStartIndex,
-    visibleEndIndex,
-    rawData,
-  };
 }
 
 function preservePreviousMenuCountForShortSelection(
@@ -811,10 +753,14 @@ function getKnownMenuItemsCount(
 ): number | undefined {
   switch (screenCode) {
     case SCREEN_CODE_CORE_MAIN_MENU:
-      return sensoresVisible ? 4 : 3;
+      return sensoresVisible ? 6 : 4;
     case SCREEN_CODE_CONNECTIVITY_WIFI_MENU:
+      return 5;
     case SCREEN_CODE_CONNECTIVITY_ESP_MENU:
+      return 4;
     case SCREEN_CODE_SENSORS_MENU:
+      return 5;
+    case SCREEN_CODE_SENSORS_DISPLAY_MENU:
       return 4;
     case SCREEN_CODE_SETTINGS_MENU:
       return 3;
@@ -859,24 +805,6 @@ function readPayloadBytes(data: unknown): number[] | undefined {
   }
 
   return bytes;
-}
-
-function normalizeStmMenuIndex(
-  value: number | undefined,
-  itemsCount?: number,
-): number | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  const selectedIndex = clampByte(value);
-  const count = itemsCount === undefined ? undefined : clampByte(itemsCount);
-
-  if (selectedIndex > 0 && (count === undefined || selectedIndex <= count)) {
-    return selectedIndex - 1;
-  }
-
-  return selectedIndex;
 }
 
 function clampByte(value: number): number {

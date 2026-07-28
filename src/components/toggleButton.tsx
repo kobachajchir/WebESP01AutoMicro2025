@@ -25,6 +25,10 @@ interface ToggleButtonProps {
   labelOn?: string; // Texto para el estado "On"
   labelOff?: string; // Texto para el estado "Off"
   labelClassName?: string; // Clase extra para las etiquetas
+  /** Título/tooltip del control */
+  title?: string;
+  /** Contenido opcional para mostrar dentro del thumb (ico/text) */
+  thumbContent?: (checked: boolean) => React.ReactNode;
 }
 
 /** Toggle con estilo de la app (slate/cyan), accesible y animado */
@@ -42,6 +46,8 @@ export default function ToggleButton({
   labelOn = "On",
   labelOff = "Off",
   labelClassName = "",
+  title = "",
+  thumbContent,
 }: ToggleButtonProps) {
   const isControlled = checked !== undefined;
   const [internal, setInternal] = useState(defaultChecked);
@@ -116,12 +122,13 @@ export default function ToggleButton({
         role="switch"
         aria-checked={isOn}
         aria-label={ariaLabel}
+        title={title}
         aria-disabled={disabled || undefined}
         disabled={disabled}
         onClick={toggle}
         onKeyDown={onKeyDown}
         className={[
-          "inline-flex items-center rounded-full p-0.5",
+          "inline-flex items-center rounded-full p-0.5 relative",
           "transition-colors duration-300 ease-out",
           "ring-1 ring-white/10",
           cfg.track,
@@ -146,6 +153,11 @@ export default function ToggleButton({
           ].join(" ")}
           // micro-anim extra opcional con data-state (si querés tunear en CSS global)
         />
+        {thumbContent ? (
+          <span className="absolute pointer-events-none select-none">
+            {thumbContent(isOn)}
+          </span>
+        ) : null}
       </button>
       {labels && (
         <span

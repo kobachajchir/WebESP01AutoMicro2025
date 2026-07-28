@@ -9,10 +9,12 @@ import OledCommandPreview from "./OledCommandPreview";
 import PinScreenModal from "./PinScreenModal";
 import useUser from "../contexts/UserContext";
 import { useCarMode } from "../contexts/CarModeContext";
+import { useOledCanvasTransfer } from "../features/oledEditor/useOledCanvasTransfer";
+import { rasterizeOledDocument } from "../features/oledEditor/oledCanvasRasterizer";
+import { OLED_CANVAS_SCREEN_CODE } from "../features/oledEditor/oledCanvasProtocol";
 import {
   getStmRemoteCommandMode,
   STM_LEGACY_REMOTE_COMMANDS,
-  STM_REMOTE_AUTH_COMMANDS,
   STM_REMOTE_COMMAND_MODE,
   STM_REMOTE_INPUT_COMMANDS,
   toRemotePressKindLabel,
@@ -22,18 +24,13 @@ import {
   SCREEN_CODE_CONNECTIVITY_WIFI_MENU,
   SCREEN_CODE_CONNECTIVITY_WIFI_RESULTS,
   SCREEN_CODE_CORE_MAIN_MENU,
+  SCREEN_CODE_SENSORS_DISPLAY_MENU,
   SCREEN_CODE_SENSORS_MENU,
   SCREEN_CODE_SETTINGS_MENU,
-  SCREEN_CODE_WARNING_PERMISSION_DENIED,
-  SCREEN_CODE_WARNING_PIN_BLOCKED,
-  SCREEN_CODE_WARNING_PIN_DENIED,
-  SCREEN_CODE_WARNING_PIN_ENTRY,
-  SCREEN_CODE_WARNING_PIN_TIMEOUT,
-  SCREEN_CODE_WARNING_PIN_WAITING,
 } from "../screens/screenCodes";
-import type { PinAuthResult } from "../types/PinAuthTypes";
+import { getStmRemoteActionFeedback } from "../utils/stmRemoteActionFeedback";
 
-const LONG_PRESS_THRESHOLD_MS = 2000;
+const LONG_PRESS_THRESHOLD_MS = 1500;
 const POST_COMMAND_SCREEN_REFRESH_DELAY_MS = 120;
 const MENU_VISIBLE_ITEMS = 3;
 
@@ -45,12 +42,6 @@ const UNER_PRESS_KIND_LONG = 0x01;
 
 type ScreenPageDirection = "up" | "down";
 type AuxButtonKind = "encoder" | "user";
-type PendingPinGrantState = {
-  initialScreenKey: string;
-  resolve: (result: PinAuthResult) => void;
-  timeoutId: number;
-};
-
 const Icon_Encoder_bits = new Uint8Array([
   0xf8, 0x03, 0xfc, 0x07, 0x0e, 0x0e, 0xf7, 0x1d, 0xfb, 0x1b, 0xfb, 0x1b, 0xfb,
   0x1b, 0xfb, 0x1b, 0xfb, 0x1b, 0xf7, 0x1d, 0x0e, 0x0e, 0xfc, 0x07, 0xf8, 0x03,
@@ -112,10 +103,11 @@ export default function ScreenStreamWorkspace({
   isModal?: boolean;
 }) {
   const { validatePin, remotePinAuthenticated } = useUser();
-  const { connected, send } = useWebSocket();
+  const { connected, request } = useWebSocket();
   const { currentScreen, requestCurrentScreen } = useScreen();
-  const { requestCarMode } = useCarMode();
+  const { rawMode, requestCarMode } = useCarMode();
   const { savedScreens } = useSavedOledScreens();
+  const oledCanvasTransfer = useOledCanvasTransfer();
   const stmRemoteCommandMode = getStmRemoteCommandMode();
 
   const [hoverSync, setHoverSync] = useState(false);
@@ -138,6 +130,12 @@ export default function ScreenStreamWorkspace({
   const [hoverRotateLeft, setHoverRotateLeft] = useState(false);
   const [hoverRotateRight, setHoverRotateRight] = useState(false);
   const [savedScreensOpen, setSavedScreensOpen] = useState(false);
+  const [remoteCommandStatus, setRemoteCommandStatus] = useState<{
+    tone: "idle" | "loading" | "success" | "error";
+    message: string;
+  }>({ tone: "idle", message: "Controles remotos listos." });
+  const canUseSavedScreens = rawMode === 0x02 &&
+    currentScreen?.screenCode === OLED_CANVAS_SCREEN_CODE;
 
   const [pressedMenuItem, setPressedMenuItem] = useState<number | null>(null);
   const [pressedScrollDir, setPressedScrollDir] =
@@ -168,8 +166,9 @@ export default function ScreenStreamWorkspace({
   });
 
   const currentScreenRef = useRef(currentScreen);
-  const pendingPinGrantRef = useRef<PendingPinGrantState | null>(null);
   const refreshTimeoutRef = useRef<number | null>(null);
+  const manualSyncRequestRef = useRef<string | null>(null);
+  const manualSyncTimeoutRef = useRef<number | null>(null);
   const previewMeasureRef = useRef<HTMLDivElement | null>(null);
   const [previewHeight, setPreviewHeight] = useState<number>(256);
 
@@ -186,6 +185,10 @@ export default function ScreenStreamWorkspace({
         : null,
     [currentScreen],
   );
+  const notificationRemainingMs = readFiniteNumber(currentScreen?.rawData?.remainingMs);
+  const notificationTotalMs = readFiniteNumber(currentScreen?.rawData?.totalMs);
+  const notificationActive = currentScreen?.rawData?.notificationActive === true
+    || (notificationRemainingMs !== null && notificationRemainingMs > 0);
 
   const isKnownSelectableScreen = isMenuControlScreenCode(
     currentScreen?.screenCode,
@@ -248,61 +251,37 @@ export default function ScreenStreamWorkspace({
   }, [resolvedScreen, isModal]);
 
   useEffect(() => {
+    const auxLongPressTimers = auxLongPressTimeoutRef.current;
     return () => {
       if (refreshTimeoutRef.current !== null) {
         window.clearTimeout(refreshTimeoutRef.current);
       }
-
-      if (pendingPinGrantRef.current) {
-        window.clearTimeout(pendingPinGrantRef.current.timeoutId);
-        pendingPinGrantRef.current = null;
+      if (manualSyncTimeoutRef.current !== null) {
+        window.clearTimeout(manualSyncTimeoutRef.current);
       }
+      (Object.keys(auxLongPressTimers) as AuxButtonKind[]).forEach((kind) => {
+        const timer = auxLongPressTimers[kind];
+        if (timer !== null) window.clearTimeout(timer);
+      });
     };
   }, []);
 
-  const clearPendingPinGrant = (result?: PinAuthResult) => {
-    const pending = pendingPinGrantRef.current;
-    if (!pending) {
-      return;
-    }
-
-    window.clearTimeout(pending.timeoutId);
-    pendingPinGrantRef.current = null;
-
-    if (result !== undefined) {
-      pending.resolve(result);
-    }
-  };
-
   useEffect(() => {
-    if (!currentScreen) {
+    if (!currentScreen?.requestId || currentScreen.requestId !== manualSyncRequestRef.current) {
       return;
     }
 
-    const pending = pendingPinGrantRef.current;
-    if (!pending) {
-      return;
+    manualSyncRequestRef.current = null;
+    if (manualSyncTimeoutRef.current !== null) {
+      window.clearTimeout(manualSyncTimeoutRef.current);
+      manualSyncTimeoutRef.current = null;
     }
-
-    const nextScreenKey = getScreenTransitionKey(currentScreen);
-    if (nextScreenKey === pending.initialScreenKey) {
-      return;
-    }
-
-    const outcome = getPinGrantOutcome(currentScreen);
-    if (outcome === "pending") {
-      return;
-    }
-
-    clearPendingPinGrant(
-      outcome === "success"
-        ? { ok: true }
-        : {
-            ok: false,
-            reason: "grant-rejected",
-            message: "La STM rechazo o cancelo el granted.",
-          },
-    );
+    setRemoteCommandStatus({
+      tone: "success",
+      message: currentScreen.hasMenuItems
+        ? `Pantalla y seleccion ${currentScreen.selectedIndex ?? 0} sincronizadas desde la F4.`
+        : "Pantalla sincronizada desde la F4.",
+    });
   }, [currentScreen]);
 
   const scheduleScreenRefresh = () => {
@@ -316,7 +295,7 @@ export default function ScreenStreamWorkspace({
     }, POST_COMMAND_SCREEN_REFRESH_DELAY_MS);
   };
 
-  const dispatchStmCommand = (
+  const dispatchStmCommand = async (
     legacyCommand: string,
     payloadOrOptionsOrDescription:
       | number[]
@@ -366,88 +345,77 @@ export default function ScreenStreamWorkspace({
         command,
         description,
       });
-      return null;
+      setRemoteCommandStatus({ tone: "error", message: "No hay WebSocket activo." });
+      return false;
+    }
+
+    if (!remotePinAuthenticated) {
+      setRemoteCommandStatus({
+        tone: "error",
+        message: "La sesion PIN no esta autorizada. Volve a ingresar.",
+      });
+      return false;
     }
 
     const requestId = createCommandRequestId();
 
-    send("device.command", {
-      requestId,
-      target: "stm",
-      command,
-      ...(useJsonCommand
-        ? { params: options.jsonParams ?? {} }
-        : { payload }),
-    });
-
-    return requestId;
+    setRemoteCommandStatus({ tone: "loading", message: `Enviando: ${description}` });
+    try {
+      await request(
+        command,
+        useJsonCommand ? options.jsonParams ?? {} : { payload },
+        { requestId, timeoutMs: 3_500 },
+      );
+      setRemoteCommandStatus({ tone: "success", message: `Confirmado por F4: ${description}` });
+      return true;
+    } catch (cause) {
+      const feedback = getStmRemoteActionFeedback(cause, description);
+      setRemoteCommandStatus({
+        tone: "error",
+        message: feedback.message,
+      });
+      if (feedback.refreshScreen) scheduleScreenRefresh();
+      return false;
+    }
   };
 
   const getAccentButtonStyle = (
     hovered: boolean,
     pressed = false,
+    longPressed = false,
   ): React.CSSProperties => {
-    if (pressed) {
+    if (longPressed) {
       return {
-        background: "var(--ui-accent)",
-        color: "var(--ui-action-hover-ink)",
-        borderColor: "var(--ui-accent)",
+        background: "#f59e0b",
+        color: "#0f172a",
+        borderColor: "#fbbf24",
         transform: "scale(0.94)",
-        boxShadow: "0 0 0 2px rgba(34,211,238,0.22) inset",
-      };
-    }
-
-    if (hovered) {
-      return {
-        background: "var(--ui-accent)",
-        color: "var(--ui-action-hover-ink)",
-        borderColor: "var(--ui-accent)",
-      };
-    }
-
-    return {
-      borderColor: "rgba(34,211,238,0.3)",
-      color: "var(--ui-accent)",
-      background: "transparent",
-    };
-  };
-
-  const getWhiteAuxButtonStyle = (
-    hovered: boolean,
-    pressed: boolean,
-    isLongPress: boolean,
-  ): React.CSSProperties => {
-    if (isLongPress) {
-      return {
-        background: "#16a34a",
-        color: "#ffffff",
-        borderColor: "#16a34a",
-        boxShadow: "0 0 0 2px rgba(22,163,74,0.2) inset",
+        boxShadow: "0 0 0 3px rgba(251,191,36,0.28)",
       };
     }
 
     if (pressed) {
       return {
-        background: "rgba(255,255,255,0.16)",
-        color: "#ffffff",
-        borderColor: "rgba(255,255,255,0.72)",
+        background: "var(--ui-action-bg)",
+        color: "var(--ui-action-ink)",
+        borderColor: "var(--ui-action-bg)",
         transform: "scale(0.94)",
-        boxShadow: "0 0 0 2px rgba(255,255,255,0.08) inset",
+        boxShadow: "0 0 0 2px var(--ui-accent-wash) inset",
       };
     }
 
     if (hovered) {
       return {
-        background: "rgba(255,255,255,0.08)",
-        color: "#ffffff",
-        borderColor: "rgba(255,255,255,0.6)",
+        background: "var(--ui-action-hover-bg)",
+        color: "var(--ui-action-hover-ink)",
+        borderColor: "var(--ui-action-hover-bg)",
       };
     }
 
     return {
-      borderColor: "rgba(255,255,255,0.22)",
-      color: "#ffffff",
-      background: "transparent",
+      borderColor: "var(--ui-action-bg)",
+      color: "var(--ui-action-ink)",
+      background: "var(--ui-action-bg)",
     };
   };
 
@@ -487,13 +455,15 @@ export default function ScreenStreamWorkspace({
 
     const payload = buildMenuItemClickPayload(currentScreen.screenCode, item);
 
-    dispatchStmCommand(
+    void dispatchStmCommand(
       STM_LEGACY_REMOTE_COMMANDS.MENU_ITEM_CLICK,
+      {
+        payload,
+        jsonCommand: STM_REMOTE_INPUT_COMMANDS.MENU_ITEM_CLICK,
+        jsonParams: { screenCode: currentScreen.screenCode, item },
+      },
       `Emular click físico sobre item visible ${item}`,
-      { payload },
-    );
-
-    scheduleScreenRefresh();
+    ).then((ok) => { if (ok) scheduleScreenRefresh(); });
   };
 
   const handleMenuScroll = (direction: ScreenPageDirection) => {
@@ -514,15 +484,17 @@ export default function ScreenStreamWorkspace({
 
     const payload = buildScreenPagePayload(currentScreen.screenCode, direction);
 
-    dispatchStmCommand(
+    void dispatchStmCommand(
       STM_LEGACY_REMOTE_COMMANDS.REQUEST_SCREEN_PAGE,
-      { payload },
+      {
+        payload,
+        jsonCommand: STM_REMOTE_INPUT_COMMANDS.REQUEST_SCREEN_PAGE,
+        jsonParams: { screenCode: currentScreen.screenCode, direction },
+      },
       direction === "up"
         ? "Solicitar página anterior de la screen actual"
         : "Solicitar página siguiente de la screen actual",
-    );
-
-    scheduleScreenRefresh();
+    ).then((ok) => { if (ok) scheduleScreenRefresh(); });
   };
 
   const startAuxPress = (kind: AuxButtonKind) => {
@@ -587,7 +559,7 @@ export default function ScreenStreamWorkspace({
 
     const payload = buildAuxButtonPayload(currentScreen.screenCode, pressKind);
 
-    dispatchStmCommand(
+    void dispatchStmCommand(
       legacyCommand,
       {
         payload,
@@ -600,12 +572,11 @@ export default function ScreenStreamWorkspace({
       `${kind === "encoder" ? "Emular botón encoder" : "Emular botón user"} como ${
         pressKind === UNER_PRESS_KIND_LONG ? "longpress" : "shortpress"
       }`,
-    );
+    ).then((ok) => { if (ok) scheduleScreenRefresh(); });
 
     setPressedAuxButton((prev) => (prev === kind ? null : prev));
     setLongPressActive((prev) => ({ ...prev, [kind]: false }));
 
-    scheduleScreenRefresh();
   };
 
   const handleEncoderRotate = (direction: "left" | "right") => {
@@ -616,19 +587,18 @@ export default function ScreenStreamWorkspace({
 
     animateRotatePress(direction);
 
-    const bridgeDirection = direction === "left" ? "right" : "left";
     const legacyCommand =
-      bridgeDirection === "left"
+      direction === "left"
         ? STM_LEGACY_REMOTE_COMMANDS.ROTATE_LEFT
         : STM_LEGACY_REMOTE_COMMANDS.ROTATE_RIGHT;
     const jsonCommand =
-      bridgeDirection === "left"
+      direction === "left"
         ? STM_REMOTE_INPUT_COMMANDS.ROTATE_LEFT
         : STM_REMOTE_INPUT_COMMANDS.ROTATE_RIGHT;
 
     const payload = buildEncoderRotatePayload(currentScreen.screenCode);
 
-    dispatchStmCommand(
+    void dispatchStmCommand(
       legacyCommand,
       {
         payload,
@@ -640,55 +610,13 @@ export default function ScreenStreamWorkspace({
       direction === "left"
         ? "Emular giro físico del encoder hacia la izquierda"
         : "Emular giro físico del encoder hacia la derecha",
-    );
-
-    scheduleScreenRefresh();
+    ).then((ok) => { if (ok) scheduleScreenRefresh(); });
   };
-
-const legacyHandleValidatePin = async (pin: string) => {
-  if (!currentScreen) {
-    console.warn("[PIN] No hay currentScreen activa para validar");
-    return {
-      ok: false,
-      reason: "unknown" as const,
-      message: "No hay pantalla STM activa para validar.",
-    };
-  }
-
-  const validation = await validatePin(pin);
-
-  console.log("[PIN][WEB->ESP] resultado validación", {
-    pin,
-    validation,
-    screenCode:
-      currentScreen.screenCodeHex ??
-      formatScreenCodeHex(currentScreen.screenCode ?? 0),
-  });
-
-  if (!validation.ok) {
-    return validation;
-  }
-
-  const payload = screenCodeToLeBytes(currentScreen.screenCode);
-
-  dispatchStmCommand(
-    STM_LEGACY_REMOTE_COMMANDS.PIN_GRANTED,
-    payload,
-    `Notificar a STM que el PIN fue validado para screen ${currentScreen.screenCodeHex ?? formatScreenCodeHex(currentScreen.screenCode)}`,
-  );
-
-  scheduleScreenRefresh();
-
-  return { ok: true };
-};
-
-void legacyHandleValidatePin;
 
   const handleValidatePin = async (pin: string) => {
     const screenAtSubmit = currentScreenRef.current;
 
     if (!screenAtSubmit) {
-      console.warn("[PIN] No hay currentScreen activa para validar");
       return {
         ok: false,
         reason: "unknown" as const,
@@ -696,51 +624,14 @@ void legacyHandleValidatePin;
       };
     }
 
-    const validation = await validatePin(pin);
-
-    console.log("[PIN][WEB->ESP] resultado validacion", {
-      pin,
-      validation,
-      screenCode:
-        screenAtSubmit.screenCodeHex ??
-        formatScreenCodeHex(screenAtSubmit.screenCode ?? 0),
-    });
+    const validation = await validatePin(pin, screenAtSubmit.screenCode);
 
     if (!validation.ok) {
       return validation;
     }
 
-    clearPendingPinGrant();
-
-    const payload = screenCodeToLeBytes(screenAtSubmit.screenCode);
-
-    dispatchStmCommand(
-      STM_LEGACY_REMOTE_COMMANDS.PIN_GRANTED,
-      {
-        payload,
-        jsonCommand: STM_REMOTE_AUTH_COMMANDS.PIN_GRANTED,
-        jsonParams: {
-          screenCode: screenAtSubmit.screenCode,
-        },
-      },
-      `Notificar a STM que el PIN fue validado para screen ${screenAtSubmit.screenCodeHex ?? formatScreenCodeHex(screenAtSubmit.screenCode)}`,
-    );
-
     scheduleScreenRefresh();
-
-    return new Promise<PinAuthResult>((resolve) => {
-      pendingPinGrantRef.current = {
-        initialScreenKey: getScreenTransitionKey(screenAtSubmit),
-        resolve,
-        timeoutId: window.setTimeout(() => {
-          clearPendingPinGrant({
-            ok: false,
-            reason: "timeout",
-            message: "La STM no confirmo el granted antes del timeout.",
-          });
-        }, 12000),
-      };
-    });
+    return validation;
   };
 
   const screenLabel = currentScreen
@@ -776,24 +667,69 @@ void legacyHandleValidatePin;
           color: "var(--ui-accent)",
         };
 
-  const logSendSavedScreen = (screenId: string) => {
+  const sendSavedScreen = async (screenId: string) => {
     const savedScreen = savedScreens.find((screen) => screen.id === screenId);
 
     if (!savedScreen) {
       return;
     }
 
-    console.log("[OLED][WEB->AUTO][MOCK]", {
-      action: "send_saved_screen",
-      screenId: savedScreen.id,
-      title: savedScreen.title,
-      commands: savedScreen.commands,
-      document: savedScreen.document,
+    if (!canUseSavedScreens) {
+      setRemoteCommandStatus({
+        tone: "error",
+        message: "En la F4 entra a Testeo > Pantalla > OLED Canvas antes de enviar.",
+      });
+      return;
+    }
+
+    setRemoteCommandStatus({
+      tone: "loading",
+      message: `Enviando "${savedScreen.title}" a la OLED...`,
     });
+    try {
+      await oledCanvasTransfer.send(rasterizeOledDocument(savedScreen.document));
+      setRemoteCommandStatus({
+        tone: "success",
+        message: `"${savedScreen.title}" fue mostrada y confirmada por la F4.`,
+      });
+    } catch (cause) {
+      setRemoteCommandStatus({
+        tone: "error",
+        message: cause instanceof Error ? cause.message : "No se pudo enviar la pantalla guardada.",
+      });
+    }
+  };
+
+  const handleManualScreenSync = () => {
+    const requestId = requestCurrentScreen();
+    requestCarMode();
+    if (!requestId) {
+      setRemoteCommandStatus({ tone: "error", message: "No hay una sesion F4 disponible para sincronizar." });
+      return;
+    }
+
+    manualSyncRequestRef.current = requestId;
+    setRemoteCommandStatus({
+      tone: "loading",
+      message: "Consultando pantalla y seleccion actual directamente en la F4...",
+    });
+    if (manualSyncTimeoutRef.current !== null) {
+      window.clearTimeout(manualSyncTimeoutRef.current);
+    }
+    manualSyncTimeoutRef.current = window.setTimeout(() => {
+      if (manualSyncRequestRef.current !== requestId) return;
+      manualSyncRequestRef.current = null;
+      manualSyncTimeoutRef.current = null;
+      setRemoteCommandStatus({ tone: "error", message: "La F4 no respondio la sincronizacion de pantalla." });
+    }, 3_500);
   };
 
   return (
-    <div className={`flex w-full flex-col ${isModal ? "min-h-[72vh]" : ""}`}>
+    <div
+      className={`screen-stream-workspace flex w-full flex-col ${
+        isModal ? "min-h-[72vh] screen-stream-workspace--modal" : ""
+      }`}
+    >
       <div
         className={`mb-6 flex w-full flex-col gap-4 ${
           isModal ? "" : "lg:flex-row lg:items-center lg:justify-between"
@@ -830,6 +766,14 @@ void legacyHandleValidatePin;
                 label="Render OK"
                 tooltip="Render OK: el screenCode actual pudo resolverse contra un builder de src/screens y generar comandos OLED válidos."
                 tone="emerald"
+              />
+            ) : null}
+
+            {notificationActive ? (
+              <PillWithTooltip
+                label={`Notificacion activa · ${formatRemainingSeconds(notificationRemainingMs)}`}
+                tooltip={`La F4 informa el aviso transitorio activo y su tiempo restante${notificationTotalMs !== null ? ` de ${(notificationTotalMs / 1000).toFixed(1)} s` : ""}. Al finalizar enviara la pantalla restaurada.`}
+                tone="cyan"
               />
             ) : null}
 
@@ -881,7 +825,7 @@ void legacyHandleValidatePin;
               <div className="relative flex items-center justify-center">
                 <button
                   type="button"
-                  className="flex h-5 w-5 items-center justify-center rounded-full border text-[10px] transition"
+                  className="screen-render-info-button transition"
                   style={{
                     borderColor: "rgba(34,211,238,0.3)",
                     color: "var(--ui-accent)",
@@ -892,7 +836,18 @@ void legacyHandleValidatePin;
                   onMouseEnter={() => setHoverInfo(true)}
                   onMouseLeave={() => setHoverInfo(false)}
                 >
-                  i
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      fill="currentColor"
+                      d="M11.25 10.5a.75.75 0 0 1 .75-.75h.05a.75.75 0 0 1 .75.75v6a.75.75 0 0 1-1.5 0V12a.75.75 0 0 1-.05-1.5ZM12 7.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"
+                    />
+                    <path
+                      fill="currentColor"
+                      fillRule="evenodd"
+                      d="M12 2.25a9.75 9.75 0 1 0 0 19.5 9.75 9.75 0 0 0 0-19.5Zm0 1.5a8.25 8.25 0 1 1 0 16.5 8.25 8.25 0 0 1 0-16.5Z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
                 </button>
 
                 {hoverInfo && (
@@ -911,11 +866,11 @@ void legacyHandleValidatePin;
           </div>
 
           <div
-            className={`flex w-full gap-3 justify-center items-center flex-col lg:flex-row ${
+            className={`screen-stream-preview-layout flex w-full gap-3 justify-center items-center flex-col lg:flex-row ${
               isModal ? "" : ""
             } `}
           >
-            <div className="flex min-w-0 flex-col gap-3">
+            <div className="screen-stream-preview-column flex min-w-0 flex-col gap-3">
               <div
                 ref={previewMeasureRef}
                 className={`${isModal ? "w-full max-w-[980px]" : "w-fit"}`}
@@ -929,122 +884,148 @@ void legacyHandleValidatePin;
                 )}
               </div>
 
-              <div className="flex flex-wrap items-stretch justify-between gap-3">
-                <div className="flex flex-wrap items-stretch gap-3">
-                  <ControlBlock title="Button">
-                    <button
-                      type="button"
-                      onPointerDown={() => startAuxPress("user")}
-                      onPointerUp={() => releaseAuxPress("user")}
-                      onPointerCancel={() => cancelAuxPress("user")}
-                      onPointerLeave={() => {
-                        if (pressedAuxButton === "user") {
+              <div className="screen-live-controls">
+                <ControlBlock title="Controles físicos">
+                  <div className="screen-live-button-row">
+                    <LabeledLiveControl title="BTN">
+                      <button
+                        type="button"
+                        onPointerDown={(event) => {
+                          event.currentTarget.setPointerCapture(event.pointerId);
+                          startAuxPress("user");
+                        }}
+                        onPointerUp={(event) => {
+                          releaseAuxPress("user");
+                          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                            event.currentTarget.releasePointerCapture(event.pointerId);
+                          }
+                        }}
+                        onPointerCancel={(event) => {
                           cancelAuxPress("user");
-                        }
-                      }}
-                      onMouseEnter={() => setHoverUserBtn(true)}
-                      onMouseLeave={() => setHoverUserBtn(false)}
-                      className="flex h-10 w-10 items-center justify-center rounded-md border transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-40"
-                      style={getWhiteAuxButtonStyle(
-                        hoverUserBtn,
-                        pressedAuxButton === "user",
-                        longPressActive.user,
-                      )}
-                      disabled={!connected}
-                      aria-label="Emular botón user"
-                      title="Botón user"
-                    >
-                      <MonoBitmapIcon
+                          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                            event.currentTarget.releasePointerCapture(event.pointerId);
+                          }
+                        }}
+                        onLostPointerCapture={() => {
+                          if (auxPressStartRef.current.user !== null) cancelAuxPress("user");
+                        }}
+                        onMouseEnter={() => setHoverUserBtn(true)}
+                        onMouseLeave={() => setHoverUserBtn(false)}
+                        className="screen-live-button"
+                        style={getAccentButtonStyle(
+                          hoverUserBtn,
+                          pressedAuxButton === "user",
+                          longPressActive.user,
+                        )}
+                        disabled={!connected || !remotePinAuthenticated}
+                        aria-label="Emular botón user"
+                        title="Botón user"
+                      >
+                        <MonoBitmapIcon
                         bitmap={Icon_UserBtn_bits}
                         width={15}
                         height={16}
                         scale={2}
-                        color="#FFFFFF"
-                      />
-                    </button>
-                  </ControlBlock>
+                          color="#FFFFFF"
+                        />
+                      </button>
+                    </LabeledLiveControl>
 
-                  <ControlBlock title="Encoder">
-                    <button
-                      type="button"
-                      onPointerDown={() => startAuxPress("encoder")}
-                      onPointerUp={() => releaseAuxPress("encoder")}
-                      onPointerCancel={() => cancelAuxPress("encoder")}
-                      onPointerLeave={() => {
-                        if (pressedAuxButton === "encoder") {
+                    <LabeledLiveControl title="BTN encoder">
+                      <button
+                        type="button"
+                        onPointerDown={(event) => {
+                          event.currentTarget.setPointerCapture(event.pointerId);
+                          startAuxPress("encoder");
+                        }}
+                        onPointerUp={(event) => {
+                          releaseAuxPress("encoder");
+                          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                            event.currentTarget.releasePointerCapture(event.pointerId);
+                          }
+                        }}
+                        onPointerCancel={(event) => {
                           cancelAuxPress("encoder");
-                        }
-                      }}
-                      onMouseEnter={() => setHoverEncoderBtn(true)}
-                      onMouseLeave={() => setHoverEncoderBtn(false)}
-                      className="flex h-10 w-10 items-center justify-center rounded-md border transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-40"
-                      style={getWhiteAuxButtonStyle(
-                        hoverEncoderBtn,
-                        pressedAuxButton === "encoder",
-                        longPressActive.encoder,
-                      )}
-                      disabled={!connected}
-                      aria-label="Emular botón encoder"
-                      title="Botón encoder"
-                    >
-                      <MonoBitmapIcon
+                          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                            event.currentTarget.releasePointerCapture(event.pointerId);
+                          }
+                        }}
+                        onLostPointerCapture={() => {
+                          if (auxPressStartRef.current.encoder !== null) cancelAuxPress("encoder");
+                        }}
+                        onMouseEnter={() => setHoverEncoderBtn(true)}
+                        onMouseLeave={() => setHoverEncoderBtn(false)}
+                        className="screen-live-button"
+                        style={getAccentButtonStyle(
+                          hoverEncoderBtn,
+                          pressedAuxButton === "encoder",
+                          longPressActive.encoder,
+                        )}
+                        disabled={!connected || !remotePinAuthenticated}
+                        aria-label="Emular botón encoder"
+                        title="Botón encoder"
+                      >
+                        <MonoBitmapIcon
                         bitmap={Icon_Encoder_bits}
                         width={13}
                         height={13}
                         scale={2}
-                        color="#FFFFFF"
-                      />
-                    </button>
-                  </ControlBlock>
-                </div>
+                          color="#FFFFFF"
+                        />
+                      </button>
+                    </LabeledLiveControl>
 
-                <ControlBlock title="Giro encoder">
-                  <div className="flex flex-row items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleEncoderRotate("left")}
-                      onMouseEnter={() => setHoverRotateLeft(true)}
-                      onMouseLeave={() => setHoverRotateLeft(false)}
-                      className="flex h-10 w-10 items-center justify-center rounded-md border transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-40"
-                      style={getAccentButtonStyle(
-                        hoverRotateLeft,
-                        pressedRotate === "left",
-                      )}
-                      disabled={!connected}
-                      aria-label="Emular giro encoder izquierda"
-                      title="Girar encoder a la izquierda"
-                    >
-                      <TurnArrowIcon direction="left" />
-                    </button>
+                    <LabeledLiveControl title="Giro izq.">
+                      <button
+                        type="button"
+                        onClick={() => handleEncoderRotate("left")}
+                        onMouseEnter={() => setHoverRotateLeft(true)}
+                        onMouseLeave={() => setHoverRotateLeft(false)}
+                        className="screen-live-button"
+                        style={getAccentButtonStyle(
+                          hoverRotateLeft,
+                          pressedRotate === "left",
+                        )}
+                        disabled={!connected || !remotePinAuthenticated}
+                        aria-label="Emular giro encoder izquierda"
+                        title="Girar encoder a la izquierda"
+                      >
+                        <TurnArrowIcon direction="left" />
+                      </button>
+                    </LabeledLiveControl>
 
-                    <button
-                      type="button"
-                      onClick={() => handleEncoderRotate("right")}
-                      onMouseEnter={() => setHoverRotateRight(true)}
-                      onMouseLeave={() => setHoverRotateRight(false)}
-                      className="flex h-10 w-10 items-center justify-center rounded-md border transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-40"
-                      style={getAccentButtonStyle(
-                        hoverRotateRight,
-                        pressedRotate === "right",
-                      )}
-                      disabled={!connected}
-                      aria-label="Emular giro encoder derecha"
-                      title="Girar encoder a la derecha"
-                    >
-                      <TurnArrowIcon direction="right" />
-                    </button>
+                    <LabeledLiveControl title="Giro der.">
+                      <button
+                        type="button"
+                        onClick={() => handleEncoderRotate("right")}
+                        onMouseEnter={() => setHoverRotateRight(true)}
+                        onMouseLeave={() => setHoverRotateRight(false)}
+                        className="screen-live-button"
+                        style={getAccentButtonStyle(
+                          hoverRotateRight,
+                          pressedRotate === "right",
+                        )}
+                        disabled={!connected || !remotePinAuthenticated}
+                        aria-label="Emular giro encoder derecha"
+                        title="Girar encoder a la derecha"
+                      >
+                        <TurnArrowIcon direction="right" />
+                      </button>
+                    </LabeledLiveControl>
                   </div>
                 </ControlBlock>
               </div>
             </div>
-            {isValidationScreen || screenHasMenuItems ? (            <div
-              className="w-px self-stretch"
-              style={{ background: "var(--ui-accent)" }}
-            />) : null}
+            {isValidationScreen || screenHasMenuItems ? (
+              <div
+                className="screen-stream-preview-divider w-px self-stretch"
+                style={{ background: "var(--ui-accent)" }}
+              />
+            ) : null}
 
             {isValidationScreen ? (
               <div
-                className="flex items-stretch gap-2"
+                className="screen-stream-preview-side screen-validation-side-panel flex items-stretch gap-2"
                 style={{
                   height: `${previewHeight}px`,
                   minHeight: `${previewHeight}px`,
@@ -1076,7 +1057,7 @@ void legacyHandleValidatePin;
                     className="w-full rounded-md border px-3 py-2 text-sm font-semibold transition"
                     style={getAccentButtonStyle(false, false)}
                     onClick={() => setOpenPinValidationModal(true)}
-                    disabled={!connected}
+                    disabled={!connected || !remotePinAuthenticated}
                     aria-label="Validar PIN"
                     title="Validar PIN"
                   >
@@ -1087,14 +1068,14 @@ void legacyHandleValidatePin;
             ) : (
               screenHasMenuItems && (
                 <div
-                  className="flex items-stretch gap-2"
+                  className="screen-stream-preview-side screen-menu-side-controls flex items-stretch gap-2"
                   style={{
                     height: `${previewHeight}px`,
                     minHeight: `${previewHeight}px`,
                   }}
                 >
                   <div
-                    className="flex flex-col items-center justify-between rounded-xl border border-white/10 bg-slate-950/40 p-2"
+                    className="screen-menu-item-selector flex flex-col items-center justify-between rounded-xl border border-white/10 bg-slate-950/40 p-2"
                     style={{
                       height: `${previewHeight}px`,
                       minHeight: `${previewHeight}px`,
@@ -1110,7 +1091,7 @@ void legacyHandleValidatePin;
                         hoverMenuItem1,
                         pressedMenuItem === 1,
                       )}
-                      disabled={!connected || visibleButtonsCount < 1}
+                      disabled={!connected || !remotePinAuthenticated || visibleButtonsCount < 1}
                       aria-label="Seleccionar item visible 1"
                       title="Seleccionar item visible 1"
                     >
@@ -1127,7 +1108,7 @@ void legacyHandleValidatePin;
                         hoverMenuItem2,
                         pressedMenuItem === 2,
                       )}
-                      disabled={!connected || visibleButtonsCount < 2}
+                      disabled={!connected || !remotePinAuthenticated || visibleButtonsCount < 2}
                       aria-label="Seleccionar item visible 2"
                       title="Seleccionar item visible 2"
                     >
@@ -1144,7 +1125,7 @@ void legacyHandleValidatePin;
                         hoverMenuItem3,
                         pressedMenuItem === 3,
                       )}
-                      disabled={!connected || visibleButtonsCount < 3}
+                      disabled={!connected || !remotePinAuthenticated || visibleButtonsCount < 3}
                       aria-label="Seleccionar item visible 3"
                       title="Seleccionar item visible 3"
                     >
@@ -1171,7 +1152,7 @@ void legacyHandleValidatePin;
                       )}
                       aria-label="Scroll menu up"
                       title="Subir página"
-                      disabled={!connected || currentPage <= 1}
+                      disabled={!connected || !remotePinAuthenticated || currentPage <= 1}
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -1197,7 +1178,7 @@ void legacyHandleValidatePin;
                       )}
                       aria-label="Scroll menu down"
                       title="Bajar página"
-                      disabled={!connected || currentPage >= totalPages}
+                      disabled={!connected || !remotePinAuthenticated || currentPage >= totalPages}
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -1218,15 +1199,25 @@ void legacyHandleValidatePin;
         </div>
       </div>
 
+      <div
+        role="status"
+        className={`mb-3 rounded-md border px-3 py-2 text-xs ${
+          remoteCommandStatus.tone === "error"
+            ? "border-rose-400/30 bg-rose-500/10 text-rose-200"
+            : remoteCommandStatus.tone === "success"
+              ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
+              : "border-cyan-300/20 bg-cyan-400/5 text-slate-300"
+        }`}
+      >
+        {remoteCommandStatus.message}
+      </div>
+
       <div className="mb-4 flex w-full flex-row flex-wrap items-center justify-center gap-4">
         <button
           type="button"
-          className="w-fit rounded-md border px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40"
-          onClick={() => {
-            requestCurrentScreen();
-            requestCarMode();
-          }}
-          disabled={!connected}
+          className="screen-stream-action-button w-fit border text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40"
+          onClick={handleManualScreenSync}
+          disabled={!connected || !remotePinAuthenticated}
           onMouseEnter={() => setHoverSync(true)}
           onMouseLeave={() => setHoverSync(false)}
           style={actionButtonStyle(hoverSync)}
@@ -1236,7 +1227,7 @@ void legacyHandleValidatePin;
 
         <button
           type="button"
-          className="flex w-fit gap-x-1 rounded-md border px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40"
+          className="screen-stream-action-button w-fit border text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40"
           onClick={() => {
             setOpenScreenDetails((value) => !value);
           }}
@@ -1244,12 +1235,12 @@ void legacyHandleValidatePin;
           onMouseEnter={() => setHoverSync2(true)}
           onMouseLeave={() => setHoverSync2(false)}
         >
-          <p>{openScreenDetails ? "Ocultar detalles" : "Mostrar detalles"}</p>
+          <span>{openScreenDetails ? "Ocultar detalles" : "Mostrar detalles"}</span>
           <svg
             aria-hidden="true"
             viewBox="0 0 20 20"
             fill="none"
-            className="flex size-4 items-center justify-center transition-transform duration-200"
+            className="size-4 transition-transform duration-200"
             style={{
               transform: openScreenDetails ? "rotate(180deg)" : "rotate(0deg)",
               color: "currentColor",
@@ -1354,6 +1345,7 @@ void legacyHandleValidatePin;
         </div>
       )}
 
+      {canUseSavedScreens ? (
       <section className="mt-4 flex flex-col gap-4 rounded-xl border border-white/10 bg-slate-950/45 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -1361,7 +1353,7 @@ void legacyHandleValidatePin;
               Pantallas guardadas
             </div>
             <p className="mt-1 text-sm text-slate-300">
-              Mini previews listas para mandar al auto cuando terminemos el bridge.
+              Disponibles porque la F4 esta en TEST y OLED Canvas esta activo.
             </p>
           </div>
 
@@ -1411,8 +1403,9 @@ void legacyHandleValidatePin;
 
                     <button
                       type="button"
-                      onClick={() => logSendSavedScreen(screen.id)}
-                      className="rounded-md border border-cyan-300/70 px-3 py-1.5 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-400 hover:text-slate-950"
+                      onClick={() => void sendSavedScreen(screen.id)}
+                      disabled={oledCanvasTransfer.active}
+                      className="rounded-md border border-cyan-300/70 px-3 py-1.5 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-400 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent disabled:hover:text-cyan-200"
                     >
                       Mandar
                     </button>
@@ -1434,19 +1427,15 @@ void legacyHandleValidatePin;
           )
         ) : null}
       </section>
+      ) : null}
 
       <PinScreenModal
         isOpen={openPinValidationModal}
         onClose={() => {
-          clearPendingPinGrant({
-            ok: false,
-            reason: "grant-rejected",
-            message: "La validacion remota fue cancelada.",
-          });
           setOpenPinValidationModal(false);
         }}
         title="Validar PIN"
-        subtitle="Ingresa el PIN para validarlo en la ESP y esperar la confirmacion real de la STM."
+        subtitle="Ingresa el PIN; F4 valida PIN y screenCode en una unica respuesta."
         kicker="Validación"
         submitLabel="Validar PIN"
         digitsCount={currentScreen?.pinDigitsCount ?? 4}
@@ -1516,47 +1505,10 @@ function isMenuControlScreenCode(screenCode: number | undefined): boolean {
     screenCode === SCREEN_CODE_CONNECTIVITY_WIFI_MENU ||
     screenCode === SCREEN_CODE_CONNECTIVITY_WIFI_RESULTS ||
     screenCode === SCREEN_CODE_CONNECTIVITY_ESP_MENU ||
+    screenCode === SCREEN_CODE_SENSORS_DISPLAY_MENU ||
     screenCode === SCREEN_CODE_SENSORS_MENU ||
     screenCode === SCREEN_CODE_SETTINGS_MENU
   );
-}
-
-function getScreenTransitionKey(screen: {
-  screenCode: number;
-  source?: number;
-  sourceName?: string;
-}) {
-  return [
-    screen.screenCode,
-    screen.sourceName ?? "",
-    typeof screen.source === "number" ? screen.source : "",
-  ].join(":");
-}
-
-function getPinGrantOutcome(screen: {
-  screenCode: number;
-  sourceName?: string;
-}): "pending" | "success" | "error" {
-  const isPermissionSource = screen.sourceName === "PERMISSION";
-
-  if (
-    isPermissionSource &&
-    (screen.screenCode === SCREEN_CODE_WARNING_PIN_ENTRY ||
-      screen.screenCode === SCREEN_CODE_WARNING_PIN_WAITING)
-  ) {
-    return "pending";
-  }
-
-  if (
-    screen.screenCode === SCREEN_CODE_WARNING_PIN_DENIED ||
-    screen.screenCode === SCREEN_CODE_WARNING_PIN_TIMEOUT ||
-    screen.screenCode === SCREEN_CODE_WARNING_PIN_BLOCKED ||
-    screen.screenCode === SCREEN_CODE_WARNING_PERMISSION_DENIED
-  ) {
-    return "error";
-  }
-
-  return "success";
 }
 
 function ControlBlock({
@@ -1567,10 +1519,25 @@ function ControlBlock({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-w-[84px] flex-col items-center justify-center gap-2 rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+    <div className="screen-live-control-block">
+      <span className="screen-live-control-block__title">
         {title}
       </span>
+      {children}
+    </div>
+  );
+}
+
+function LabeledLiveControl({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="screen-live-labeled-control">
+      <span className="screen-live-control-block__title">{title}</span>
       {children}
     </div>
   );
@@ -1721,4 +1688,13 @@ function formatPayload(payload: number[] | undefined) {
         .map((byte) => byte.toString(16).toUpperCase().padStart(2, "0"))
         .join(" ")
     : "sin payload";
+}
+
+function readFiniteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function formatRemainingSeconds(remainingMs: number | null): string {
+  if (remainingMs === null) return "activa";
+  return `${Math.max(0, remainingMs / 1000).toFixed(1)} s`;
 }

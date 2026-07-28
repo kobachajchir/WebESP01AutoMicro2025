@@ -17,6 +17,12 @@ Generated from the current firmware render paths in:
 
 The generated TypeScript builders are under `generated/screens/*.ts`. Each builder returns the ordered semantic `OledCommand[]` that the React OLED renderer can execute. The official identity remains the numeric `screen_code`; labels and function names are support metadata.
 
+## Current Contract Coverage
+
+`FirmwareF4/Core/Inc/screen_codes.h` is the current source of truth for screen identity. At runtime, `screenRenderRegistry.ts` resolves exact builders where the Web has the complete dynamic payload and uses identified menu/screen/notification builders for codes whose event only carries identity, selection or notification timing; those fallbacks intentionally avoid inventing sensor or status values.
+
+`tests/screenCatalog.test.ts` reads every direct `SCREEN_CODE(...)` macro from the F4 header (excluding `SCREEN_CODE_NONE`; aliases are not direct macros), verifies that Web exports the same numeric value and requires every concrete code to resolve to at least one OLED command. The historical table below remains useful implementation detail, but this contract test is the authoritative completeness guard as the firmware catalog evolves.
+
 ## Translation Rules Applied
 
 - `ssd1306_Clear()` and wrapper-level `OledUtils_Clear()` became `{ type: "clear" }`.
@@ -65,11 +71,16 @@ The generated TypeScript builders are under `generated/screens/*.ts`. Each build
 | 27 | ESP firmware received notification | `0x020307` | `OledUtils_RenderESPFirmwareReceivedNotification` | notification | `buildScreen020307EspFirmwareReceivedNotificationCommands` | `firmwareVersion`, info icon, `drawTextMax(17)` | exact; same code as full firmware screen |
 | 28 | ESP mode changed | `0x020308` | `OledUtils_RenderESPModeChangedNotification` | notification | `buildScreen020308EspModeChangedNotificationCommands` | info icon | exact |
 | 29 | ESP AP started | `0x020309` | `OledUtils_RenderESPAPStartedNotification` | notification | `buildScreen020309EspApStartedNotificationCommands` | `ipAddress`, WiFi icon | exact |
+| 29a | ESP unresponsive | `0x02030B` | simple notification registry after alive loss | notification | `buildScreen02030bEspUnresponsiveNotificationCommands` | warning icon, notification progress | exact |
+| 29b | ESP watchdog reset | `0x02030C` | `EVT_BOOT` reset diagnostic | notification | `buildScreen02030cEspWatchdogResetNotificationCommands` | warning icon, notification progress | exact |
+| 29c | ESP exception reset | `0x02030D` | `EVT_BOOT` reset diagnostic | notification | `buildScreen02030dEspExceptionResetNotificationCommands` | warning icon, notification progress | exact |
 | 30 | USB connected | `0x020401` | `OledUtils_RenderESPUsbConnectedNotification` | notification | `buildScreen020401UsbConnectedNotificationCommands` | info icon | exact |
 | 31 | USB disconnected | `0x020402` | `OledUtils_RenderESPUsbDisconnectedNotification` | notification | `buildScreen020402UsbDisconnectedNotificationCommands` | info icon | exact |
 | 32 | Web server up | `0x020501` | `OledUtils_RenderESPWebServerUpNotification` | notification | `buildScreen020501WebServerUpNotificationCommands` | info icon | exact |
 | 33 | Web client connected | `0x020502` | `OledUtils_RenderESPWebClientConnectedNotification` | notification | `buildScreen020502WebClientConnectedNotificationCommands` | link icon | exact |
 | 34 | Web client disconnected | `0x020503` | `OledUtils_RenderESPWebClientDisconnectedNotification` | notification | `buildScreen020503WebClientDisconnectedNotificationCommands` | link icon plus two diagonal lines | exact |
+| 34a | AP device connected | `0x020601` | simple notification registry | notification | `buildScreen020601ApDeviceConnectedNotificationCommands` | centered link icon | exact |
+| 34b | AP device disconnected | `0x020602` | simple notification registry | notification | `buildScreen020602ApDeviceDisconnectedNotificationCommands` | centered struck link icon | exact |
 | 35 | IR values live graph | `0x030201` | `OledUtils_RenderIRGraphScene` + `OledUtils_UpdateIRBars` | sensor screen | `buildScreen030201IrValuesCommands` | `irValues[8]` | exact; legend y underflows to 253 like firmware |
 | 36 | Legacy IR graph | `0x030201` | `OledUtils_DrawIRGraph` + `OledUtils_DrawIRBars` | sensor screen | `buildScreen030201LegacyIrGraphCommands` | `irValues[8]` | exact; currently not the wrapper path |
 | 37 | MPU live values | `0x030301` | `OledUtils_RenderMPUScene` + `OledUtils_UpdateMPUValues` | sensor screen | `buildScreen030301MpuValuesCommands` | accel/gyro values | exact; title y underflows to 254 like firmware |
@@ -98,6 +109,8 @@ The generated TypeScript builders are under `generated/screens/*.ts`. Each build
 | 60 | Permission PIN timeout | `0x080107` | `Permission_RenderPinEntry` with `AUTH_TIMEOUT` | warning screen | `buildScreen080107PermissionPinTimeoutCommands` | text only | exact |
 | 61 | Permission PIN blocked | `0x080108` | `Permission_RenderPinEntry` with `AUTH_LOCKED` | warning screen | `buildScreen080108PermissionPinBlockedCommands` | text only | exact |
 | 62 | Permission denied notification | `0x080109` | `OledUtils_RenderPermissionDeniedNotification` | notification | `buildScreen080109PermissionDeniedNotificationCommands` | lock icon | exact |
+| 63 | UNER port forwarding enabled | `0x050417` | simple notification after persisted preference change | notification | `buildScreen050417UnerForwardingEnabledNotificationCommands` | centered link icon, 2000 ms default | exact |
+| 64 | UNER port forwarding disabled | `0x050418` | simple notification after persisted preference change | notification | `buildScreen050418UnerForwardingDisabledNotificationCommands` | centered inverse/struck link icon, 2000 ms default | exact |
 
 ## Helper-Only Routines
 
@@ -112,9 +125,9 @@ The generated TypeScript builders are under `generated/screens/*.ts`. Each build
 
 ## Completeness Checklist
 
-- Total detected user-visible screen/render states: 62.
-- Total translated builders: 62.
-- Exact translations: 62.
+- Total detected user-visible screen/render states: 64.
+- Total translated builders: 64.
+- Exact translations: 64.
 - Partial translations: 0.
 - Unresolved screens: 0.
 - Helper-only routines without independent screen identity: notification progress overlay, current menu item draw, legacy vertical menu, IR/MPU/timer patches.

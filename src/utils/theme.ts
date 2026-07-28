@@ -3,12 +3,20 @@ export type ThemeColors = {
   accent: string;
 };
 
+export type ThemeMode = "dark" | "light";
+
 export const DEFAULT_THEME_COLORS: ThemeColors = {
   base: "#0f766e",
   accent: "#22d3ee",
 };
 
+const LIGHT_DEFAULT_THEME_COLORS: ThemeColors = {
+  base: "#047857",
+  accent: "#0369a1",
+};
+
 const THEME_STORAGE_KEY = "app-theme-colors";
+const THEME_MODE_STORAGE_KEY = "app-theme-mode";
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 
 export function normalizeHexColor(value: string, fallback = DEFAULT_THEME_COLORS.base) {
@@ -57,9 +65,42 @@ export function saveThemeColors(colors: ThemeColors) {
   localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(colors));
 }
 
-export function applyThemeColors(colors: ThemeColors) {
-  const base = normalizeHexColor(colors.base, DEFAULT_THEME_COLORS.base);
-  const accent = normalizeHexColor(colors.accent, DEFAULT_THEME_COLORS.accent);
+export function loadThemeMode(): ThemeMode {
+  try {
+    const raw = localStorage.getItem(THEME_MODE_STORAGE_KEY);
+    return raw === "light" ? "light" : "dark";
+  } catch {
+    return "dark";
+  }
+}
+
+export function saveThemeMode(mode: ThemeMode) {
+  try {
+    localStorage.setItem(THEME_MODE_STORAGE_KEY, mode);
+  } catch {
+    // LocalStorage puede fallar en navegadores con privacidad estricta.
+  }
+}
+
+export function applyThemeMode(mode: ThemeMode) {
+  const root = document.documentElement;
+  root.dataset.theme = mode;
+  root.style.colorScheme = mode;
+  applyThemeColors(loadThemeColors(), mode);
+}
+
+export function applyThemeColors(colors: ThemeColors, modeOverride?: ThemeMode) {
+  const mode = modeOverride ?? loadThemeMode();
+  const requestedBase = normalizeHexColor(colors.base, DEFAULT_THEME_COLORS.base);
+  const requestedAccent = normalizeHexColor(colors.accent, DEFAULT_THEME_COLORS.accent);
+  const base =
+    mode === "light" && requestedBase === DEFAULT_THEME_COLORS.base
+      ? LIGHT_DEFAULT_THEME_COLORS.base
+      : requestedBase;
+  const accent =
+    mode === "light" && requestedAccent === DEFAULT_THEME_COLORS.accent
+      ? LIGHT_DEFAULT_THEME_COLORS.accent
+      : requestedAccent;
   const root = document.documentElement;
 
   root.style.setProperty("--ui-base", base);

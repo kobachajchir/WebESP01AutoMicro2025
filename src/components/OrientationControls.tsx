@@ -45,10 +45,10 @@ export default function OrientationControls({
       <div className="flex items-center justify-between">
         <div>
           <h3 className="m-0 text-sm font-semibold uppercase tracking-wide text-white">
-            MPU emulado
+            Orientación manual
           </h3>
           <p className="mt-1 text-xs text-slate-300">
-            Ajuste manual de yaw, pitch y roll para probar la escena.
+            Ajuste manual de guiñada, cabeceo y alabeo para probar la escena.
           </p>
         </div>
         <button
@@ -56,28 +56,28 @@ export default function OrientationControls({
           onClick={handleReset}
           className="rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200 transition-all duration-200 hover:bg-white/10"
         >
-          Reset
+            Restablecer
         </button>
       </div>
 
       <div className="flex flex-col gap-4">
         {[
           {
-            label: "Yaw (Y)",
+            label: "Guiñada / Yaw (Y)",
             key: "yaw",
             min: -180,
             max: 180,
             desc: "Rotación horizontal",
           },
           {
-            label: "Pitch (X)",
+            label: "Cabeceo / Pitch (X)",
             key: "pitch",
             min: -90,
             max: 90,
             desc: "Inclinación vertical",
           },
           {
-            label: "Roll (Z)",
+            label: "Alabeo / Roll (Z)",
             key: "roll",
             min: -180,
             max: 180,
@@ -103,7 +103,7 @@ export default function OrientationControls({
                   -
                 </button>
                 <span className="inline-flex min-w-[52px] items-center justify-center rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-slate-200">
-                  {eulerDeg[key as "yaw" | "pitch" | "roll"]}°
+                  {eulerDeg[key as "yaw" | "pitch" | "roll"].toFixed(1)}°
                 </span>
                 <button
                   type="button"
@@ -131,7 +131,7 @@ export default function OrientationControls({
       </div>
 
       <div className="mt-2 text-xs text-slate-400">
-        <strong className="text-slate-300">Tip:</strong> El modelo rota sobre su
+        <strong className="text-slate-300">Consejo:</strong> El modelo rota sobre su
         propio centro de masa y los controles de cámara orbitan alrededor del
         vehículo.
       </div>

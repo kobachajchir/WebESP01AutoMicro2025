@@ -13,9 +13,9 @@ La web envia los comandos como `stmPacket` por WebSocket, con los bytes UNER v2 
 
 ## Frecuencia
 
-La UI normaliza el periodo de stream a un minimo de `8 ms`. Si el usuario carga un valor menor, la web envia `8 ms`.
+La UI normaliza el periodo de stream al rango `20..1000 ms`. Si el usuario carga un valor menor, la Web envía `20 ms`.
 
-Esto deja preparado el flujo para recibir muestras cada aproximadamente `8 ms` cuando el firmware y el enlace ESP/UART puedan sostenerlo. El grafico y el visor 3D consumen el mismo estado Euler.
+Gráfico, valores y visor 3D consumen la misma orientación Euler relativa.
 
 ## Comandos
 
@@ -33,10 +33,10 @@ CMD 0x61
 payload: 01 period_l period_h
 ```
 
-Ejemplo para `8 ms`:
+Ejemplo para `20 ms`:
 
 ```text
-55 4E 45 52 03 3A 02 31 61 01 08 00 6E
+55 4E 45 52 03 3A 02 31 61 01 14 00 72
 ```
 
 Respuesta esperada:
@@ -46,8 +46,6 @@ Respuesta esperada:
 | 0 | status |
 | 1 | active |
 | 2..3 | period_ms LE |
-| 4 | transport_id |
-| 5 | dst_node |
 
 ### Stop
 
@@ -73,27 +71,23 @@ Respuesta esperada:
 | Offset | Campo | Tipo | Unidad |
 | ---: | --- | --- | --- |
 | 0 | status | u8 | `0=OK`, `3=sin muestra valida` |
-| 1 | flags | u8 | bits de estado MPU |
+| 1 | flags | u8 | validez, calibración y estado del magnetómetro |
 | 2 | sample_seq | u16 LE | contador |
-| 4 | roll | i32 LE | milideg |
-| 8 | pitch | i32 LE | milideg |
-| 12 | yaw | i32 LE | milideg |
-| 16 | accel_x | i16 LE | mg |
-| 18 | accel_y | i16 LE | mg |
-| 20 | accel_z | i16 LE | mg |
-| 22 | linear_accel_x | i16 LE | mg |
-| 24 | linear_accel_y | i16 LE | mg |
-| 26 | linear_accel_z | i16 LE | mg |
-| 28 | gyro_x | i32 LE | mdps |
-| 32 | gyro_y | i32 LE | mdps |
-| 36 | gyro_z | i32 LE | mdps |
-| 40 | sample_dt_us | u16 LE | microsegundos |
+| 4 | sample_dt_us | u16 LE | microsegundos |
+| 6 | roll | f32 LE | grados |
+| 10 | pitch | f32 LE | grados |
+| 14 | yaw | f32 LE | grados, referencia magnética relativa |
+| 18 | accel_x | f32 LE | g |
+| 22 | accel_y | f32 LE | g |
+| 26 | accel_z | f32 LE | g |
+| 30 | gyro_x | f32 LE | grados/s |
+| 34 | gyro_y | f32 LE | grados/s |
+| 38 | gyro_z | f32 LE | grados/s |
 
-La web convierte `roll`, `pitch` y `yaw` dividiendo por `1000` para alimentar:
+El payload no incluye los tres ejes magnéticos crudos. La Web recibe la actitud
+fusionada del MPU9250, aplica el cero local con cuaterniones y comparte el
+resultado entre valores, gráfico y modelo 3D.
 
-- inputs de lectura del panel `RealtimeEulerPanel`;
-- grafico de tendencia Euler;
-- rotacion del modelo 3D (`ThreeModelViewer`, orden `YXZ`).
 
 ## Estados y flags
 
@@ -112,14 +106,12 @@ Flags MPU:
 
 | Bit | Mascara | Significado |
 | ---: | ---: | --- |
-| 0 | `0x01` | DATA_READY |
-| 1 | `0x02` | TX_SENT |
-| 2 | `0x04` | CALIBRATED |
-| 3 | `0x08` | MPU_NEW_READING |
-| 4 | `0x10` | MPU_VALID |
-| 5 | `0x20` | MPU_ERROR |
-| 6 | `0x40` | MPU_STATIONARY |
-| 7 | `0x80` | MPU_CALIBRATING |
+| 0 | `0x01` | muestra válida |
+| 1 | `0x02` | calibrado |
+| 2 | `0x04` | magnetómetro AK8963 válido |
+| 3 | `0x08` | estacionario |
+| 4 | `0x10` | calibrando |
+| 5 | `0x20` | error del sensor |
 
 ## Modos de captura de la UI
 

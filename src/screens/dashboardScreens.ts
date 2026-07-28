@@ -20,9 +20,11 @@ export type DashboardConnectionState = "none" | "sta" | "ap";
 export type CarModeLabel = "IDLE" | "FOLLOW" | "TEST";
 
 export interface DashboardScreenArgs {
+  espPresent?: boolean;
   connection: DashboardConnectionState;
   ssid?: string;
   ipAddress?: string;
+  backend?: "WEB" | "AT" | "No ESP";
   usbActive?: boolean;
   rfActive?: boolean;
   carMode: CarModeLabel;
@@ -46,24 +48,28 @@ export const screen010101DashboardCode = SCREEN_CODE_CORE_DASHBOARD;
 
 export function buildScreen010101DashboardCommands(args: DashboardScreenArgs): OledCommand[] {
   const commands: OledCommand[] = [clear()];
+  const espPresent = args.espPresent ?? args.connection !== "none";
 
-  if (args.connection === "sta") {
+  if (espPresent && args.connection === "sta") {
     commands.push(
-      ...drawXbm(1, 2, 19, 16, "Icon_Wifi_bits"),
-      ...textMaxAt(21, 0, args.ssid ?? "WiFi", 14, "Font7x10"),
-      ...textMaxAt(18, 10, args.ipAddress ?? "Sin IP", 15, "Font7x10"),
+      ...textMaxAt(1, 0, args.ssid ?? "WiFi", 9, "Font7x10"),
+      ...textMaxAt(1, 10, args.ipAddress ?? "Sin IP", 15, "Font7x10"),
     );
-  } else if (args.connection === "ap") {
+  } else if (espPresent && args.connection === "ap") {
     commands.push(
       ...drawXbm(1, 2, 15, 16, "Icon_APWifi_bits"),
-      ...textAt(21, 0, "AP name", "Font7x10"),
+      ...textMaxAt(21, 0, args.ssid ?? "AP", 8, "Font7x10"),
       ...textMaxAt(18, 10, args.ipAddress ?? "Sin IP", 15, "Font7x10"),
     );
-  } else {
+  } else if (!espPresent) {
     commands.push(
       ...textAt(2, 0, "No ESP", "Font7x10"),
       ...textAt(2, 10, "Sin WiFi", "Font7x10"),
     );
+  }
+
+  if (espPresent) {
+    commands.push(...textMaxAt(68, 0, args.backend ?? "No ESP", 3, "Font7x10"));
   }
 
   if (args.usbActive) {

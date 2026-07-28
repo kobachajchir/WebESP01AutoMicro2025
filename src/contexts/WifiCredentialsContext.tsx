@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import {
   createContext,
   useCallback,
@@ -16,6 +17,8 @@ import {
   type WifiCredentialsResultStatus,
   type WifiCredentialsStatus,
 } from "../types/WifiTypes";
+import { useUser } from "./UserContext";
+import { useEspWifiStatus } from "./EspWifiStatusContext";
 
 const WIFI_CREDENTIALS_REQUESTED_EVENT = "wifi.credentials.requested";
 const WIFI_CREDENTIALS_RESULT_EVENT = "wifi.credentials.result";
@@ -72,6 +75,8 @@ export function WifiCredentialsProvider({
   children,
 }: WifiCredentialsProviderProps) {
   const { connected, send, subscribe } = useWebSocket();
+  const { remotePinAuthenticated } = useUser();
+  const { isApProvisioning } = useEspWifiStatus();
   const [state, setState] = useState<WifiCredentialsState>(INITIAL_STATE);
   const closeTimerRef = useRef<number | null>(null);
   const initialCredentialsSyncDoneRef = useRef(false);
@@ -97,7 +102,7 @@ export function WifiCredentialsProvider({
   }, [clearCloseTimer]);
 
   const requestCurrentCredentials = useCallback(() => {
-    if (!connected) {
+    if (!connected || !remotePinAuthenticated) {
       return null;
     }
 
@@ -111,7 +116,7 @@ export function WifiCredentialsProvider({
     });
 
     return requestId;
-  }, [connected, send]);
+  }, [connected, remotePinAuthenticated, send]);
 
   const submitCredentials = useCallback(
     (ssid: string, password: string) => {
@@ -181,6 +186,12 @@ export function WifiCredentialsProvider({
       const data = getDeviceEventData(message);
       const pending = normalizePendingCredentials(data, message);
 
+      if (isApProvisioning && pending.source === "stm") {
+        clearCloseTimer();
+        setState(INITIAL_STATE);
+        return;
+      }
+
       if (!pending.ssid) {
         console.warn("[wifi-credentials] solicitud sin SSID", message);
         return;
@@ -197,7 +208,7 @@ export function WifiCredentialsProvider({
         requestId: pending.requestId,
       });
     },
-    [clearCloseTimer],
+    [clearCloseTimer, isApProvisioning],
   );
 
   useEffect(() => {
@@ -263,6 +274,12 @@ export function WifiCredentialsProvider({
 
       if (WIFI_CREDENTIALS_CURRENT_COMMANDS.has(command ?? "")) {
         const pending = normalizePendingCredentials(data, message);
+
+        if (isApProvisioning && pending.source === "stm") {
+          clearCloseTimer();
+          setState(INITIAL_STATE);
+          return;
+        }
 
         if (!ok && !pending.pending) {
           return;
@@ -347,7 +364,7 @@ export function WifiCredentialsProvider({
       offDeviceEvent();
       offDeviceResponse();
     };
-  }, [applyPendingCredentials, clearCloseTimer, subscribe]);
+  }, [applyPendingCredentials, clearCloseTimer, isApProvisioning, subscribe]);
 
   useEffect(() => {
     const offRequested = subscribe(
@@ -375,8 +392,9 @@ export function WifiCredentialsProvider({
   }, [applyPendingCredentials, subscribe]);
 
   useEffect(() => {
-    if (!connected) {
+    if (!connected || !remotePinAuthenticated) {
       initialCredentialsSyncDoneRef.current = false;
+      setState(INITIAL_STATE);
       return;
     }
 
@@ -386,7 +404,14 @@ export function WifiCredentialsProvider({
 
     initialCredentialsSyncDoneRef.current = true;
     requestCurrentCredentials();
-  }, [connected, requestCurrentCredentials]);
+  }, [connected, remotePinAuthenticated, requestCurrentCredentials]);
+
+  useEffect(() => {
+    if (isApProvisioning) {
+      clearCloseTimer();
+      setState(INITIAL_STATE);
+    }
+  }, [clearCloseTimer, isApProvisioning]);
 
   useEffect(() => {
     if (state.status === "cancelled") {
@@ -577,6 +602,10 @@ function normalizePendingCredentials(
     requestId:
       readString(data.requestId) ??
       readString(fallbackRecord?.requestId) ??
+      null,
+    source:
+      readString(data.source) ??
+      readString(fallbackRecord?.source) ??
       null,
   };
 }

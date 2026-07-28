@@ -37,6 +37,7 @@ export default function PinScreen({
   const [pin, setPin] = useState("");
   const [status, setStatus] = useState<PinScreenStatus>("idle");
   const [failure, setFailure] = useState<PinAuthResult | null>(null);
+  const [retrySeconds, setRetrySeconds] = useState(0);
 
   const safeDigitsCount = Math.max(1, digitsCount);
   const valid = useMemo(() => {
@@ -48,8 +49,26 @@ export default function PinScreen({
     setPin("");
     setStatus("idle");
     setFailure(null);
+    setRetrySeconds(0);
     window.setTimeout(() => pinRef.current?.focus(), 50);
   }, [safeDigitsCount, title]);
+
+  useEffect(() => {
+    if (!failure?.blocked) {
+      setRetrySeconds(0);
+      return;
+    }
+
+    const retryAfterMs = Math.max(1000, failure.retryAfterMs ?? 60000);
+    const retryAt = Date.now() + retryAfterMs;
+    const updateCountdown = () => {
+      setRetrySeconds(Math.max(0, Math.ceil((retryAt - Date.now()) / 1000)));
+    };
+
+    updateCountdown();
+    const countdownId = window.setInterval(updateCountdown, 1000);
+    return () => window.clearInterval(countdownId);
+  }, [failure]);
 
   function handlePinChange(value: string) {
     setStatus("idle");
@@ -58,6 +77,7 @@ export default function PinScreen({
   }
 
   function resetAttempt() {
+    if (failure?.blocked && retrySeconds > 0) return;
     setPin("");
     setStatus("idle");
     setFailure(null);
@@ -90,6 +110,10 @@ export default function PinScreen({
       });
     }
   }
+
+  const failureTitle = failure
+    ? getPinFailureTitle(failure)
+    : "No se pudo validar el PIN";
 
   return (
     <div
@@ -142,25 +166,72 @@ export default function PinScreen({
           {failure ? (
             <div className="flex w-full flex-col items-center gap-5">
               <div
-                className="w-full rounded-md border border-rose-300/30 bg-rose-500/10 p-4 text-center"
+                className="w-full rounded-md border border-rose-300/30 bg-rose-500/10 p-4"
                 role="alert"
+                aria-live="assertive"
               >
-                <p className="text-lg font-black text-rose-100">
-                  {failure.reason === "invalid-pin"
-                    ? "PIN incorrecto"
-                    : "No se pudo validar el PIN"}
-                </p>
-                <p className="mt-2 text-sm text-rose-100/90">
-                  {failure.message ?? errorMessage}
-                </p>
+                <div className="flex items-start gap-3">
+                  <span
+                    className="flex size-9 shrink-0 items-center justify-center rounded-full border border-rose-200/30 bg-rose-300/10 text-lg font-black text-rose-100"
+                    aria-hidden="true"
+                  >
+                    !
+                  </span>
+                  <div className="min-w-0 text-left">
+                    <p className="text-lg font-black text-rose-100">
+                      {failureTitle}
+                    </p>
+                    <p className="mt-1 text-sm text-rose-100/90">
+                      {failure.message ?? errorMessage}
+                    </p>
+                  </div>
+                </div>
+
+                {failure.authSource === "stm32" && (
+                  <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
+                    <FeedbackStep label="WebSocket" value="Conectado" tone="ok" />
+                    <FeedbackStep label="ESP" value="Respondió" tone="ok" />
+                    <FeedbackStep label="STM32" value={failure.blocked ? "Bloqueado" : "Rechazó"} tone="error" />
+                  </div>
+                )}
+
+                {failure.attemptsLeft !== null && failure.attemptsLeft !== undefined && (
+                  <div className="mt-4 rounded-md border border-white/10 bg-slate-950/30 p-3">
+                    <div className="flex items-center justify-between gap-3 text-sm">
+                      <span className="text-slate-300">Intentos restantes</span>
+                      <strong className={failure.attemptsLeft <= 1 ? "text-amber-200" : "text-slate-100"}>
+                        {failure.attemptsLeft} de 3
+                      </strong>
+                    </div>
+                    <div className="mt-2 grid grid-cols-3 gap-2" aria-hidden="true">
+                      {Array.from({ length: 3 }).map((_, index) => (
+                        <span
+                          key={index}
+                          className={`h-1.5 rounded-full ${index < (failure.attemptsLeft ?? 0) ? "bg-amber-300" : "bg-slate-700"}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {failure.blocked && (
+                  <p className="mt-4 rounded-md border border-amber-300/30 bg-amber-400/10 p-3 text-center text-sm font-semibold text-amber-100">
+                    {retrySeconds > 0
+                      ? `Esperá ${retrySeconds} s antes de volver a intentar.`
+                      : "El tiempo de espera terminó; ya podés volver a intentar."}
+                  </p>
+                )}
               </div>
 
               <button
                 type="button"
                 className="app-button w-full px-4 py-3 text-base font-bold"
                 onClick={resetAttempt}
+                disabled={failure.blocked === true && retrySeconds > 0}
               >
-                Volver a intentar
+                {failure.blocked && retrySeconds > 0
+                  ? `Reintentar en ${retrySeconds} s`
+                  : "Volver a intentar"}
               </button>
             </div>
           ) : (
@@ -203,13 +274,30 @@ export default function PinScreen({
                 ))}
               </button>
 
-              {status === "loading" ? (
-                <p className="text-sm font-semibold text-cyan-200">
-                  {loadingMessage}
+              <div
+                className={`w-full rounded-md border p-3 text-left ${
+                  status === "loading"
+                    ? "border-cyan-300/30 bg-cyan-400/10"
+                    : "border-white/10 bg-slate-950/25"
+                }`}
+                role="status"
+                aria-live="polite"
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`size-2 rounded-full ${status === "loading" ? "animate-pulse bg-cyan-300" : "bg-emerald-300"}`}
+                    aria-hidden="true"
+                  />
+                  <strong className={status === "loading" ? "text-cyan-100" : "text-slate-200"}>
+                    {status === "loading" ? loadingMessage : "Listo para validar"}
+                  </strong>
+                </div>
+                <p className="mt-1 text-sm text-slate-400">
+                  {status === "loading"
+                    ? "Enviando la solicitud al ESP y esperando la decisión del STM32/F4."
+                    : idleMessage}
                 </p>
-              ) : (
-                <p className="text-sm text-slate-400">{idleMessage}</p>
-              )}
+              </div>
 
               <button
                 type="submit"
@@ -245,9 +333,49 @@ function normalizePinSubmitResult(
   }
 
   return {
+    ...result,
     ok: false,
     reason: result.reason ?? "unknown",
     message: result.message ?? fallbackMessage,
-    code: result.code,
   };
+}
+
+function getPinFailureTitle(failure: PinAuthResult): string {
+  if (failure.blocked) return "Acceso temporalmente bloqueado";
+
+  switch (failure.reason) {
+    case "invalid-pin":
+      return failure.authSource === "stm32" ? "PIN rechazado por el STM32" : "PIN incorrecto";
+    case "timeout":
+      return "La validación agotó el tiempo";
+    case "busy":
+      return "El sistema está ocupado";
+    case "transport-error":
+      return "Sin comunicación con la placa";
+    case "bad-request":
+      return "Solicitud de PIN inválida";
+    case "grant-rejected":
+      return "Autorización no confirmada";
+    default:
+      return "No se pudo validar el PIN";
+  }
+}
+
+function FeedbackStep({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "ok" | "error";
+}) {
+  return (
+    <div className="rounded-md border border-white/10 bg-slate-950/30 p-2">
+      <span className="block text-slate-400">{label}</span>
+      <strong className={tone === "ok" ? "mt-1 block text-emerald-200" : "mt-1 block text-rose-200"}>
+        {value}
+      </strong>
+    </div>
+  );
 }

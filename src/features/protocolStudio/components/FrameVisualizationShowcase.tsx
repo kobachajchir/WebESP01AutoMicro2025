@@ -29,16 +29,11 @@ export function FrameVisualizationShowcase({
   if (!builderData) {
     return (
       <Panel title="Frame - visualizacion">
-        <div className="rounded-[28px] border border-white/10 bg-slate-950/45 p-5 shadow-[0_24px_80px_rgba(2,6,23,0.36)] backdrop-blur">
+        <div className="protocol-frame-card protocol-frame-card--empty">
           <div className="app-kicker mb-3">UNER v2</div>
-          <h3 className="text-2xl font-black uppercase tracking-tight text-white md:text-3xl">
-            Packet format preview
+          <h3 className="text-lg font-black uppercase tracking-tight text-white md:text-xl">
+            Packet format
           </h3>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300 md:text-base">
-            Completa el routing, el comando y el payload para ver el frame ordenado
-            como una sola pieza visual y revisar cada bloque antes de copiarlo o
-            enviarlo.
-          </p>
 
           {builderError ? (
             <div className="mt-5 rounded-2xl border border-rose-400/25 bg-rose-500/10 p-4 text-sm text-rose-200">
@@ -58,23 +53,17 @@ export function FrameVisualizationShowcase({
 
   return (
     <Panel title="Frame - visualizacion">
-      <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.14),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(96,165,250,0.12),transparent_28%),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(15,23,42,0.72))] p-5 shadow-[0_28px_90px_rgba(2,6,23,0.42)] backdrop-blur-xl md:p-7">
+      <div className="protocol-frame-card">
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),transparent_34%,transparent_70%,rgba(255,255,255,0.04))]" />
         <div className="pointer-events-none absolute -left-24 top-8 h-48 w-48 rounded-full bg-cyan-400/10 blur-3xl" />
         <div className="pointer-events-none absolute -right-20 bottom-6 h-44 w-44 rounded-full bg-sky-400/10 blur-3xl" />
 
-        <div className="relative flex flex-col gap-6">
-          <div className="space-y-4">
-            <div className="space-y-3">
-              <h3 className="text-2xl font-black uppercase tracking-tight text-white md:text-4xl">
+        <div className="relative flex flex-col gap-4">
+          <div className="space-y-3">
+            <div>
+              <h3 className="text-lg font-black uppercase tracking-tight text-white md:text-xl">
                 Packet format
               </h3>
-              <p className="max-w-4xl text-sm leading-6 text-slate-300 md:text-base">
-                Lectura visual del paquete generado por el builder. La referencia
-                ahora vive directamente en cada bloque: pasa el cursor sobre
-                cualquier seccion del frame para ver que significa y como debe
-                interpretarse.
-              </p>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -94,20 +83,20 @@ export function FrameVisualizationShowcase({
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-white/10 bg-slate-950/30 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] md:p-5">
+          <div className="rounded-[18px] border border-white/10 bg-slate-950/30 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
             <div className="overflow-x-auto pb-2">
-              <div className="flex min-w-max items-end gap-3">
+              <div className="flex min-w-max items-end gap-2">
                 <FrameSegment
                   label="Header"
                   tone="cyan"
                   tooltipTitle="HEADER"
                   tooltipBody='Firma fija "UNER". Siempre ocupa 4 bytes y marca el inicio del paquete.'
                 >
-                  <SegmentBlock tone="cyan" className="min-w-[15.5rem]">
-                    <div className="font-mono text-[1.9rem] font-semibold tracking-[0.08em] text-cyan-50 md:text-[2.2rem]">
+                  <SegmentBlock tone="cyan" className="min-w-[9.5rem]">
+                    <div className="font-mono text-[1.05rem] font-semibold tracking-[0.08em] text-cyan-50 md:text-[1.15rem]">
                       55 4E 45 52
                     </div>
-                    <div className="mt-2 text-[11px] uppercase tracking-[0.18em] text-cyan-100/80">
+                    <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-cyan-100/80">
                       4 bytes fijos
                     </div>
                   </SegmentBlock>
@@ -119,11 +108,11 @@ export function FrameVisualizationShowcase({
                   tooltipTitle="LEN"
                   tooltipBody={`Longitud del payload en bytes. Para este frame vale ${builderData.len}.`}
                 >
-                  <SegmentBlock tone="emerald" className="min-w-[6rem]">
-                    <div className="font-mono text-[1.9rem] font-semibold tracking-[0.08em] text-emerald-50 md:text-[2.2rem]">
+                  <SegmentBlock tone="emerald" className="min-w-[4.4rem]">
+                    <div className="font-mono text-[1.05rem] font-semibold tracking-[0.08em] text-emerald-50 md:text-[1.15rem]">
                       {h2(builderData.len)}
                     </div>
-                    <div className="mt-2 text-[11px] uppercase tracking-[0.18em] text-emerald-100/80">
+                    <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-emerald-100/80">
                       {builderData.len} {builderData.len === 1 ? "byte" : "bytes"}
                     </div>
                   </SegmentBlock>
@@ -135,20 +124,20 @@ export function FrameVisualizationShowcase({
                   tooltipTitle="TOKEN / VERSION"
                   tooltipBody="UNER v2 usa el token fijo 0x3A y la version fija 0x02."
                 >
-                  <div className="flex gap-3">
-                    <SegmentBlock tone="amber" className="min-w-[6rem]">
-                      <div className="font-mono text-[1.9rem] font-semibold tracking-[0.08em] text-amber-50 md:text-[2.2rem]">
+                  <div className="flex gap-2">
+                    <SegmentBlock tone="amber" className="min-w-[4.4rem]">
+                      <div className="font-mono text-[1.05rem] font-semibold tracking-[0.08em] text-amber-50 md:text-[1.15rem]">
                         3A
                       </div>
-                      <div className="mt-2 text-[11px] uppercase tracking-[0.18em] text-amber-100/80">
+                      <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-amber-100/80">
                         token
                       </div>
                     </SegmentBlock>
-                    <SegmentBlock tone="amber" className="min-w-[6rem]">
-                      <div className="font-mono text-[1.9rem] font-semibold tracking-[0.08em] text-amber-50 md:text-[2.2rem]">
+                    <SegmentBlock tone="amber" className="min-w-[4.4rem]">
+                      <div className="font-mono text-[1.05rem] font-semibold tracking-[0.08em] text-amber-50 md:text-[1.15rem]">
                         02
                       </div>
-                      <div className="mt-2 text-[11px] uppercase tracking-[0.18em] text-amber-100/80">
+                      <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-amber-100/80">
                         version
                       </div>
                     </SegmentBlock>
@@ -161,11 +150,11 @@ export function FrameVisualizationShowcase({
                   tooltipTitle="ROUTE"
                   tooltipBody={`Nibble alto = ${nodeLabel(source)}. Nibble bajo = ${nodeLabel(destination)}.`}
                 >
-                  <SegmentBlock tone="violet" className="min-w-[8rem]">
-                    <div className="font-mono text-[1.9rem] font-semibold tracking-[0.08em] text-violet-50 md:text-[2.2rem]">
+                  <SegmentBlock tone="violet" className="min-w-[6.2rem]">
+                    <div className="font-mono text-[1.05rem] font-semibold tracking-[0.08em] text-violet-50 md:text-[1.15rem]">
                       {h2(builderData.route)}
                     </div>
-                    <div className="mt-2 text-[11px] uppercase tracking-[0.18em] text-violet-100/80">
+                    <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-violet-100/80">
                       {nodeLabel(source)} -&gt; {nodeLabel(destination)}
                     </div>
                   </SegmentBlock>
@@ -177,11 +166,11 @@ export function FrameVisualizationShowcase({
                   tooltipTitle="CMD"
                   tooltipBody={currentCommand?.desc ?? "Operacion concreta del protocolo para este frame."}
                 >
-                  <SegmentBlock tone="rose" className="min-w-[8rem]">
-                    <div className="font-mono text-[1.9rem] font-semibold tracking-[0.08em] text-rose-50 md:text-[2.2rem]">
+                  <SegmentBlock tone="rose" className="min-w-[6.2rem]">
+                    <div className="font-mono text-[1.05rem] font-semibold tracking-[0.08em] text-rose-50 md:text-[1.15rem]">
                       {h2(builderData.cmd)}
                     </div>
-                    <div className="mt-2 text-[11px] uppercase tracking-[0.18em] text-rose-100/80">
+                    <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-rose-100/80">
                       {currentCommand?.name ?? "comando"}
                     </div>
                   </SegmentBlock>
@@ -197,11 +186,11 @@ export function FrameVisualizationShowcase({
                       : "El CMD actual no necesita payload adicional."
                   }
                 >
-                  <SegmentBlock tone="sky" className="min-w-[16rem] max-w-[28rem]">
-                    <div className="font-mono text-[1.35rem] font-semibold tracking-[0.08em] text-sky-50 md:text-[1.7rem]">
+                  <SegmentBlock tone="sky" className="min-w-[10rem] max-w-[20rem]">
+                    <div className="font-mono text-[0.95rem] font-semibold tracking-[0.08em] text-sky-50 md:text-[1.05rem]">
                       {payloadHex}
                     </div>
-                    <div className="mt-2 text-[11px] uppercase tracking-[0.18em] text-sky-100/80">
+                    <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-sky-100/80">
                       {builderData.payload.length
                         ? `${builderData.payload.length} bytes de datos`
                         : "sin payload"}
@@ -215,11 +204,11 @@ export function FrameVisualizationShowcase({
                   tooltipTitle="CHECKSUM"
                   tooltipBody={`XOR final calculado sobre todo el frame previo. Valor actual: ${hx(builderData.chk)}.`}
                 >
-                  <SegmentBlock tone="slate" className="min-w-[6rem]">
-                    <div className="font-mono text-[1.9rem] font-semibold tracking-[0.08em] text-slate-50 md:text-[2.2rem]">
+                  <SegmentBlock tone="slate" className="min-w-[4.4rem]">
+                    <div className="font-mono text-[1.05rem] font-semibold tracking-[0.08em] text-slate-50 md:text-[1.15rem]">
                       {h2(builderData.chk)}
                     </div>
-                    <div className="mt-2 text-[11px] uppercase tracking-[0.18em] text-slate-100/80">
+                    <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-slate-100/80">
                       xor
                     </div>
                   </SegmentBlock>
@@ -300,8 +289,8 @@ function toneClasses(tone: SegmentTone) {
 
 function StatChip({ label, value }: { label: string; value: string }) {
   return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/45 px-3 py-2 text-xs text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-      <span className="font-semibold uppercase tracking-[0.18em] text-slate-400">
+    <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/45 px-2.5 py-1.5 text-[11px] text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+      <span className="font-semibold uppercase tracking-[0.12em] text-slate-400">
         {label}
       </span>
       <span className="font-mono text-slate-100">{value}</span>
@@ -327,9 +316,9 @@ function FrameSegment({
   return (
     <button
       type="button"
-      className="group relative flex shrink-0 cursor-help flex-col items-center gap-3 rounded-[26px] bg-transparent p-0 text-left"
+      className="group relative flex shrink-0 cursor-help flex-col items-center gap-2 rounded-[18px] bg-transparent p-0 text-left"
     >
-      <div className={`text-[12px] font-black uppercase tracking-[0.16em] ${toneClass.label}`}>
+      <div className={`text-[10px] font-black uppercase tracking-[0.12em] ${toneClass.label}`}>
         {label}
       </div>
       <div className="pointer-events-none absolute left-1/2 top-0 z-20 hidden w-72 -translate-x-1/2 -translate-y-full pb-3 text-left group-hover:block group-focus:block">
@@ -358,7 +347,7 @@ function SegmentBlock({
 
   return (
     <div
-      className={`rounded-[22px] border px-4 py-4 text-center transition-transform duration-300 group-hover:-translate-y-0.5 ${toneClass.block} ${className}`}
+      className={`rounded-[14px] border px-3 py-2.5 text-center transition-transform duration-300 group-hover:-translate-y-0.5 ${toneClass.block} ${className}`}
     >
       {children}
     </div>

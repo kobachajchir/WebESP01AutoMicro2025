@@ -43,62 +43,87 @@ export function BuilderColumn(props: BuilderColumnProps) {
   } = props;
 
   return (
-    <div className="flex flex-col gap-6">
-      <Panel title="Routing">
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-          <div>
-            <label htmlFor="protocol-src" className={SMALL_LABEL_CLASS}>Origen (src)</label>
-            <select id="protocol-src" className={INPUT_CLASS} value={source} onChange={(event) => onSourceChange(event.target.value)}>
-              {NODE_OPTIONS.map((option) => (
-                <option key={`src-${option.value}`} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="protocol-dst" className={SMALL_LABEL_CLASS}>Destino (dst)</label>
-            <select id="protocol-dst" className={INPUT_CLASS} value={destination} onChange={(event) => onDestinationChange(event.target.value)}>
-              {NODE_OPTIONS.map((option) => (
-                <option key={`dst-${option.value}`} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </Panel>
+    <div className="flex flex-col gap-5">
+      <Panel title="Constructor de paquete" className="protocol-builder-panel">
+        <div className="grid gap-4">
+          <section className="protocol-builder-subpanel">
+            <div className="protocol-subpanel-heading">
+              <span>Routing</span>
+              <small>Origen y destino</small>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+              <div>
+                <label htmlFor="protocol-src" className={SMALL_LABEL_CLASS}>Origen (src)</label>
+                <select id="protocol-src" className={INPUT_CLASS} value={source} onChange={(event) => onSourceChange(event.target.value)}>
+                  {NODE_OPTIONS.map((option) => (
+                    <option key={`src-${option.value}`} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+                <small className="mt-1 block text-slate-500">En raw real el ESP ignora este valor y usa el nodo 0x5..0xC asignado por la sesión.</small>
+              </div>
+              <div>
+                <label htmlFor="protocol-dst" className={SMALL_LABEL_CLASS}>Destino (dst)</label>
+                <select id="protocol-dst" className={INPUT_CLASS} value={destination} onChange={(event) => onDestinationChange(event.target.value)}>
+                  {NODE_OPTIONS.map((option) => (
+                    <option key={`dst-${option.value}`} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </section>
 
-      <Panel
-        title="Comando"
-        headerRight={
-          <span
-            className={`rounded-md px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${
-              currentCommand?.fields.length ? "bg-amber-500/15 text-amber-200" : "bg-cyan-500/15 text-cyan-200"
-            }`}
-          >
-            {currentCommand?.fields.length ? "Con payload" : "Sin payload"}
-          </span>
-        }
-      >
-        <div className="space-y-4">
-          <div>
-            <label htmlFor="protocol-command" className={SMALL_LABEL_CLASS}>Seleccionar comando</label>
-            <select id="protocol-command" className={INPUT_CLASS} value={commandKey} onChange={(event) => onCommandChange(event.target.value)}>
-              {COMMAND_GROUPS.map((group) => (
-                <optgroup key={group.label} label={group.label}>
-                  {group.commands
-                    .filter((key) => Boolean(FRAME_COMMANDS[key]))
-                    .map((key) => (
-                      <option key={key} value={key}>
-                        {key} {FRAME_COMMANDS[key].name}
-                      </option>
-                    ))}
-                </optgroup>
-              ))}
-            </select>
-          </div>
+          <section className="protocol-builder-subpanel">
+            <div className="protocol-subpanel-heading">
+              <span>Comando</span>
+              <small>{currentCommand?.fields.length ? "Con payload" : "Sin payload"}</small>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="protocol-command" className={SMALL_LABEL_CLASS}>Seleccionar comando</label>
+                <select id="protocol-command" className={INPUT_CLASS} value={commandKey} onChange={(event) => onCommandChange(event.target.value)}>
+                  {COMMAND_GROUPS.map((group) => (
+                    <optgroup key={group.label} label={group.label}>
+                      {group.commands
+                        .filter((key) => Boolean(FRAME_COMMANDS[key]))
+                        .map((key) => (
+                          <option key={key} value={key}>
+                            {key} {FRAME_COMMANDS[key].name}
+                          </option>
+                        ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
 
-          <div className={NOTE_CLASS}>
-            <p className="font-medium text-slate-200">{currentCommand?.name}</p>
-            <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-300">{currentCommand?.desc}</p>
-          </div>
+              <div className={NOTE_CLASS}>
+                <p className="font-medium text-slate-200">{currentCommand?.name}</p>
+                <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-300">{currentCommand?.desc}</p>
+              </div>
+            </div>
+          </section>
+
+          <section className="protocol-builder-subpanel">
+            <div className="protocol-subpanel-heading">
+              <span>Payload manual</span>
+              <small>Avanzado</small>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label htmlFor="manual-payload" className={SMALL_LABEL_CLASS}>Bytes hex separados por espacio</label>
+                <input
+                  id="manual-payload"
+                  type="text"
+                  className={INPUT_CLASS}
+                  placeholder="Ej: 01 4D 0A"
+                  value={manualPayload}
+                  onChange={(event) => onManualPayloadChange(event.target.value)}
+                />
+              </div>
+              <div className={NOTE_CLASS}>
+                Si completas este campo, sobreescribe el payload construido a partir de los parametros del comando seleccionado.
+              </div>
+            </div>
+          </section>
         </div>
       </Panel>
 
@@ -162,25 +187,6 @@ export function BuilderColumn(props: BuilderColumnProps) {
           </div>
         </Panel>
       ) : null}
-
-      <Panel title="Payload manual (avanzado)">
-        <div className="space-y-3">
-          <div>
-            <label htmlFor="manual-payload" className={SMALL_LABEL_CLASS}>Bytes hex separados por espacio</label>
-            <input
-              id="manual-payload"
-              type="text"
-              className={INPUT_CLASS}
-              placeholder="Ej: 01 4D 0A"
-              value={manualPayload}
-              onChange={(event) => onManualPayloadChange(event.target.value)}
-            />
-          </div>
-          <div className={NOTE_CLASS}>
-            Si completas este campo, sobreescribe el payload construido a partir de los parametros del comando seleccionado.
-          </div>
-        </div>
-      </Panel>
     </div>
   );
 }

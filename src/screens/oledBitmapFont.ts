@@ -1,5 +1,16 @@
-import { FONT_HEIGHT, FONT_WIDTH } from "./helpers";
 import type { OledFont } from "./types";
+
+// Se mantienen aqui tambien para que el rasterizador puro pueda ejecutarse
+// con Node --experimental-strip-types sin cargar el enum runtime de helpers.
+export const FONT_WIDTH: Record<OledFont, number> = {
+  Font7x10: 7,
+  Font11x18: 11,
+};
+
+export const FONT_HEIGHT: Record<OledFont, number> = {
+  Font7x10: 10,
+  Font11x18: 18,
+};
 
 const FONT_7X10_SOURCE = String.raw`
 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,

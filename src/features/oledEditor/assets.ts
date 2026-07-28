@@ -1,4 +1,4 @@
-import { getOledBitmapAsset } from "../../screens/bitmapAssets";
+import { getOledBitmapAsset } from "../../screens/bitmapAssets.ts";
 import type { OledFont } from "../../screens";
 import type { BitOrder, ImageAsset } from "./types";
 

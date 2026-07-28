@@ -7,6 +7,7 @@ import {
   SCREEN_CODE_CONNECTIVITY_WIFI_STATUS,
   SCREEN_CODE_CORE_DASHBOARD,
   SCREEN_CODE_CORE_MAIN_MENU,
+  SCREEN_CODE_SENSORS_DISPLAY_MENU,
   SCREEN_CODE_SENSORS_IR_VALUES,
   SCREEN_CODE_SENSORS_MENU,
   SCREEN_CODE_SENSORS_MPU_VALUES,
@@ -18,11 +19,12 @@ import {
   SCREEN_CODE_CONNECTIVITY_ESP_RESET_SENT,
 } from "./screenCodes";
 import type { MenuScreenItem, OledCommand, ScreenCode } from "./types";
+import { resolveVisibleMenuWindow } from "../protocol/screenMenuState";
 
 export interface MenuScreenArgs {
   screenCode: ScreenCode;
   items: MenuScreenItem[];
-  selectedIndex: number;
+  selectedIndex?: number;
   firstVisibleIndex?: number;
 }
 
@@ -69,13 +71,13 @@ export function buildMenuItemCommands(item: MenuScreenItem, y: number, selected:
 
 export function buildMenuScreenCommands(args: MenuScreenArgs): OledCommand[] {
   const menuItems = visibleItems(args.items);
-  const selectedVisibleIndex = menuItems.findIndex(
-    (item) => item.sourceIndex === args.selectedIndex,
+  const selectedVisibleIndex = args.selectedIndex ?? -1;
+  const { firstVisibleIndex } = resolveVisibleMenuWindow(
+    args.selectedIndex,
+    menuItems.length,
+    args.firstVisibleIndex,
+    MENU_VISIBLE_ITEMS,
   );
-  const selectedPageStart =
-    Math.floor(Math.max(0, selectedVisibleIndex) / MENU_VISIBLE_ITEMS) *
-    MENU_VISIBLE_ITEMS;
-  const firstVisibleIndex = args.firstVisibleIndex ?? selectedPageStart;
   const commands: OledCommand[] = [clear()];
 
   for (let slot = 0; slot < MENU_VISIBLE_ITEMS; slot++) {
@@ -83,7 +85,13 @@ export function buildMenuScreenCommands(args: MenuScreenArgs): OledCommand[] {
     if (!item) break;
 
     const y = MENU_ITEM_Y0 + slot * MENU_ITEM_SPACING;
-    commands.push(...buildMenuItemCommands(item, y, item.sourceIndex === args.selectedIndex));
+    commands.push(
+      ...buildMenuItemCommands(
+        item,
+        y,
+        firstVisibleIndex + slot === selectedVisibleIndex,
+      ),
+    );
   }
 
   return commands;
@@ -91,7 +99,9 @@ export function buildMenuScreenCommands(args: MenuScreenArgs): OledCommand[] {
 
 export const mainMenuItems: MenuScreenItem[] = [
   { label: "Wifi", iconRef: "Icon_Wifi_bits", screenCode: SCREEN_CODE_CONNECTIVITY_WIFI_MENU },
-  { label: "Sensores", iconRef: "Icon_Sensors_bits", screenCode: SCREEN_CODE_SENSORS_MENU },
+  { label: "Testeo", iconRef: "Icon_Sensors_bits", screenCode: SCREEN_CODE_SENSORS_MENU },
+  { label: "Balance", iconRef: "Icon_Tool_bits" },
+  { label: "Motores", iconRef: "Icon_Tool_bits", screenCode: SCREEN_CODE_MOTOR_TEST },
   { label: "Config.", iconRef: "Icon_Config_bits", screenCode: SCREEN_CODE_SETTINGS_MENU },
   { label: "Volver", iconRef: "Icon_Volver_bits", screenCode: SCREEN_CODE_CORE_DASHBOARD },
 ];
@@ -99,6 +109,7 @@ export const mainMenuItems: MenuScreenItem[] = [
 export const wifiMenuItems: MenuScreenItem[] = [
   { label: "Info AP", iconRef: "Icon_Info_bits", screenCode: SCREEN_CODE_CONNECTIVITY_WIFI_STATUS },
   { label: "Buscar APs", iconRef: "Icon_Refrescar_bits", screenCode: SCREEN_CODE_CONNECTIVITY_WIFI_SEARCHING },
+  { label: "Modo RED / AP", iconRef: "Icon_Refrescar_bits" },
   { label: "Conexion ESP", iconRef: "Icon_Link_bits", screenCode: SCREEN_CODE_CONNECTIVITY_ESP_MENU },
   { label: "Volver", iconRef: "Icon_Volver_bits", screenCode: SCREEN_CODE_CORE_MAIN_MENU },
 ];
@@ -111,9 +122,10 @@ export const espMenuItems: MenuScreenItem[] = [
 ];
 
 export const sensorsMenuItems: MenuScreenItem[] = [
-  { label: "Valores IR", iconRef: "Icon_Tool_bits", screenCode: SCREEN_CODE_SENSORS_IR_VALUES },
-  { label: "Valores MPU", iconRef: "Icon_Tool_bits", screenCode: SCREEN_CODE_SENSORS_MPU_VALUES },
-  { label: "Test motores", iconRef: "Icon_Tool_bits", screenCode: SCREEN_CODE_MOTOR_TEST },
+  { label: "Infrarrojos", iconRef: "Icon_Tool_bits", screenCode: SCREEN_CODE_SENSORS_IR_VALUES },
+  { label: "MPU", iconRef: "Icon_Tool_bits", screenCode: SCREEN_CODE_SENSORS_MPU_VALUES },
+  { label: "Pantalla", iconRef: "Icon_Info_bits", screenCode: SCREEN_CODE_SENSORS_DISPLAY_MENU },
+  { label: "UNER Router", iconRef: "Icon_Link_bits" },
   { label: "Volver", iconRef: "Icon_Volver_bits", screenCode: SCREEN_CODE_CORE_MAIN_MENU },
 ];
 
@@ -127,13 +139,15 @@ export const screen010201MainMenuCode = SCREEN_CODE_CORE_MAIN_MENU;
 
 export function buildScreen010201MainMenuCommands(args: { selectedIndex?: number; firstVisibleIndex?: number; sensoresVisible?: boolean } = {}): OledCommand[] {
   const items = mainMenuItems.map((item) =>
-    item.label === "Sensores" ? { ...item, visible: args.sensoresVisible ?? false } : item,
+    item.label === "Testeo" || item.label === "Motores"
+      ? { ...item, visible: args.sensoresVisible ?? false }
+      : item,
   );
 
   return buildMenuScreenCommands({
     screenCode: SCREEN_CODE_CORE_MAIN_MENU,
     items,
-    selectedIndex: args.selectedIndex ?? 0,
+    selectedIndex: args.selectedIndex,
     firstVisibleIndex: args.firstVisibleIndex,
   });
 }
@@ -144,7 +158,7 @@ export function buildScreen020101WifiMenuCommands(args: { selectedIndex?: number
   return buildMenuScreenCommands({
     screenCode: SCREEN_CODE_CONNECTIVITY_WIFI_MENU,
     items: wifiMenuItems,
-    selectedIndex: args.selectedIndex ?? 0,
+    selectedIndex: args.selectedIndex,
     firstVisibleIndex: args.firstVisibleIndex,
   });
 }
@@ -155,7 +169,7 @@ export function buildScreen020301EspMenuCommands(args: { selectedIndex?: number;
   return buildMenuScreenCommands({
     screenCode: SCREEN_CODE_CONNECTIVITY_ESP_MENU,
     items: espMenuItems,
-    selectedIndex: args.selectedIndex ?? 0,
+    selectedIndex: args.selectedIndex,
     firstVisibleIndex: args.firstVisibleIndex,
   });
 }
@@ -166,7 +180,7 @@ export function buildScreen030101SensorsMenuCommands(args: { selectedIndex?: num
   return buildMenuScreenCommands({
     screenCode: SCREEN_CODE_SENSORS_MENU,
     items: sensorsMenuItems,
-    selectedIndex: args.selectedIndex ?? 0,
+    selectedIndex: args.selectedIndex,
     firstVisibleIndex: args.firstVisibleIndex,
   });
 }
@@ -177,7 +191,7 @@ export function buildScreen050101SettingsMenuCommands(args: { selectedIndex?: nu
   return buildMenuScreenCommands({
     screenCode: SCREEN_CODE_SETTINGS_MENU,
     items: settingsMenuItems,
-    selectedIndex: args.selectedIndex ?? 0,
+    selectedIndex: args.selectedIndex,
     firstVisibleIndex: args.firstVisibleIndex,
   });
 }
@@ -204,7 +218,7 @@ export function buildScreen020203WifiResultsMenuCommands(args: {
   return buildMenuScreenCommands({
     screenCode: SCREEN_CODE_CONNECTIVITY_WIFI_RESULTS,
     items,
-    selectedIndex: args.selectedIndex ?? 0,
+    selectedIndex: args.selectedIndex,
     firstVisibleIndex: args.firstVisibleIndex,
   });
 }
@@ -221,7 +235,8 @@ export function buildScreen020203WifiResultsSummaryCommands(): OledCommand[] {
 
 export function buildLegacyVerticalMenuCommands(args: MenuScreenArgs): OledCommand[] {
   const menuItems = visibleItems(args.items);
-  const page = Math.floor(args.selectedIndex / MENU_VISIBLE_ITEMS);
+  const selectedIndex = args.selectedIndex ?? -1;
+  const page = Math.floor(Math.max(0, selectedIndex) / MENU_VISIBLE_ITEMS);
   const first = page * MENU_VISIBLE_ITEMS;
   const last = Math.min(first + MENU_VISIBLE_ITEMS, menuItems.length);
   const commands: OledCommand[] = [clear()];
@@ -237,12 +252,14 @@ export function buildLegacyVerticalMenuCommands(args: MenuScreenArgs): OledComma
 
     commands.push(...textAt(32, y, item.label, "Font7x10"));
 
-    if (item.sourceIndex === args.selectedIndex) {
+    if (i === selectedIndex) {
       commands.push(...drawFrame(0, y - 3, 128, 20));
     }
   }
 
-  commands.push(...drawXbm(0, MENU_ITEM_Y0 + (args.selectedIndex % MENU_VISIBLE_ITEMS) * MENU_ITEM_SPACING, 8, 16, MENU_CURSOR_BITMAP));
+  if (selectedIndex >= 0) {
+    commands.push(...drawXbm(0, MENU_ITEM_Y0 + (selectedIndex % MENU_VISIBLE_ITEMS) * MENU_ITEM_SPACING, 8, 16, MENU_CURSOR_BITMAP));
+  }
   return commands;
 }
 

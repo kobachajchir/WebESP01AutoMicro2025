@@ -12,19 +12,25 @@ import {
 import {
   SCREEN_CODE_CONNECTIVITY_ESP_AP_STARTED,
   SCREEN_CODE_CONNECTIVITY_ESP_BOOT_RECEIVED,
+  SCREEN_CODE_CONNECTIVITY_ESP_EXCEPTION_RESET,
   SCREEN_CODE_CONNECTIVITY_ESP_CHECK_REQUIRED,
   SCREEN_CODE_CONNECTIVITY_ESP_CHECKING,
   SCREEN_CODE_CONNECTIVITY_ESP_FIRMWARE_RECEIVED,
   SCREEN_CODE_CONNECTIVITY_ESP_FIRMWARE_REQUEST,
   SCREEN_CODE_CONNECTIVITY_ESP_MODE_CHANGED,
   SCREEN_CODE_CONNECTIVITY_ESP_RESET_SENT,
+  SCREEN_CODE_CONNECTIVITY_ESP_UNRESPONSIVE,
+  SCREEN_CODE_CONNECTIVITY_ESP_WATCHDOG_RESET,
   SCREEN_CODE_CONNECTIVITY_USB_CONNECTED,
   SCREEN_CODE_CONNECTIVITY_USB_DISCONNECTED,
   SCREEN_CODE_CONNECTIVITY_WEB_CLIENT_CONNECTED,
   SCREEN_CODE_CONNECTIVITY_WEB_CLIENT_DISCONNECTED,
   SCREEN_CODE_CONNECTIVITY_WEB_SERVER_UP,
+  SCREEN_CODE_CONNECTIVITY_AP_DEVICE_CONNECTED,
+  SCREEN_CODE_CONNECTIVITY_AP_DEVICE_DISCONNECTED,
   SCREEN_CODE_CONNECTIVITY_WIFI_CONNECTED,
   SCREEN_CODE_CONNECTIVITY_WIFI_CONNECTING,
+  SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_AT,
   SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_FAILED,
   SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_SUCCEEDED,
   SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_WEB,
@@ -197,6 +203,32 @@ export function buildScreen02020cWifiCredentialsFailedCommands(args: { ssid?: st
   ], progress);
 }
 
+export interface WifiAtCredentialsArgs {
+  ssid?: string;
+  passwordLength?: number;
+  selectedCharacter?: string;
+}
+
+export const screen02020dWifiCredentialsAtCode = SCREEN_CODE_CONNECTIVITY_WIFI_CREDENTIALS_AT;
+
+export function buildScreen02020dWifiCredentialsAtCommands(args: WifiAtCredentialsArgs = {}): OledCommand[] {
+  const passwordLength = Math.max(0, Math.min(255, Math.trunc(args.passwordLength ?? 0)));
+  const passwordMask = "*".repeat(Math.min(passwordLength, 11));
+  const rawCharacter = args.selectedCharacter?.charAt(0) || "A";
+  const selectedCharacter = rawCharacter === " " ? "_" : rawCharacter;
+
+  return [
+    clear(),
+    setWhite(),
+    ...drawXbm(3, 2, 19, 16, "Icon_Wifi_100_bits"),
+    ...textAt(27, baselineY(13, "Font7x10"), "Clave WiFi", "Font7x10"),
+    ...textMaxAt(2, baselineY(27, "Font7x10"), args.ssid ?? "WiFi", 17, "Font7x10"),
+    ...textMaxAt(2, baselineY(39, "Font7x10"), `Clave:${passwordMask}`, 17, "Font7x10"),
+    ...textMaxAt(2, baselineY(51, "Font7x10"), `Char:${selectedCharacter} Largo:${passwordLength}`, 17, "Font7x10"),
+    ...textAt(2, baselineY(63, "Font7x10"), "OK:+ U:- Hold:ir", "Font7x10"),
+  ];
+}
+
 export const screen020302EspCheckingCode = SCREEN_CODE_CONNECTIVITY_ESP_CHECKING;
 
 export function buildScreen020302EspCheckingConnectionNotificationCommands(progress?: NotificationProgressArgs): OledCommand[] {
@@ -256,6 +288,42 @@ export function buildScreen020306EspBootReceivedNotificationCommands(progress?: 
     ...drawXbmMsb(2, 12, 19, 16, "Icon_Info_bits"),
     ...textAt(27, baselineY(30, "Font11x18"), "ESP", "Font11x18"),
     ...textAt(2, baselineY(50, "Font11x18"), "iniciada", "Font11x18"),
+  ], progress);
+}
+
+export const screen02030bEspUnresponsiveCode = SCREEN_CODE_CONNECTIVITY_ESP_UNRESPONSIVE;
+
+export function buildScreen02030bEspUnresponsiveNotificationCommands(progress?: NotificationProgressArgs): OledCommand[] {
+  return simpleNotification([
+    clear(),
+    setWhite(),
+    ...drawXbm(56, 3, 16, 16, "Icon_OperationWarning_bits"),
+    ...textAt(53, baselineY(34, "Font7x10"), "ESP", "Font7x10"),
+    ...textAt(18, baselineY(52, "Font7x10"), "sin respuesta", "Font7x10"),
+  ], progress);
+}
+
+export const screen02030cEspWatchdogResetCode = SCREEN_CODE_CONNECTIVITY_ESP_WATCHDOG_RESET;
+
+export function buildScreen02030cEspWatchdogResetNotificationCommands(progress?: NotificationProgressArgs): OledCommand[] {
+  return simpleNotification([
+    clear(),
+    setWhite(),
+    ...drawXbm(56, 3, 16, 16, "Icon_OperationWarning_bits"),
+    ...textAt(25, baselineY(34, "Font7x10"), "Reinicio ESP", "Font7x10"),
+    ...textAt(22, baselineY(52, "Font7x10"), "por watchdog", "Font7x10"),
+  ], progress);
+}
+
+export const screen02030dEspExceptionResetCode = SCREEN_CODE_CONNECTIVITY_ESP_EXCEPTION_RESET;
+
+export function buildScreen02030dEspExceptionResetNotificationCommands(progress?: NotificationProgressArgs): OledCommand[] {
+  return simpleNotification([
+    clear(),
+    setWhite(),
+    ...drawXbm(56, 3, 16, 16, "Icon_OperationWarning_bits"),
+    ...textAt(25, baselineY(34, "Font7x10"), "Reinicio ESP", "Font7x10"),
+    ...textAt(18, baselineY(52, "Font7x10"), "por excepcion", "Font7x10"),
   ], progress);
 }
 
@@ -352,7 +420,7 @@ export function buildScreen020502WebClientConnectedNotificationCommands(progress
     setWhite(),
     ...drawXbm(2, 12, 16, 16, "Icon_Link_bits"),
     ...textAt(37, baselineY(30, "Font11x18"), "Web", "Font11x18"),
-    ...textAt(20, baselineY(50, "Font11x18"), "conectado", "Font11x18"),
+    ...textAt(20, baselineY(50, "Font11x18"), "conectada", "Font11x18"),
   ], progress);
 }
 
@@ -367,6 +435,32 @@ export function buildScreen020503WebClientDisconnectedNotificationCommands(progr
     { type: "drawLine", x0: 3, y0: 12, x1: 19, y1: 28 },
     ...textAt(37, baselineY(30, "Font11x18"), "Web", "Font11x18"),
     ...textAt(20, baselineY(50, "Font11x18"), "desconect", "Font11x18"),
+  ], progress);
+}
+
+export const screen020601ApDeviceConnectedCode = SCREEN_CODE_CONNECTIVITY_AP_DEVICE_CONNECTED;
+
+export function buildScreen020601ApDeviceConnectedNotificationCommands(progress?: NotificationProgressArgs): OledCommand[] {
+  return simpleNotification([
+    clear(),
+    setWhite(),
+    ...drawXbm(56, 3, 16, 16, "Icon_Link_bits"),
+    ...textAt(25, baselineY(34, "Font7x10"), "Dispositivo", "Font7x10"),
+    ...textAt(36, baselineY(52, "Font7x10"), "conectado", "Font7x10"),
+  ], progress);
+}
+
+export const screen020602ApDeviceDisconnectedCode = SCREEN_CODE_CONNECTIVITY_AP_DEVICE_DISCONNECTED;
+
+export function buildScreen020602ApDeviceDisconnectedNotificationCommands(progress?: NotificationProgressArgs): OledCommand[] {
+  return simpleNotification([
+    clear(),
+    setWhite(),
+    ...drawXbm(56, 3, 16, 16, "Icon_Link_bits"),
+    { type: "drawLine", x0: 56, y0: 3, x1: 72, y1: 19 },
+    { type: "drawLine", x0: 57, y0: 3, x1: 73, y1: 19 },
+    ...textAt(25, baselineY(34, "Font7x10"), "Dispositivo", "Font7x10"),
+    ...textAt(32, baselineY(52, "Font7x10"), "desconect", "Font7x10"),
   ], progress);
 }
 

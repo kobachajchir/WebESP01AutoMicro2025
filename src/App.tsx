@@ -1,33 +1,48 @@
 // src/App.tsx
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect, useMemo, type ReactNode } from "react";
 import { RouterProvider, createBrowserRouter } from "react-router-dom";
 import { useUser } from "./contexts/UserContext";
-import Home from "./pages/Home";
-import Login from "./pages/Login";
 import "./App.css";
-import WifiSection from "./pages/WifiSection";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { PublicRoute } from "./components/PublicRoute";
 //import AppFooter from "./components/AppFooter";
 import RedirectRoot from "./components/RedirectRoot";
 import RootLayout from "./components/RootLayout";
-import ControlSection from "./pages/ControlSection";
-import EstadoSection from "./pages/EstadoSection";
-import DocsSection from "./pages/DocsSection";
-import DocTopicSection from "./pages/DocTopicSection";
-import OledEditorSection from "./pages/OledEditorSection";
-import ProtocolSection from "./pages/ProtocolSection";
-import { applyThemeColors, loadThemeColors } from "./utils/theme";
+import AppLoadingScreen from "./components/AppLoadingScreen";
+import {
+  applyThemeColors,
+  applyThemeMode,
+  loadThemeColors,
+  loadThemeMode,
+} from "./utils/theme";
+
+const Home = lazy(() => import("./pages/Home"));
+const Login = lazy(() => import("./pages/Login"));
+const WifiSection = lazy(() => import("./pages/WifiSection"));
+const ControlSection = lazy(() => import("./pages/ControlSection"));
+const EstadoSection = lazy(() => import("./pages/EstadoSection"));
+const DocsSection = lazy(() => import("./pages/DocsSection"));
+const DocTopicSection = lazy(() => import("./pages/DocTopicSection"));
+const OledEditorSection = lazy(() => import("./pages/OledEditorSection"));
+const ProtocolSection = lazy(() => import("./pages/ProtocolSection"));
+const TrackFollowerSection = lazy(() => import("./pages/TrackFollowerSection"));
+
+function routeLoader(label: string, children: ReactNode) {
+  return <Suspense fallback={<AppLoadingScreen label={label} />}>{children}</Suspense>;
+}
 
 const App: React.FC = () => {
   const { user } = useUser();
 
   useEffect(() => {
+    applyThemeMode(loadThemeMode());
     applyThemeColors(loadThemeColors());
   }, []);
 
-  const router = createBrowserRouter([
+  // Conservar el mismo router durante toda la sesion. Recrearlo cuando cambia
+  // `user` desmontaba la navegacion justo en el redirect login -> home.
+  const router = useMemo(() => createBrowserRouter([
     {
       path: "/",
       element: <RootLayout />,
@@ -38,78 +53,90 @@ const App: React.FC = () => {
           path: "login",
           element: (
             <PublicRoute>
-              <Login />
+              {routeLoader("Cargando login", <Login />)}
             </PublicRoute>
           ),
         },
         {
           path: "home",
           element: (
-            <ProtectedRoute>
-              <Home />
+            <ProtectedRoute loadingLabel="Cargando dashboard">
+              {routeLoader("Cargando dashboard", <Home />)}
             </ProtectedRoute>
           ),
         },
         {
           path: "wifi",
           element: (
-            <ProtectedRoute>
-              <WifiSection />
+            <ProtectedRoute loadingLabel="Cargando WiFi">
+              {routeLoader("Cargando WiFi", <WifiSection />)}
             </ProtectedRoute>
           ),
         },
         {
           path: "statics",
           element: (
-            <ProtectedRoute>
-              <EstadoSection />
+            <ProtectedRoute loadingLabel="Cargando sensores">
+              {routeLoader("Cargando sensores", <EstadoSection />)}
             </ProtectedRoute>
           ),
         },
         {
           path: "control",
           element: (
-            <ProtectedRoute>
-              <ControlSection />
+            <ProtectedRoute loadingLabel="Cargando control">
+              {routeLoader("Cargando control", <ControlSection />)}
+            </ProtectedRoute>
+          ),
+        },
+        {
+          path: "provision",
+          element: routeLoader("Cargando WiFi", <WifiSection provisioning />),
+        },
+        {
+          path: "seguidor-pista",
+          element: (
+            <ProtectedRoute loadingLabel="Cargando seguidor">
+              {routeLoader("Cargando seguidor", <TrackFollowerSection />)}
             </ProtectedRoute>
           ),
         },
         {
           path: "protocol",
           element: (
-            <ProtectedRoute>
-              <ProtocolSection />
+            <ProtectedRoute loadingLabel="Cargando UNER Studio">
+              {routeLoader("Cargando UNER Studio", <ProtocolSection />)}
             </ProtectedRoute>
           ),
         },
         {
           path: "docs",
           element: (
-            <ProtectedRoute>
-              <DocsSection />
+            <ProtectedRoute loadingLabel="Cargando documentacion">
+              {routeLoader("Cargando documentacion", <DocsSection />)}
             </ProtectedRoute>
           ),
         },
         {
           path: "docs/:topicSlug",
           element: (
-            <ProtectedRoute>
-              <DocTopicSection />
+            <ProtectedRoute loadingLabel="Cargando documentacion">
+              {routeLoader("Cargando documentacion", <DocTopicSection />)}
             </ProtectedRoute>
           ),
         },
         {
           path: "oled-editor",
           element: (
-            <ProtectedRoute>
-              <OledEditorSection />
+            <ProtectedRoute loadingLabel="Cargando OLED Studio">
+              {routeLoader("Cargando OLED Studio", <OledEditorSection />)}
             </ProtectedRoute>
           ),
         },
         { path: "notFound", element: <NotFound /> }, // opcional
       ],
     },
-  ]);
+  ]), []);
 
   // Efecto para configurar View Transitions y altura completa
   useEffect(() => {
@@ -118,7 +145,7 @@ const App: React.FC = () => {
     } else {
       console.log("View Transitions soportado en este navegador");
     }
-    // Ajusta el root para que ocupe todo el alto visible del navegador y previene el scroll
+    // Ajusta el root para que ocupe todo el alto visible del navegador sin forzar barras fijas.
     const setFullHeight = () => {
       const vh = window.innerHeight * 0.01;
       document.getElementById("root")?.style.setProperty("--vh", `${vh}px`);
@@ -126,12 +153,15 @@ const App: React.FC = () => {
         .getElementById("root")
         ?.style.setProperty("height", `calc(var(--vh, 1vh) * 100)`);
       document.body.style.height = `calc(var(--vh, 1vh) * 100)`;
-      document.body.style.overflow = "scroll";
+      document.body.style.overflowX = "hidden";
+      document.body.style.overflowY = "auto";
     };
     setFullHeight();
+    window.addEventListener("resize", setFullHeight);
     return () => {
       window.removeEventListener("resize", setFullHeight);
-      document.body.style.overflow = "";
+      document.body.style.overflowX = "";
+      document.body.style.overflowY = "";
       document.body.style.height = "";
     };
   }, []);

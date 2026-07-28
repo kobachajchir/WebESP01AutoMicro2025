@@ -30,6 +30,7 @@ export const SCREEN_META_BY_CODE: Record<number, ScreenMeta> = {
   0x010001: screenMeta("Startup / arranque", 0x010001, SCREEN_SOURCES.SYSTEM, [0x01, 0x00, 0x01, 0x00, 0x05]),
   0x010101: screenMeta("Dashboard / Inicio", 0x010101, SCREEN_SOURCES.RENDER, [0x01, 0x01, 0x01, 0x00, 0x02]),
   0x010102: screenMeta("Cambio de modo", 0x010102, SCREEN_SOURCES.RENDER, [0x02, 0x01, 0x01, 0x00, 0x02]),
+  0x010105: screenMeta("Cambio de modo remoto", 0x010105, SCREEN_SOURCES.NOTIFICATION, [0x05, 0x01, 0x01, 0x00, 0x03]),
   0x010201: screenMeta("Menu principal", 0x010201, SCREEN_SOURCES.MENU, [0x01, 0x02, 0x01, 0x00, 0x01]),
 
   0x020101: screenMeta("Menu WiFi", 0x020101, SCREEN_SOURCES.MENU, [0x01, 0x01, 0x02, 0x00, 0x01]),
@@ -45,6 +46,7 @@ export const SCREEN_META_BY_CODE: Record<number, ScreenMeta> = {
   0x02020a: screenMeta("Credenciales WiFi desde Web", 0x02020a, SCREEN_SOURCES.NOTIFICATION, [0x0a, 0x02, 0x02, 0x00, 0x03]),
   0x02020b: screenMeta("Credenciales WiFi aceptadas", 0x02020b, SCREEN_SOURCES.NOTIFICATION, [0x0b, 0x02, 0x02, 0x00, 0x03]),
   0x02020c: screenMeta("Credenciales WiFi fallidas", 0x02020c, SCREEN_SOURCES.NOTIFICATION, [0x0c, 0x02, 0x02, 0x00, 0x03]),
+  0x02020d: screenMeta("Ingreso local de clave WiFi (AT)", 0x02020d, SCREEN_SOURCES.RENDER, [0x0d, 0x02, 0x02, 0x00, 0x02]),
 
   0x020301: screenMeta("Menu Enlace ESP", 0x020301, SCREEN_SOURCES.MENU, [0x01, 0x03, 0x02, 0x00, 0x01]),
   0x020302: screenMeta("Chequeando conexion ESP", 0x020302, SCREEN_SOURCES.NOTIFICATION, [0x02, 0x03, 0x02, 0x00, 0x03]),
@@ -62,6 +64,8 @@ export const SCREEN_META_BY_CODE: Record<number, ScreenMeta> = {
   0x020501: screenMeta("Web server listo", 0x020501, SCREEN_SOURCES.NOTIFICATION, [0x01, 0x05, 0x02, 0x00, 0x03]),
   0x020502: screenMeta("Cliente web conectado", 0x020502, SCREEN_SOURCES.NOTIFICATION, [0x02, 0x05, 0x02, 0x00, 0x03]),
   0x020503: screenMeta("Cliente web desconectado", 0x020503, SCREEN_SOURCES.NOTIFICATION, [0x03, 0x05, 0x02, 0x00, 0x03]),
+  0x020601: screenMeta("Dispositivo AP conectado", 0x020601, SCREEN_SOURCES.NOTIFICATION, [0x01, 0x06, 0x02, 0x00, 0x03]),
+  0x020602: screenMeta("Dispositivo AP desconectado", 0x020602, SCREEN_SOURCES.NOTIFICATION, [0x02, 0x06, 0x02, 0x00, 0x03]),
 
   0x030101: screenMeta("Menu Sensores", 0x030101, SCREEN_SOURCES.MENU, [0x01, 0x01, 0x03, 0x00, 0x01]),
   0x030201: screenMeta("Valores IR", 0x030201, SCREEN_SOURCES.RENDER, [0x01, 0x02, 0x03, 0x00, 0x02]),
@@ -69,6 +73,10 @@ export const SCREEN_META_BY_CODE: Record<number, ScreenMeta> = {
   0x030302: screenMeta("MPU stream iniciado", 0x030302, SCREEN_SOURCES.NOTIFICATION, [0x02, 0x03, 0x03, 0x00, 0x03]),
   0x030303: screenMeta("MPU stream detenido", 0x030303, SCREEN_SOURCES.NOTIFICATION, [0x03, 0x03, 0x03, 0x00, 0x03]),
   0x030401: screenMeta("Radar", 0x030401, SCREEN_SOURCES.RENDER, [0x01, 0x04, 0x03, 0x00, 0x02]),
+  0x030500: screenMeta("Menu Pantalla", 0x030500, SCREEN_SOURCES.MENU, [0x00, 0x05, 0x03, 0x00, 0x01]),
+  0x030501: screenMeta("Test orientacion OLED", 0x030501, SCREEN_SOURCES.RENDER, [0x01, 0x05, 0x03, 0x00, 0x02]),
+  0x030502: screenMeta("Test OLED con MPU", 0x030502, SCREEN_SOURCES.RENDER, [0x02, 0x05, 0x03, 0x00, 0x02]),
+  0x030503: screenMeta("OLED Canvas", 0x030503, SCREEN_SOURCES.RENDER, [0x03, 0x05, 0x03, 0x00, 0x02]),
 
   0x040101: screenMeta("Test de motores", 0x040101, SCREEN_SOURCES.RENDER, [0x01, 0x01, 0x04, 0x00, 0x02]),
 
@@ -162,13 +170,14 @@ export function normalizeScreenReport(data: unknown): ScreenReport | null {
     return null;
   }
 
-  const source = readByte(data.source) ?? readPayloadSource(payload);
+  const cmd = readByte(data.cmd);
+  const source = readByte(data.source) ?? readPayloadSource(payload, cmd);
   const sourceName =
     readString(data.sourceName) ??
     (source === undefined ? undefined : SCREEN_SOURCE_NAMES[source]);
 
   return {
-    cmd: readByte(data.cmd),
+    cmd,
     src: readByte(data.src),
     dst: readByte(data.dst),
     len: readInteger(data.len),
@@ -222,16 +231,19 @@ function readScreenCodeFromPayload(payload: number[] | undefined): number | null
   ) >>> 0;
 }
 
-function readPayloadSource(payload: number[] | undefined): number | undefined {
+function readPayloadSource(
+  payload: number[] | undefined,
+  cmd: number | undefined,
+): number | undefined {
   if (!payload) {
     return undefined;
   }
 
-  if (payload.length >= 7) {
+  if (cmd === 0x96 && payload.length >= 7) {
     return payload[6];
   }
 
-  if (payload.length >= 6) {
+  if (cmd === 0x96 && payload.length >= 6) {
     return payload[5];
   }
 

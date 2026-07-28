@@ -1,25 +1,35 @@
-// src/contexts/WebSocketContext.tsx
+/* eslint-disable react-refresh/only-export-components */
 import React, {
   createContext,
-  useEffect,
-  useState,
-  useRef,
   useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
   type ReactNode,
 } from "react";
 import Modal from "../components/modal";
+import { EspClient, type EspApiError } from "../protocol/espClient";
+import {
+  parseWsEnvelope,
+  type CommandName,
+  type EspHello,
+  type WsEvent,
+} from "../protocol/wsApi";
 
-type WSMessageHandler = (data: any) => void;
+type WSMessageHandler = (data: unknown) => void;
 type WSRawHandler = (data: ArrayBuffer | Uint8Array) => void;
 type WSDataPacketMeta = Record<string, unknown>;
 
-const WS_DATA_PACKET_TYPE = "stmPacket";
-const WS_DATA_PACKET_TYPES = new Set([
-  WS_DATA_PACKET_TYPE,
-  "unerPacket",
-  "rawBytes",
-  "binaryData",
-]);
+export type ConnectionPhase =
+  | "idle"
+  | "connecting"
+  | "authenticating"
+  | "ready"
+  | "retry_wait"
+  | "failed";
+
+export type ConnectionHealth = "connecting" | "ready" | "degraded" | "offline";
 
 interface HeartbeatConfig {
   intervalMs: number;
@@ -31,18 +41,21 @@ interface HeartbeatConfig {
 interface WebSocketContextType {
   connected: boolean;
   setConnected: (state: boolean) => void;
-
-  send: (type: string, payload?: any) => void;
+  connectionPhase: ConnectionPhase;
+  connectionHealth: ConnectionHealth;
+  hello: EspHello | null;
+  lastError: EspApiError | Error | null;
+  mockMode: boolean;
+  request: <T>(command: CommandName, args?: Record<string, unknown>, options?: { requestId?: string; timeoutMs?: number }) => Promise<T>;
+  subscribeEvent: (event: string, handler: (event: WsEvent) => void) => () => void;
+  reconnect: () => void;
+  send: (type: string, payload?: unknown) => void;
   subscribe: (type: string, handler: WSMessageHandler) => () => void;
-
   sendRaw: (data: Uint8Array, meta?: WSDataPacketMeta) => void;
   subscribeRaw: (handler: WSRawHandler) => () => void;
-
   disconnect: () => void;
-  mockMessage: (type: string, payload?: any) => void;
+  mockMessage: (type: string, payload?: unknown) => void;
   mockRaw: (data: Uint8Array) => void;
-
-  // Heartbeat watchdog
   heartbeatConfig: HeartbeatConfig;
   lastHeartbeatAt: number | null;
   setHeartbeatInterval: (ms: number) => void;
@@ -57,492 +70,336 @@ interface WebSocketContextType {
   setSensorRefreshInterval: (newVal: number) => void;
 }
 
-export const WebSocketContext = createContext<WebSocketContextType | undefined>(
-  undefined
-);
+export const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
 
 interface WebSocketProviderProps {
-  /** Endpoint completo, p.ej. `ws://mi-servidor/ws` */
   url: string;
   children: ReactNode;
 }
 
-export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({
-  url,
-  children,
-}) => {
-  const wsRef = useRef<WebSocket | null>(null);
-  const [connected, setConnected] = useState<boolean>(false);
-  const [retrying, setRetrying] = useState<boolean>(false);
-  const [showRetryModal, setShowRetryModal] = useState<boolean>(false);
+const WS_DATA_PACKET_TYPES = new Set(["stmPacket", "unerPacket", "rawBytes", "binaryData"]);
+const MAX_RECONNECT_ATTEMPTS = 8;
+const HANDSHAKE_TIMEOUT_MS = 5_000;
 
-  // Estados del heartbeat watchdog
+export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, children }) => {
+  const mockMode = url.startsWith("mock://");
+  const wsRef = useRef<WebSocket | null>(null);
+  const clientRef = useRef(new EspClient());
+  const jsonListeners = useRef(new Map<string, Set<WSMessageHandler>>());
+  const rawListeners = useRef(new Set<WSRawHandler>());
+  const reconnectTimerRef = useRef<number | null>(null);
+  const handshakeTimerRef = useRef<number | null>(null);
+  const generationRef = useRef(0);
+  const reconnectAttemptRef = useRef(0);
+  const manuallyClosedRef = useRef(false);
+  const connectRef = useRef<() => void>(() => undefined);
+
+  const [connectionPhase, setConnectionPhase] = useState<ConnectionPhase>("idle");
+  const [hello, setHello] = useState<EspHello | null>(null);
+  const [lastError, setLastError] = useState<EspApiError | Error | null>(null);
+  const [showRetryModal, setShowRetryModal] = useState(false);
+  const [sensorRefreshInterval, setSensorRefreshInterval] = useState(20);
+  const [lastHeartbeatAt, setLastHeartbeatAt] = useState<number | null>(null);
   const [heartbeatConfig, setHeartbeatConfig] = useState<HeartbeatConfig>({
-    intervalMs: 500,
+    intervalMs: 1_000,
     maxRetries: 5,
     isActive: false,
     remainingRetries: 5,
   });
-  const [lastHeartbeatAt, setLastHeartbeatAt] = useState<number | null>(null);
 
-  const [sensorRefreshInterval, setSensorRefreshInterval] = useState<number>(8);
+  const connected = connectionPhase === "ready";
+  const retrying = connectionPhase === "retry_wait" || connectionPhase === "connecting";
+  const connectionHealth: ConnectionHealth =
+    connectionPhase === "ready"
+      ? hello?.backend && hello.backend.f4Alive === false
+        ? "degraded"
+        : "ready"
+      : connectionPhase === "connecting" || connectionPhase === "authenticating" || connectionPhase === "retry_wait"
+        ? "connecting"
+        : "offline";
 
-  const jsonListeners = useRef(new Map<string, Set<WSMessageHandler>>());
-  const rawListeners = useRef(new Set<WSRawHandler>());
+  const clearTimer = useCallback((ref: React.MutableRefObject<number | null>) => {
+    if (ref.current !== null) window.clearTimeout(ref.current);
+    ref.current = null;
+  }, []);
 
-  // Refs para los timers del heartbeat
-  const heartbeatTimeoutRef = useRef<number | null>(null);
+  const dispatchJson = useCallback((type: string, payload: unknown) => {
+    jsonListeners.current.get(type)?.forEach((handler) => handler(payload));
+  }, []);
 
-  // Función que se ejecuta cuando se agotan los intentos
-  const onHeartbeatTimeout = useCallback(() => {
-    console.log(
-      "⚠️ [HEARTBEAT WATCHDOG] Se terminaron los intentos de heartbeat!"
-    );
-    console.log(
-      `💀 [HEARTBEAT WATCHDOG] No se recibió heartbeat después de ${heartbeatConfig.maxRetries} intentos`
-    );
+  const handleTextMessage = useCallback((text: string, generation: number) => {
+    if (generation !== generationRef.current) return;
 
-    // Desconectar automáticamente
-    setConnected(false);
-
-    // Desactivar watchdog
-    setHeartbeatConfig((prev) => ({
-      ...prev,
-      isActive: false,
-      remainingRetries: 0,
-    }));
-
-    // Limpiar timeout
-    if (heartbeatTimeoutRef.current) {
-      clearTimeout(heartbeatTimeoutRef.current);
-      heartbeatTimeoutRef.current = null;
+    let decoded: unknown;
+    try {
+      decoded = JSON.parse(text);
+    } catch {
+      setLastError(new Error("El ESP envio JSON invalido"));
+      return;
     }
 
-    setShowRetryModal(true)
-  }, [heartbeatConfig.maxRetries]);
-
-  // Función para iniciar el watchdog
-  const startHeartbeatWatchdog = useCallback(() => {
-    if (heartbeatTimeoutRef.current) {
-      clearTimeout(heartbeatTimeoutRef.current);
-    }
-
-    if (connected && heartbeatConfig.isActive) {
-      heartbeatTimeoutRef.current = setTimeout(() => {
-        setHeartbeatConfig((prev) => {
-          const newRetries = prev.remainingRetries - 1;
-          console.log(
-            `⏰ [WATCHDOG] Timeout! Decrementando contador: ${prev.remainingRetries} -> ${newRetries}`
-          );
-
-          if (newRetries <= 0) {
-            onHeartbeatTimeout();
-            return {
-              ...prev,
-              remainingRetries: 0,
-              isActive: false,
-            };
-          } else {
-            // Continuar con el siguiente timeout
-            setTimeout(startHeartbeatWatchdog, 0);
-            return {
-              ...prev,
-              remainingRetries: newRetries,
-            };
-          }
-        });
-      }, heartbeatConfig.intervalMs * 1.5); // Dar un margen del 50% sobre el intervalo esperado
-    }
-  }, [
-    connected,
-    heartbeatConfig.isActive,
-    heartbeatConfig.intervalMs,
-    onHeartbeatTimeout,
-  ]);
-
-  // Función para resetear el watchdog cuando llega un heartbeat
-  const resetHeartbeatWatchdog = useCallback(() => {
-    console.log(
-      `🔄 [WATCHDOG] Heartbeat recibido! Reseteando contador a ${heartbeatConfig.maxRetries}`
-    );
-
-    // Limpiar timeout anterior si existe
-    if (heartbeatTimeoutRef.current) {
-      clearTimeout(heartbeatTimeoutRef.current);
-    }
-
-    // Resetear contador
-    setHeartbeatConfig((prev) => ({
-      ...prev,
-      remainingRetries: prev.maxRetries,
-    }));
-
-    // Iniciar nuevo ciclo de watchdog si está activo
-    if (heartbeatConfig.isActive && connected) {
-      setTimeout(startHeartbeatWatchdog, 0);
-    }
-  }, [
-    heartbeatConfig.maxRetries,
-    heartbeatConfig.isActive,
-    connected,
-    startHeartbeatWatchdog,
-  ]);
-
-  // Función pública para notificar que se recibió un heartbeat
-  const onHeartbeatReceived = useCallback(() => {
     setLastHeartbeatAt(Date.now());
-
-    if (heartbeatConfig.isActive) {
-      resetHeartbeatWatchdog();
-    }
-  }, [heartbeatConfig.isActive, resetHeartbeatWatchdog]);
-
-  // Función para activar/desactivar el watchdog
-  const toggleHeartbeatWatchdog = useCallback(() => {
-    if (!connected) return;
-
-    setHeartbeatConfig((prev) => {
-      const newIsActive = !prev.isActive;
-
-      if (newIsActive) {
-        // Activar watchdog
-        console.log("🟢 [WATCHDOG] Activando watchdog");
-        setTimeout(startHeartbeatWatchdog, 0);
-        return {
-          ...prev,
-          isActive: true,
-          remainingRetries: prev.maxRetries,
-        };
-      } else {
-        // Desactivar watchdog
-        console.log("🔴 [WATCHDOG] Desactivando watchdog");
-        if (heartbeatTimeoutRef.current) {
-          clearTimeout(heartbeatTimeoutRef.current);
-          heartbeatTimeoutRef.current = null;
+    setHeartbeatConfig((current) => ({ ...current, remainingRetries: current.maxRetries }));
+    const envelope = parseWsEnvelope(decoded);
+    if (envelope) {
+      clientRef.current.accept(envelope);
+      if (envelope.type === "event") {
+        dispatchJson(envelope.event, envelope.data);
+        dispatchJson("device.event", envelope);
+        if (envelope.event === "hello") {
+          const nextHello = envelope.data as EspHello;
+          if (nextHello.apiVersion !== 1) {
+            setLastError(new Error(`Version WS no soportada: ${nextHello.apiVersion}`));
+            wsRef.current?.close(1002, "unsupported api");
+            return;
+          }
+          clearTimer(handshakeTimerRef);
+          setHello(nextHello);
+          reconnectAttemptRef.current = 0;
+          setConnectionPhase("ready");
         }
-        return {
-          ...prev,
-          isActive: false,
-          remainingRetries: prev.maxRetries,
-        };
+      } else if (envelope.type === "response") {
+        dispatchJson("device.response", envelope);
+      } else {
+        dispatchJson("device.error", envelope);
+        setLastError(new Error(`${envelope.code}: ${envelope.message}`));
       }
-    });
-  }, [connected, startHeartbeatWatchdog]);
-
-  // Función para cambiar el intervalo de heartbeat
-  const setHeartbeatInterval = useCallback((ms: number) => {
-    console.log(`⚙️ [WATCHDOG] Cambiando intervalo a ${ms}ms`);
-    setHeartbeatConfig((prev) => ({
-      ...prev,
-      intervalMs: ms,
-    }));
-  }, []);
-
-  // Función para cambiar el máximo de reintentos
-  const setHeartbeatMaxRetries = useCallback((retries: number) => {
-    console.log(`⚙️ [WATCHDOG] Cambiando máximo reintentos a ${retries}`);
-    setHeartbeatConfig((prev) => ({
-      ...prev,
-      maxRetries: retries,
-      remainingRetries: prev.isActive ? retries : prev.remainingRetries,
-    }));
-  }, []);
-
-  // Efecto para reiniciar watchdog cuando cambian parámetros
-  useEffect(() => {
-    if (heartbeatConfig.isActive && connected) {
-      console.log(
-        `⚙️ [WATCHDOG] Reiniciando por cambio de parámetros: interval=${heartbeatConfig.intervalMs}ms, maxRetries=${heartbeatConfig.maxRetries}`
-      );
-
-      // Limpiar timeout anterior
-      if (heartbeatTimeoutRef.current) {
-        clearTimeout(heartbeatTimeoutRef.current);
-      }
-
-      // Resetear contador y reiniciar
-      setHeartbeatConfig((prev) => ({
-        ...prev,
-        remainingRetries: prev.maxRetries,
-      }));
-
-      setTimeout(startHeartbeatWatchdog, 0);
+      return;
     }
-  }, [
-    heartbeatConfig.intervalMs,
-    heartbeatConfig.maxRetries,
-    heartbeatConfig.isActive,
-    connected,
-    startHeartbeatWatchdog,
-  ]);
 
-  // Efecto para limpiar watchdog cuando se desconecta
-  useEffect(() => {
-    if (!connected && heartbeatTimeoutRef.current) {
-      console.log("🔌 [WATCHDOG] Desconexión detectada, limpiando watchdog");
-      clearTimeout(heartbeatTimeoutRef.current);
-      heartbeatTimeoutRef.current = null;
-      setHeartbeatConfig((prev) => ({
-        ...prev,
-        isActive: false,
-        remainingRetries: prev.maxRetries,
-      }));
+    if (isRecord(decoded) && typeof decoded.type === "string") {
+      const payload = "payload" in decoded ? decoded.payload : decoded;
+      dispatchJson(decoded.type, payload);
+      const packetBytes = decodeWsDataPacket(decoded);
+      if (packetBytes) rawListeners.current.forEach((handler) => handler(packetBytes));
     }
-  }, [connected]);
+  }, [clearTimer, dispatchJson]);
 
-  // 1) Abrir WS al montar conexión
-  useEffect(() => {
-    const mockMode = url.includes("mock");
+  const scheduleReconnect = useCallback(() => {
+    if (manuallyClosedRef.current || mockMode) return;
+    const attempt = reconnectAttemptRef.current;
+    if (attempt >= MAX_RECONNECT_ATTEMPTS) {
+      setConnectionPhase("failed");
+      setShowRetryModal(true);
+      return;
+    }
+    const base = Math.min(15_000, 500 * 2 ** attempt);
+    const jitter = Math.round(base * (Math.random() * 0.4 - 0.2));
+    reconnectAttemptRef.current += 1;
+    setConnectionPhase("retry_wait");
+    clearTimer(reconnectTimerRef);
+    reconnectTimerRef.current = window.setTimeout(() => connectRef.current(), Math.max(250, base + jitter));
+  }, [clearTimer, mockMode]);
+
+  const connect = useCallback(() => {
+    clearTimer(reconnectTimerRef);
+    clearTimer(handshakeTimerRef);
+    manuallyClosedRef.current = false;
+    setHello(null);
+    setLastError(null);
 
     if (mockMode) {
-      setConnected(true);
-      wsRef.current = null; // no abrimos un WS real
-      return () => {
-        jsonListeners.current.clear();
-        rawListeners.current.clear();
-        if (heartbeatTimeoutRef.current) {
-          clearTimeout(heartbeatTimeoutRef.current);
-        }
-      };
+      clientRef.current.setSender(null);
+      setHello({ apiVersion: 1, espVersion: "mock-explicito", features: {}, backend: { f4Alive: false } });
+      setConnectionPhase("ready");
+      return;
     }
 
+    const generation = ++generationRef.current;
+    setConnectionPhase("connecting");
     const ws = new WebSocket(url);
     ws.binaryType = "arraybuffer";
     wsRef.current = ws;
 
-    ws.onopen = () => setConnected(true);
-    ws.onclose = () => setConnected(false);
-    ws.onerror = () => setConnected(false);
+    ws.onopen = () => {
+      if (generation !== generationRef.current) return;
+      setConnectionPhase("authenticating");
+      clientRef.current.setSender((text) => {
+        if (ws.readyState !== WebSocket.OPEN) throw new Error("WebSocket desconectado");
+        ws.send(text);
+      });
+      handshakeTimerRef.current = window.setTimeout(() => {
+        setLastError(new Error("El ESP no envio hello API v1"));
+        ws.close(1002, "hello timeout");
+      }, HANDSHAKE_TIMEOUT_MS);
+    };
 
-    ws.onmessage = async (evt) => {
-      if (typeof evt.data === "string") {
-        let msg: any;
-        try {
-          msg = JSON.parse(evt.data);
-        } catch {
-          return;
-        }
-        const { type, payload } = msg ?? {};
-        const listenerPayload = payload === undefined ? msg : payload;
-        jsonListeners.current.get(type)?.forEach((h) => h(listenerPayload));
-        const packetBytes = decodeWsDataPacket(msg);
-        if (packetBytes) {
-          rawListeners.current.forEach((h) => h(packetBytes));
-        }
-        return;
-      }
-      if (evt.data instanceof ArrayBuffer) {
-        rawListeners.current.forEach((h) => h(evt.data as ArrayBuffer));
-        return;
-      }
-      if (evt.data instanceof Blob) {
-        try {
-          const buf = await (evt.data as Blob).arrayBuffer();
-          rawListeners.current.forEach((h) => h(buf));
-        } catch {}
+    ws.onmessage = async (event) => {
+      if (typeof event.data === "string") {
+        handleTextMessage(event.data, generation);
+      } else if (event.data instanceof ArrayBuffer) {
+        rawListeners.current.forEach((handler) => handler(event.data));
+      } else if (event.data instanceof Blob) {
+        const bytes = await event.data.arrayBuffer();
+        if (generation === generationRef.current) rawListeners.current.forEach((handler) => handler(bytes));
       }
     };
 
-    return () => {
-      try {
-        ws.close();
-      } catch {}
-      jsonListeners.current.clear();
-      rawListeners.current.clear();
+    ws.onerror = () => setLastError(new Error("Error de transporte WebSocket"));
+    ws.onclose = () => {
+      if (generation !== generationRef.current) return;
+      clearTimer(handshakeTimerRef);
       wsRef.current = null;
-      if (heartbeatTimeoutRef.current) {
-        clearTimeout(heartbeatTimeoutRef.current);
-      }
+      clientRef.current.setSender(null);
+      setHello(null);
+      scheduleReconnect();
     };
-  }, [url]);
+  }, [clearTimer, handleTextMessage, mockMode, scheduleReconnect, url]);
 
-  // 2) Enviar JSON
-  const send = useCallback((type: string, payload?: any) => {
-    const ws = wsRef.current;
-    if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type, payload }));
-    } else {
-      // modo mock: solo log
-      if (!ws) {
-        console.log(
-          "[WS mock] send JSON:",
-          redactSensitiveFields({ type, payload }),
-        );
+  connectRef.current = connect;
 
-        if (type === "verifySession") {
-          window.setTimeout(() => {
-            jsonListeners.current.get("sessionVerifyResponse")?.forEach((handler) =>
-              handler({ success: false })
-            );
-          }, 250);
-        }
-      }
-    }
-  }, []);
-
-  // 3) Suscribirse a tipo JSON
-  const subscribe = useCallback((type: string, handler: WSMessageHandler) => {
-    if (!jsonListeners.current.has(type)) {
-      jsonListeners.current.set(type, new Set());
-    }
-    jsonListeners.current.get(type)!.add(handler);
+  useEffect(() => {
+    const client = clientRef.current;
+    const jsonListenerMap = jsonListeners.current;
+    const rawListenerSet = rawListeners.current;
+    connect();
     return () => {
-      const listeners = jsonListeners.current.get(type);
-      if (!listeners) {
-        return;
-      }
+      manuallyClosedRef.current = true;
+      generationRef.current += 1;
+      clearTimer(reconnectTimerRef);
+      clearTimer(handshakeTimerRef);
+      client.setSender(null);
+      wsRef.current?.close(1000, "unmount");
+      wsRef.current = null;
+      jsonListenerMap.clear();
+      rawListenerSet.clear();
+    };
+  }, [clearTimer, connect]);
 
+  useEffect(() => {
+    if (!heartbeatConfig.isActive || !connected || lastHeartbeatAt === null) return;
+    const timeoutMs = heartbeatConfig.intervalMs * 1.5;
+    const timer = window.setInterval(() => {
+      if (Date.now() - lastHeartbeatAt < timeoutMs) return;
+      setHeartbeatConfig((current) => {
+        const remainingRetries = Math.max(0, current.remainingRetries - 1);
+        if (remainingRetries === 0) {
+          setLastError(new Error("El servidor dejo de emitir actividad WebSocket"));
+          wsRef.current?.close(4000, "ws heartbeat timeout");
+        }
+        return { ...current, remainingRetries };
+      });
+    }, timeoutMs);
+    return () => window.clearInterval(timer);
+  }, [connected, heartbeatConfig.intervalMs, heartbeatConfig.isActive, lastHeartbeatAt]);
+
+  const request = useCallback(<T,>(command: CommandName, args: Record<string, unknown> = {}, options?: { requestId?: string; timeoutMs?: number }) => {
+    if (mockMode) return Promise.reject(new Error("El mock explicito no simula respuestas F4"));
+    return clientRef.current.request<T>(command, args, options);
+  }, [mockMode]);
+
+  const subscribeEvent = useCallback((event: string, handler: (event: WsEvent) => void) => clientRef.current.subscribe(event, handler), []);
+
+  const send = useCallback((type: string, payload?: unknown) => {
+    if (type === "device.command" && isRecord(payload) && typeof payload.command === "string") {
+      const args = isRecord(payload.args) ? payload.args : isRecord(payload.params) ? payload.params : {};
+      void clientRef.current.request(payload.command, args, {
+        requestId: typeof payload.requestId === "string" ? payload.requestId : undefined,
+      }).catch(() => undefined);
+      return;
+    }
+    const ws = wsRef.current;
+    if (ws?.readyState !== WebSocket.OPEN) throw new Error("WebSocket desconectado");
+    ws.send(JSON.stringify({ type, payload }));
+  }, []);
+
+  const subscribe = useCallback((type: string, handler: WSMessageHandler) => {
+    const listeners = jsonListeners.current.get(type) ?? new Set<WSMessageHandler>();
+    listeners.add(handler);
+    jsonListeners.current.set(type, listeners);
+    return () => {
       listeners.delete(handler);
-      if (listeners.size === 0) {
-        jsonListeners.current.delete(type);
-      }
+      if (listeners.size === 0) jsonListeners.current.delete(type);
     };
   }, []);
 
-  // 4) Enviar bytes dentro de un paquete WebSocket JSON
   const sendRaw = useCallback((data: Uint8Array, meta?: WSDataPacketMeta) => {
     const ws = wsRef.current;
-    if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify(buildWsDataPacket(data, meta)));
-    } else {
-      // MODO MOCK: registrar log y simular recepción (eco)
-      console.log("[WS mock] send data packet:", buildWsDataPacket(data, meta));
-      // Inyecta hacia todos los suscriptores de bytes:
-      rawListeners.current.forEach((h) => h(data));
-    }
-  }, []);
+    if (ws?.readyState !== WebSocket.OPEN || !connected) throw new Error("WebSocket API v1 no esta listo");
+    ws.send(JSON.stringify({ type: "stmPacket", payload: { ...meta, data: Array.from(data) } }));
+  }, [connected]);
 
-  // 5) Suscribirse a bytes recibidos por stmPacket o por transporte legacy
   const subscribeRaw = useCallback((handler: WSRawHandler) => {
     rawListeners.current.add(handler);
-    return () => {
-      rawListeners.current.delete(handler);
-    };
+    return () => rawListeners.current.delete(handler);
   }, []);
 
-  // 6) Cerrar
   const disconnect = useCallback(() => {
-    wsRef.current?.close();
+    manuallyClosedRef.current = true;
+    clearTimer(reconnectTimerRef);
+    clearTimer(handshakeTimerRef);
+    generationRef.current += 1;
+    clientRef.current.setSender(null);
+    wsRef.current?.close(1000, "user logout");
+    wsRef.current = null;
+    setConnectionPhase("idle");
+    setHello(null);
+  }, [clearTimer]);
+
+  const reconnect = useCallback(() => {
+    manuallyClosedRef.current = false;
+    reconnectAttemptRef.current = 0;
+    generationRef.current += 1;
+    wsRef.current?.close(4001, "manual reconnect");
+    wsRef.current = null;
+    connectRef.current();
   }, []);
 
-  // 7) Mock JSON
-  const mockMessage = useCallback((type: string, payload?: any) => {
-    jsonListeners.current.get(type)?.forEach((handler) => handler(payload));
+  const setConnected = useCallback((state: boolean) => state ? reconnect() : disconnect(), [disconnect, reconnect]);
+  const setRetrying = useCallback((value: boolean) => { if (value) reconnect(); }, [reconnect]);
+  const mockMessage = useCallback((type: string, payload?: unknown) => { if (mockMode) dispatchJson(type, payload); }, [dispatchJson, mockMode]);
+  const mockRaw = useCallback((data: Uint8Array) => { if (mockMode) rawListeners.current.forEach((handler) => handler(data)); }, [mockMode]);
+  const onHeartbeatReceived = useCallback(() => {
+    setLastHeartbeatAt(Date.now());
+    setHeartbeatConfig((current) => ({ ...current, remainingRetries: current.maxRetries }));
   }, []);
+  const resetHeartbeatWatchdog = onHeartbeatReceived;
+  const toggleHeartbeatWatchdog = useCallback(() => setHeartbeatConfig((current) => ({ ...current, isActive: !current.isActive, remainingRetries: current.maxRetries })), []);
+  const setHeartbeatInterval = useCallback((intervalMs: number) => setHeartbeatConfig((current) => ({
+    ...current,
+    intervalMs: Math.min(10_000, Math.max(100, Math.round(intervalMs / 100) * 100)),
+  })), []);
+  const setHeartbeatMaxRetries = useCallback((maxRetries: number) => setHeartbeatConfig((current) => ({ ...current, maxRetries: Math.max(0, Math.round(maxRetries)), remainingRetries: Math.max(0, Math.round(maxRetries)) })), []);
 
-  const mockRaw = useCallback((data: Uint8Array) => {
-    rawListeners.current.forEach((h) => h(data));
-  }, []);
-  
+  const value = useMemo<WebSocketContextType>(() => ({
+    connected, setConnected, connectionPhase, connectionHealth, hello, lastError, mockMode,
+    request, subscribeEvent, reconnect, send, subscribe, sendRaw, subscribeRaw, disconnect,
+    mockMessage, mockRaw, heartbeatConfig, lastHeartbeatAt, setHeartbeatInterval,
+    setHeartbeatMaxRetries, toggleHeartbeatWatchdog, resetHeartbeatWatchdog,
+    onHeartbeatReceived, retrying, setRetrying, setShowRetryModal,
+    sensorRefreshInterval, setSensorRefreshInterval,
+  }), [connected, setConnected, connectionPhase, connectionHealth, hello, lastError, mockMode,
+    request, subscribeEvent, reconnect, send, subscribe, sendRaw, subscribeRaw, disconnect,
+    mockMessage, mockRaw, heartbeatConfig, lastHeartbeatAt, setHeartbeatInterval,
+    setHeartbeatMaxRetries, toggleHeartbeatWatchdog, resetHeartbeatWatchdog,
+    onHeartbeatReceived, retrying, setRetrying, sensorRefreshInterval]);
 
   return (
-    <WebSocketContext.Provider
-      value={{
-        connected,
-        setConnected,
-        send,
-        subscribe,
-        sendRaw,
-        subscribeRaw,
-        disconnect,
-        mockMessage,
-        mockRaw,
-        heartbeatConfig,
-        lastHeartbeatAt,
-        setHeartbeatInterval,
-        setHeartbeatMaxRetries,
-        toggleHeartbeatWatchdog,
-        resetHeartbeatWatchdog,
-        onHeartbeatReceived,
-        retrying,
-        setRetrying,
-        setShowRetryModal,
-        sensorRefreshInterval,
-        setSensorRefreshInterval
-      }}
-    >
+    <WebSocketContext.Provider value={value}>
       {children}
-      {showRetryModal && (
-        <Modal
-          isOpen={showRetryModal}
-          onClose={() => {
-            setRetrying(false);
-            setShowRetryModal(false);
-            setConnected(false);
-          }}
-        >
+      {showRetryModal ? (
+        <Modal isOpen onClose={() => setShowRetryModal(false)}>
           <div className="flex flex-col items-center justify-center">
-            <h2 className="text-4xl font-bold mb-4 text-black uppercase">
-              Conexion perdida
-            </h2>
-            <button
-              onClick={() => {
-                setRetrying(true);
-                setShowRetryModal(false);
-                setConnected(false);
-              }}
-              className="btn-danger group relative inline-flex items-center gap-2 rounded-2xl px-4 py-2 font-semibold text-white
-                         transition-all duration-300 hover:text-slate-900 bg-red-600/80 hover:ring-red-400 hover:ring-2
-                         hover:shadow-[inset_0_0_0_2px_theme('colors.red.400')]
-                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40
-                         disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Eliminar bloque seleccionado"
-            >
+            <h2 className="mb-4 text-4xl font-bold uppercase text-black">Conexion perdida</h2>
+            <p className="mb-4 text-center">No se pudo completar el handshake API v1 con el ESP.</p>
+            <button type="button" onClick={() => { setShowRetryModal(false); reconnect(); }} className="btn-danger rounded-2xl bg-red-600/80 px-4 py-2 font-semibold text-white">
               Reintentar conectar
             </button>
           </div>
         </Modal>
-      )}
+      ) : null}
     </WebSocketContext.Provider>
   );
 };
 
-function buildWsDataPacket(data: Uint8Array, meta?: WSDataPacketMeta) {
-  return {
-    type: WS_DATA_PACKET_TYPE,
-    payload: {
-      ...meta,
-      data: Array.from(data),
-    },
-  };
+function decodeWsDataPacket(message: Record<string, unknown>): Uint8Array | null {
+  if (!WS_DATA_PACKET_TYPES.has(String(message.type))) return null;
+  const payload = isRecord(message.payload) ? message.payload : null;
+  const data = Array.isArray(message.payload) ? message.payload : Array.isArray(payload?.data) ? payload.data : Array.isArray(message.data) ? message.data : null;
+  if (!data || data.some((value) => typeof value !== "number")) return null;
+  return Uint8Array.from(data as number[], (value) => value & 0xff);
 }
 
-function decodeWsDataPacket(msg: any): Uint8Array | null {
-  if (!msg || !WS_DATA_PACKET_TYPES.has(msg.type)) {
-    return null;
-  }
-
-  const rawData = Array.isArray(msg.payload)
-    ? msg.payload
-    : Array.isArray(msg.payload?.data)
-      ? msg.payload.data
-      : Array.isArray(msg.data)
-        ? msg.data
-        : null;
-
-  if (!rawData || rawData.some((value: unknown) => typeof value !== "number")) {
-    return null;
-  }
-
-  return Uint8Array.from(rawData, (value: number) => value & 0xff);
-}
-
-function redactSensitiveFields(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map(redactSensitiveFields);
-  }
-
-  if (!value || typeof value !== "object") {
-    return value;
-  }
-
-  const redacted: Record<string, unknown> = {};
-
-  for (const [key, item] of Object.entries(value)) {
-    redacted[key] = key.toLowerCase().includes("password")
-      ? "[redacted]"
-      : redactSensitiveFields(item);
-  }
-
-  return redacted;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

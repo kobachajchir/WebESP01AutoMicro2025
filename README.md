@@ -38,8 +38,10 @@ La vista `MPU + IR` esta alineada con el contrato de firmware:
 - `SET_MPU_STREAM = 0x61` inicia o actualiza el stream.
 - `STOP_MPU_STREAM = 0x62` corta la transmision.
 - `EVT_APP_GET_MPU_READINGS = 0x90` trae snapshot de 42 bytes.
-- El periodo minimo que envia la UI es `8 ms`.
-- `roll`, `pitch` y `yaw` llegan en milideg, se convierten a grados y alimentan el panel Euler, el grafico y el modelo 3D.
+- El periodo mínimo que envía la UI es `20 ms`.
+- `roll`, `pitch` y `yaw` llegan como `float32` en grados; el yaw usa la
+  referencia magnética del AK8963.
+- Panel Euler, gráfico y modelo 3D usan la misma orientación relativa al cero local.
 
 Mas detalle: [docs/telemetry-session-protocol.md](docs/telemetry-session-protocol.md).
 

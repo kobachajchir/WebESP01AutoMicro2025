@@ -185,6 +185,13 @@ export const OLED_BITMAP_ASSETS: Record<OledBitmapName, OledBitmapAsset> = {
       41 41 41 41 42 21 c2 21 04 10 18 0c e0 03 00 00
     `),
   },
+  Icon_OperationWarning_bits: {
+    name: "Icon_OperationWarning_bits",
+    bytes: bytes(`
+      00 00 80 01 40 02 40 02 20 04 90 09 90 09 88 11
+      88 11 84 21 02 40 82 41 81 81 01 80 fe 7f 00 00
+    `),
+  },
   Icon_Tool_bits: {
     name: "Icon_Tool_bits",
     bytes: bytes(`

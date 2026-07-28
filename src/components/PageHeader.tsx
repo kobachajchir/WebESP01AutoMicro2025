@@ -1,6 +1,6 @@
 // src/components/PageHeader.tsx
 import { useLocation, useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { useUser } from "../contexts/UserContext";
 import { useScreenStreamModal } from "../contexts/ScreenStreamModalContext";
 
@@ -10,14 +10,18 @@ interface PageHeaderProps {
   showSettings?: boolean;
   showInfo?: boolean;
   showLogout?: boolean;
+  showHome?: boolean;
   className?: string;
   titleOverride?: string;
+  leadingSlot?: ReactNode;
+  statusSlot?: ReactNode;
 }
 
 const PAGE_TITLES: Record<string, string> = {
   "/control": "Control de Motores",
   "/wifi": "Wifi",
   "/statics": "MPU + IR",
+  "/seguidor-pista": "Seguidor de pista",
   "/protocol": "UNER Studio",
   "/docs": "Docs",
   "/oled-editor": "Editor OLED",
@@ -32,8 +36,11 @@ export default function PageHeader({
   showSettings = true,
   showInfo = true,
   showLogout = true,
+  showHome = true,
   className = "app-page-header",
   titleOverride = "",
+  leadingSlot,
+  statusSlot,
 }: PageHeaderProps) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -41,6 +48,7 @@ export default function PageHeader({
   const { open: openScreenStreamModal } = useScreenStreamModal();
   const inProtocol = location.pathname.startsWith("/protocol");
   const inDocs = location.pathname.startsWith("/docs");
+  const docsHref = inDocs ? `/docs${location.search}` : "/docs";
 
   const toolbarButtonClass =
     "toolbar-btn group flex items-center justify-center gap-2 py-2 px-3 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40";
@@ -98,10 +106,17 @@ export default function PageHeader({
 
   return (
     <div className={className}>
-      <h1 className="app-title text-3xl md:text-5xl">{getPageTitle()}</h1>
+      <div className="app-page-header__identity">
+        {leadingSlot}
+        <h1 className="app-title text-3xl md:text-5xl">{getPageTitle()}</h1>
+      </div>
+
+      {statusSlot ? (
+        <div className="app-page-header__status">{statusSlot}</div>
+      ) : null}
 
       <div className="app-page-header__actions">
-        {!location.pathname.includes("home") && (
+        {showHome && !location.pathname.includes("home") && (
           <button
             aria-label="Ir a Home"
             className={toolbarButtonClass}
@@ -151,7 +166,7 @@ export default function PageHeader({
             className={toolbarButtonClass}
             onMouseEnter={() => setHoveredHeaderBtn("docs")}
             onMouseLeave={() => setHoveredHeaderBtn(null)}
-            onClick={() => navigate("/docs", { viewTransition: true })}
+            onClick={() => navigate(docsHref, { viewTransition: true })}
             style={getToolbarButtonStyle("docs")}
           >
             <svg
@@ -246,16 +261,17 @@ export default function PageHeader({
             aria-label="Cerrar sesion"
             className={`${toolbarButtonClass} text-rose-100 hover:text-white`}
             onClick={logout}
+            title="Cerrar sesion"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
               fill="currentColor"
               viewBox="0 0 24 24"
-              className="size-6 transition-transform duration-300 group-hover:translate-x-0.5"
+              className="size-6 transition-transform duration-300 group-hover:scale-110"
             >
               <path
                 fillRule="evenodd"
-                d="M7.5 3.75A2.25 2.25 0 0 0 5.25 6v12a2.25 2.25 0 0 0 2.25 2.25h4.875a.75.75 0 0 0 0-1.5H7.5A.75.75 0 0 1 6.75 18V6a.75.75 0 0 1 .75-.75h4.875a.75.75 0 0 0 0-1.5H7.5Zm8.47 4.72a.75.75 0 0 1 1.06 0l3 3a.75.75 0 0 1 0 1.06l-3 3a.75.75 0 1 1-1.06-1.06l1.72-1.72H10.5a.75.75 0 0 1 0-1.5h7.19l-1.72-1.72a.75.75 0 0 1 0-1.06Z"
+                d="M12.75 3.75a.75.75 0 0 0-1.5 0v8.1a.75.75 0 0 0 1.5 0v-8.1ZM7.23 6.12a.75.75 0 0 0-.96-1.15A8.25 8.25 0 1 0 17.73 4.97a.75.75 0 1 0-.96 1.15 6.75 6.75 0 1 1-9.54 0Z"
                 clipRule="evenodd"
               />
             </svg>

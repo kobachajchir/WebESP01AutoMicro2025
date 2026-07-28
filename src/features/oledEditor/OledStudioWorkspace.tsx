@@ -1,9 +1,21 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import OledCommandPreview from "../../components/OledCommandPreview";
 import { useSavedOledScreens } from "../../contexts/SavedOledScreensContext";
 import LopakaLikeEditor from "./LopakaLikeEditor";
+import OledCanvasTransferPanel from "./OledCanvasTransferPanel";
 import { cloneDocument, createEmptyDocument } from "./document";
 import type { EditorDocument } from "./types";
+
+type OledStudioTab = "visualization" | "code" | "stream";
+
+const OLED_STUDIO_TABS: ReadonlyArray<{
+  id: OledStudioTab;
+  label: string;
+}> = [
+  { id: "visualization", label: "Visualización" },
+  { id: "code", label: "Código" },
+  { id: "stream", label: "Stream" },
+];
 
 export default function OledStudioWorkspace() {
   const { savedScreens, saveScreen, deleteScreen } = useSavedOledScreens();
@@ -12,7 +24,15 @@ export default function OledStudioWorkspace() {
   const [editorSeed, setEditorSeed] = useState<EditorDocument>(() =>
     createEmptyDocument(),
   );
+  const [liveDocument, setLiveDocument] = useState<EditorDocument>(() =>
+    createEmptyDocument(),
+  );
   const [loadedScreenId, setLoadedScreenId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<OledStudioTab>("visualization");
+
+  const handleDocumentChange = useCallback((document: EditorDocument) => {
+    setLiveDocument(cloneDocument(document));
+  }, []);
 
   const handleSaveDocument = (document: EditorDocument) => {
     const nextId = saveScreen({
@@ -29,6 +49,7 @@ export default function OledStudioWorkspace() {
     }
 
     setEditorSeed(cloneDocument(screen.document));
+    setLiveDocument(cloneDocument(screen.document));
     setLoadedScreenId(screen.id);
     setEditorKey((current) => current + 1);
   };
@@ -46,7 +67,9 @@ export default function OledStudioWorkspace() {
       return;
     }
 
-    setEditorSeed(cloneDocument(createEmptyDocument()));
+    const emptyDocument = createEmptyDocument();
+    setEditorSeed(cloneDocument(emptyDocument));
+    setLiveDocument(cloneDocument(emptyDocument));
     setEditorKey((current) => current + 1);
   };
 
@@ -130,24 +153,79 @@ export default function OledStudioWorkspace() {
         ) : null}
       </div>
 
-      <div className="rounded-[32px] border border-white/10 bg-slate-950/30 p-4 shadow-[0_28px_80px_rgba(2,6,23,0.55)] backdrop-blur flex flex-col">
-        <div className="flex flex-row items-center gap-2 flex-wrap">
-          <h3 className="text-xl font-black text-white py-3">Visualizacion</h3>
-          {loadedScreenId ? (
-            <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-200">
-              Editando guardada
+      <div className="flex flex-col rounded-[32px] border border-white/10 bg-slate-950/30 p-4 shadow-[0_28px_80px_rgba(2,6,23,0.55)] backdrop-blur">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4">
+          <div
+            role="tablist"
+            aria-label="Secciones de OLED Studio"
+            className="flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/55 p-1.5"
+          >
+            {OLED_STUDIO_TABS.map((tab) => {
+              const selected = activeTab === tab.id;
+              const controls = tab.id === "stream"
+                ? "oled-studio-stream-panel"
+                : "oled-studio-editor-panel";
+
+              return (
+                <button
+                  key={tab.id}
+                  id={`oled-studio-${tab.id}-tab`}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  aria-controls={controls}
+                  tabIndex={selected ? 0 : -1}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`min-w-32 rounded-xl px-5 py-2.5 text-sm font-bold transition ${
+                    selected
+                      ? "bg-cyan-400 text-slate-950 shadow-[0_8px_24px_rgba(34,211,238,0.22)]"
+                      : "text-slate-300 hover:bg-white/5 hover:text-white"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {loadedScreenId ? (
+              <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-200">
+                Editando guardada
+              </span>
+            ) : null}
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
+              128x64 SSD1306
             </span>
-          ) : null}
-          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
-            128x64 SSD1306
-          </span>
+          </div>
         </div>
-        <LopakaLikeEditor
-          key={editorKey}
-          initialDocument={editorSeed}
-          onSaveDocument={handleSaveDocument}
-          onClearDocument={handleClearDocument}
-        />
+
+        <div className="mt-4 h-[clamp(640px,72vh,820px)] overflow-y-auto pr-1">
+          <div
+            id="oled-studio-editor-panel"
+            role="tabpanel"
+            aria-labelledby={`oled-studio-${activeTab}-tab`}
+            hidden={activeTab === "stream"}
+          >
+            <LopakaLikeEditor
+              key={editorKey}
+              activeView={activeTab === "code" ? "code" : "visualization"}
+              initialDocument={editorSeed}
+              onDocumentChange={handleDocumentChange}
+              onSaveDocument={handleSaveDocument}
+              onClearDocument={handleClearDocument}
+            />
+          </div>
+
+          <div
+            id="oled-studio-stream-panel"
+            role="tabpanel"
+            aria-labelledby="oled-studio-stream-tab"
+            hidden={activeTab !== "stream"}
+          >
+            <OledCanvasTransferPanel document={liveDocument} />
+          </div>
+        </div>
       </div>
     </div>
   );

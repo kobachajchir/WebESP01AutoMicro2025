@@ -21,15 +21,13 @@ export const ESP_REMOTE_AUTH_COMMANDS = {
   VALIDATE_SCREEN: "esp.auth.pin.validateScreen",
 } as const;
 
-export const STM_REMOTE_AUTH_COMMANDS = {
-  PIN_GRANTED: "stm.auth.pin.grant",
-} as const;
-
 export const STM_REMOTE_INPUT_COMMANDS = {
-  ENCODER_BUTTON: "stm.input.encoderButton",
-  USER_BUTTON: "stm.input.userButton",
-  ROTATE_LEFT: "stm.input.rotateLeft",
-  ROTATE_RIGHT: "stm.input.rotateRight",
+  MENU_ITEM_CLICK: "menuItemClick",
+  ENCODER_BUTTON: "triggerEncoderButton",
+  USER_BUTTON: "triggerUserButton",
+  REQUEST_SCREEN_PAGE: "requestScreenPage",
+  ROTATE_LEFT: "rotateEncoderLeft",
+  ROTATE_RIGHT: "rotateEncoderRight",
 } as const;
 
 export const STM_LEGACY_REMOTE_COMMANDS = {
@@ -39,7 +37,6 @@ export const STM_LEGACY_REMOTE_COMMANDS = {
   REQUEST_SCREEN_PAGE: "0x56",
   ROTATE_LEFT: "0x57",
   ROTATE_RIGHT: "0x58",
-  PIN_GRANTED: "0x59",
 } as const;
 
 export interface EspRemoteAuthParams {
@@ -68,9 +65,9 @@ export function getRemoteAuthBridgeMode(): RemoteAuthBridgeMode {
 
 export function getStmRemoteCommandMode(): StmRemoteCommandMode {
   const raw = import.meta.env.VITE_STM_REMOTE_COMMAND_MODE?.trim().toLowerCase();
-  return raw === STM_REMOTE_COMMAND_MODE.JSON
-    ? STM_REMOTE_COMMAND_MODE.JSON
-    : STM_REMOTE_COMMAND_MODE.LEGACY_HEX;
+  return raw === STM_REMOTE_COMMAND_MODE.LEGACY_HEX
+    ? STM_REMOTE_COMMAND_MODE.LEGACY_HEX
+    : STM_REMOTE_COMMAND_MODE.JSON;
 }
 
 export function resolveEspRemoteAuthCommand(action: number): string | null {

@@ -12,7 +12,10 @@ export interface PinAuthResult {
   reason?: PinAuthFailureReason;
   message?: string;
   code?: number;
+  attemptsLeft?: number | null;
+  blocked?: boolean;
+  authSource?: "stm32" | null;
+  retryAfterMs?: number;
 }
 
 export type PinSubmitResult = boolean | PinAuthResult;
-

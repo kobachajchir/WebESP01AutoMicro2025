@@ -14,7 +14,7 @@ export const CMD = {
   WIFI_ACK: 0x16, // payload: u8 cmdRef, u8 code
   WIFI_GET_DETAIL: 0x1a, // request: [ssid_len, ssid...], response: [ssid_len, ssid..., i8 signalStrength, u8 encryptionType, u8 channel]
 
-  // Telemetría (MPU6050)
+  // Telemetría legacy 0x20..0x22 (no usada por la pantalla MPU9250)
   TELEMETRY_SET_RATE: 0x20, // payload: u16 period_ms (0 = desactivar)
   TELEMETRY_ACK: 0x21, // payload: u8 code, u16 period_ms
   TELEMETRY_DATA: 0x22, // payload: u8 schema, u16 seq, i16[6] imu_data, i16 tempRaw
@@ -221,9 +221,10 @@ export const WIFI_MODE = {
   STATION: 1, // Station/Client
 } as const;
 
-// Schemas de telemetría
+// Schema legacy conservado para el laboratorio de protocolo. La pantalla real
+// usa 0x60/0x90 con el snapshot MPU9250 float32 de 42 bytes.
 export const TELEMETRY_SCHEMA = {
-  MPU6050_INT16: 0x01, // MPU6050 datos crudos int16
+  MPU6050_INT16: 0x01, // payload histórico, no usar para telemetría actual
 } as const;
 
 export const TELEMETRY_LIMITS = {
@@ -265,7 +266,7 @@ export interface WiFiNetworkDetail {
 }
 
 export interface TelemetryDataV1 {
-  schema: U8; // = 0x01 (MPU6050_INT16)
+  schema: U8; // = 0x01 (formato legacy MPU6050_INT16)
   seq: U16; // Contador de paquete (0..65535)
   accX: I16; // Acelerómetro X (crudo)
   accY: I16; // Acelerómetro Y (crudo)
@@ -276,7 +277,7 @@ export interface TelemetryDataV1 {
   tempRaw: I16; // Temperatura (cruda)
 }
 
-// Funciones de conversión MPU6050 (referencia típica)
+// Conversiones del formato legacy 0x22; no aplican al snapshot MPU9250 actual.
 export const MPU6050_CONVERSION = {
   // Para rango ±2g: acc_g = accRaw / 16384.0
   ACC_SENSITIVITY_2G: 16384,

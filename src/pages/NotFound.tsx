@@ -1,56 +1,44 @@
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
+import logoDashboard from "../assets/LogoDashboard.webp";
+import "./NotFound.css";
 
 export default function NotFound() {
-  const navigate = useNavigate();
-
   return (
-    <div
-      className="flex flex-col h-full w-full items-center justify-center gap-2 p-4 relative
-                    bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-slate-100
-                    selection:bg-cyan-500/30"
-    >
-      {/* Icono */}
-      <div className="rounded-2xl">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 24 24"
-          fill="currentColor"
-          className="size-24 text-white/90"
-        >
-          <path
-            fillRule="evenodd"
-            d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003ZM12 8.25a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 8.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z"
-            clipRule="evenodd"
+    <main className="not-found-screen">
+      <div className="not-found-screen__grid" aria-hidden="true" />
+      <div className="not-found-screen__glow" aria-hidden="true" />
+
+      <section className="not-found-card" aria-labelledby="not-found-title">
+        <div className="not-found-card__logo-shell">
+          <img
+            className="not-found-card__logo"
+            src={logoDashboard}
+            alt="Auto Microcontroladores"
           />
-        </svg>
-      </div>
+        </div>
 
-      {/* Título */}
-      <h1
-        className="text-4xl md:text-6xl font-extrabold uppercase tracking-tight
-                     bg-clip-text text-transparent
-                     bg-gradient-to-r from-cyan-300 via-indigo-400 to-fuchsia-400
-                     bg-[length:200%_100%]
-                     motion-safe:animate-[gradient-move_6s_linear_infinite]
-                     drop-shadow-sm"
-      >
-        404 · Página no encontrada
-      </h1>
+        <div className="not-found-card__status">
+          <span aria-hidden="true" />
+          Ruta no disponible
+        </div>
 
-      <p className="text-slate-300 text-center max-w-xl">
-        La página que buscás no existe, fue movida o el enlace es incorrecto.
-      </p>
+        <p className="not-found-card__code" aria-label="Error 404">
+          404
+        </p>
+        <h1 id="not-found-title">No encontramos esta pantalla</h1>
+        <p className="not-found-card__description">
+          La dirección puede haber cambiado o ya no estar disponible. Volvé al panel
+          principal para continuar controlando el sistema.
+        </p>
 
-      {/* Botón Ir al inicio (usa guía: btn-indigo + hover border indigo) */}
-      <button
-        className="btn-indigo estado-btn group relative inline-flex items-center gap-2 rounded-xl px-5 py-2
-                   font-medium text-white transition-all duration-300 hover:text-slate-900
-                   hover:shadow-[inset_0_0_0_1px_theme('colors.indigo.400')]
-                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40 mt-14"
-        onClick={() => navigate("/home")}
-      >
-        Ir al inicio
-      </button>
-    </div>
+        <Link className="not-found-card__action" to="/home">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3.75 11.25 12 4.5l8.25 6.75v8.25a.75.75 0 0 1-.75.75h-5.25v-5.5h-4.5v5.5H4.5a.75.75 0 0 1-.75-.75v-8.25Z" />
+          </svg>
+          Volver al dashboard
+          <span aria-hidden="true">→</span>
+        </Link>
+      </section>
+    </main>
   );
 }

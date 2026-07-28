@@ -6,6 +6,7 @@ import type { BlockKind } from "./MotorBlock";
 import {
   DndContext,
   closestCenter,
+  pointerWithin,
   MouseSensor,
   TouchSensor,
   useSensor,
@@ -57,18 +58,18 @@ const MIN_SCALE = 0.3; // altura mínima como fracción para que no desaparezcan
 function timelineToneClass(kind: BlockKind, highlighted: boolean, active: boolean) {
   const selected = active
     ? {
-        ramp: "border-amber-300/70 bg-amber-500 text-white shadow-[0_14px_34px_rgba(245,158,11,0.24)]",
-        hold: "border-emerald-300/70 bg-emerald-500 text-white shadow-[0_14px_34px_rgba(16,185,129,0.24)]",
-        pivot: "border-sky-300/70 bg-sky-500 text-white shadow-[0_14px_34px_rgba(14,165,233,0.24)]",
-        arc: "border-indigo-300/70 bg-indigo-500 text-white shadow-[0_14px_34px_rgba(99,102,241,0.24)]",
-        stop: "border-rose-300/70 bg-rose-500 text-white shadow-[0_14px_34px_rgba(244,63,94,0.24)]",
+        ramp: "border-amber-200 bg-amber-500 text-white shadow-[0_0_0_2px_rgba(251,191,36,0.22),0_14px_30px_rgba(245,158,11,0.28)]",
+        hold: "border-emerald-200 bg-emerald-500 text-white shadow-[0_0_0_2px_rgba(52,211,153,0.22),0_14px_30px_rgba(16,185,129,0.26)]",
+        pivot: "border-sky-200 bg-sky-500 text-white shadow-[0_0_0_2px_rgba(56,189,248,0.22),0_14px_30px_rgba(14,165,233,0.26)]",
+        arc: "border-indigo-200 bg-indigo-500 text-white shadow-[0_0_0_2px_rgba(129,140,248,0.22),0_14px_30px_rgba(99,102,241,0.28)]",
+        stop: "border-rose-200 bg-rose-500 text-white shadow-[0_0_0_2px_rgba(251,113,133,0.22),0_14px_30px_rgba(244,63,94,0.28)]",
       }
     : {
-        ramp: "border-amber-300/40 bg-amber-500/10 text-amber-100",
-        hold: "border-emerald-300/40 bg-emerald-500/10 text-emerald-100",
-        pivot: "border-sky-300/40 bg-sky-500/10 text-sky-100",
-        arc: "border-indigo-300/40 bg-indigo-500/10 text-indigo-100",
-        stop: "border-rose-300/40 bg-rose-500/10 text-rose-100",
+        ramp: "border-amber-400 bg-amber-700 text-amber-50",
+        hold: "border-emerald-400 bg-emerald-700 text-emerald-50",
+        pivot: "border-sky-400 bg-sky-700 text-sky-50",
+        arc: "border-indigo-400 bg-indigo-700 text-indigo-50",
+        stop: "border-rose-400 bg-rose-700 text-rose-50",
       };
 
   const highlight = highlighted
@@ -133,13 +134,15 @@ function getBlockStyles(
     }
 
     case "stop": {
-      // Mantener visible el bloque pero pequeño, sin afectar la barra de progreso
+      // Marca una discontinuidad: segmentos ascendentes sin continuidad física.
       return {
         clipPath: "none",
-        borderRadius: "0.25rem",
-        height: "8px",
-        marginTop: "calc(100% - 8px)",
-        opacity: 0.6,
+        borderRadius: "0.2rem",
+        height: "54%",
+        opacity: 0.84,
+        backgroundColor: "rgba(244, 63, 94, 0.18)",
+        backgroundImage:
+          "repeating-linear-gradient(to top, rgba(251, 113, 133, 0.92) 0 8px, transparent 8px 14px)",
       };
     }
 
@@ -180,18 +183,23 @@ function SortableBlock({
   disabled: boolean;
   onUpdateLabel?: (newLabel: string) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition } =
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: b.id, disabled });
 
   // Estado local para la edición de labels
   const [isEditingLabel, setIsEditingLabel] = useState(false);
   const [editValue, setEditValue] = useState("");
+  const isReverse = b.direction === 1;
+  const directionLabel = isReverse ? "ATRÁS" : "ADELANTE";
 
   const wrapperStyle: React.CSSProperties = {
     width: wPct,
-    minWidth: 56,
+    flex: `0 0 ${wPct}`,
+    minWidth: 92,
     transform: CSS.Transform.toString(transform),
-    transition,
+    transition: isDragging ? undefined : transition,
+    opacity: isDragging ? 0.22 : 1,
+    zIndex: isDragging ? 10 : undefined,
     display: "flex",
     flexDirection: "column",
     justifyContent: "space-between",
@@ -222,7 +230,7 @@ function SortableBlock({
   return (
     <div ref={setNodeRef} style={wrapperStyle} className="group">
       {/* Cabecera */}
-      <div className="flex flex-col items-center mb-1 select-none">
+      <div className="mb-2 flex flex-col items-center select-none">
         {isEditingLabel ? (
           <input
             type="text"
@@ -235,26 +243,43 @@ function SortableBlock({
           />
         ) : (
           <div
-            className="w-full truncate rounded-md px-1 text-center text-xs text-slate-300 transition-colors hover:bg-white/8"
+            className="w-full truncate rounded-md px-1 text-center text-sm font-semibold text-slate-100 transition-colors hover:bg-white/8"
             onClick={handleStartEdit}
           >
             {b.label}
           </div>
         )}
-        <div className="text-[11px] text-slate-400">{b.durationMs} ms</div>
+        <div className="flex w-full items-center justify-center gap-1.5">
+          <span className="text-[11px] font-medium text-slate-400">
+            {b.durationMs} ms
+          </span>
+          {b.kind !== "stop" ? (
+            <span
+              className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-px text-[9px] font-black tracking-wide ${
+                isReverse
+                  ? "border-rose-300/45 bg-rose-500/15 text-rose-200"
+                  : "border-emerald-300/45 bg-emerald-500/15 text-emerald-200"
+              }`}
+              title={`Movimiento hacia ${directionLabel.toLocaleLowerCase("es-AR")}`}
+            >
+              <span aria-hidden="true">{isReverse ? "↓" : "↑"}</span>
+              {directionLabel}
+            </span>
+          ) : null}
+        </div>
       </div>
 
       {/* Bloque */}
       <button
         {...attributes}
         {...listeners}
-        className="relative h-16 flex items-end hover:cursor-grab active:cursor-grabbing"
+        className="relative flex h-20 touch-none items-end hover:cursor-grab active:cursor-grabbing"
         onClick={() => onSelect(isSelected ? null : b.id)}
         aria-pressed={isSelected}
         title={title}
       >
         <div
-          className={`w-full border shadow-sm transition-all duration-300 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${timelineToneClass(
+          className={`relative flex w-full items-center justify-center overflow-hidden border transition-all duration-300 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${timelineToneClass(
             b.kind,
             isHighlighted,
             isSelected || isActive,
@@ -292,17 +317,18 @@ function SortableBlock({
             )
           ) : null}
 
-          {isActive && b.kind !== "stop" && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
-            </div>
-          )}
         </div>
 
         {isActive && (
-          <span className="absolute -top-2 right-2 text-[10px] px-2 py-[2px] rounded-full bg-yellow-400 text-slate-900 font-bold">
-            ACTIVO
-          </span>
+          <div className="absolute inset-x-1 top-1 z-20 flex items-center justify-between gap-1 rounded-md border border-cyan-200/70 bg-slate-950/90 px-2 py-1 text-[9px] font-black text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.45)] backdrop-blur-sm">
+            <span className="flex min-w-0 items-center gap-1">
+              <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-cyan-300 shadow-[0_0_8px_rgba(103,232,249,0.95)]" />
+              <span className="truncate">EN EJECUCIÓN</span>
+            </span>
+            <span className="shrink-0 tabular-nums text-white">
+              {Math.round(clamp01(fill) * 100)}%
+            </span>
+          </div>
         )}
       </button>
 
@@ -314,6 +340,36 @@ function SortableBlock({
           }`}
           style={{ width: `${fill * 100}%` }}
         />
+      </div>
+    </div>
+  );
+}
+
+function TrackBadge({ track }: { track: TrackKey }) {
+  const label = track === "left" ? "L" : track === "right" ? "R" : "D";
+  return (
+    <span className="flex size-14 shrink-0 items-center justify-center rounded-full border border-cyan-200/55 bg-cyan-500/18 text-2xl font-black text-cyan-100 shadow-[0_0_26px_rgba(34,211,238,0.28),inset_0_1px_0_rgba(255,255,255,0.18)]">
+      {label}
+    </span>
+  );
+}
+
+function TrackMetric({
+  label,
+  value,
+  active = false,
+}: {
+  label: string;
+  value: string;
+  active?: boolean;
+}) {
+  return (
+    <div className="min-w-[112px] rounded-md border border-white/10 bg-white/[0.04] px-3 py-2">
+      <div className="text-[10px] uppercase tracking-wide text-slate-400">
+        {label}
+      </div>
+      <div className={active ? "text-sm font-black text-cyan-200" : "text-sm font-black text-slate-100"}>
+        {value}
       </div>
     </div>
   );
@@ -347,7 +403,7 @@ function TimelineRow({
   );
 
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [, setOverlaySize] = useState<{
+  const [overlaySize, setOverlaySize] = useState<{
     w: number;
     h: number;
   } | null>(null);
@@ -371,50 +427,46 @@ function TimelineRow({
 
   return (
     <div
-      className={`mb-2 flex w-full flex-col items-center gap-2 overflow-x-auto rounded-md border px-3 py-3 ${
+      className={`relative w-full overflow-hidden rounded-lg border px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ${
         selectedId && blocks.some((b) => b.id === selectedId)
-          ? "border-cyan-300/20 bg-cyan-500/8"
+          ? "border-cyan-300/40 bg-cyan-500/10 shadow-[0_0_34px_rgba(34,211,238,0.10)]"
           : ""
       } ${
         !selectedId || !blocks.some((b) => b.id === selectedId)
-          ? "border-white/10 bg-slate-950/18"
+          ? "border-cyan-300/16 bg-slate-950/42"
           : ""
       }`}
     >
-      <div className="flex flex-col items-center gap-1">
-        {track === "left" ? (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 169.53 169.53"
-            className="size-8"
-          >
-            <circle cx="84.77" cy="84.77" r="84.77" className="fill-cyan-500" />
-            <path
-              className="fill-white"
-              d="M88.43,72.68v20.17c0,4.54.4,7.47,1.19,8.79.97,1.55,3,2.33,6.11,2.33,3.34,0,5.98-.73,7.91-2.2s3.28-3.75,4.04-6.86c.44-1.9,1.44-2.86,2.99-2.86s2.82.7,3.8,2.09c.98,1.39,1.47,3.2,1.47,5.43,0,3.63-1.35,7.51-4.04,11.65-.85,1.32-1.6,2.22-2.24,2.7-.64.48-1.42.73-2.33.73l-9.76-1.19h-30.72c-2.02,0-3.44-.23-4.26-.7-1.2-.67-1.8-1.68-1.8-3.03,0-.82.2-1.43.59-1.82.4-.4,1.35-.96,2.88-1.69,1.67-.79,2.74-1.9,3.21-3.34.38-1.2.57-4.7.57-10.5,0-2.7-.07-6.58-.22-11.65-.15-4.86-.23-8.53-.26-10.99,0-2.34-.18-3.95-.55-4.81-.37-.86-1.14-1.49-2.31-1.87-1.93-.67-3.16-1.22-3.69-1.63-.94-.73-1.41-1.57-1.41-2.5,0-2.14,1.77-3.76,5.32-4.88,3.02-.97,7.06-1.45,12.13-1.45,5.68,0,9.93.29,12.74.88,3.63.79,5.45,2.37,5.45,4.75,0,.97-.24,1.68-.72,2.15-.48.47-1.66,1.1-3.54,1.89-1.11.5-1.82,1.35-2.11,2.55s-.44,3.82-.44,7.87Z"
-            />
-          </svg>
-        ) : track === "right" ? (
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 169.53 169.53"
-            className="size-8"
-          >
-            <circle cx="84.77" cy="84.77" r="84.77" className="fill-cyan-500" />
-            <path
-              className="fill-white"
-              d="M83.77,88.48c-1.11,0-1.82.34-2.13,1.01-.31.67-.46,2.24-.46,4.7,0,3.72.23,6.62.7,8.7.15.59.37,1.04.66,1.36s.85.72,1.67,1.19c1.76.97,2.64,2.24,2.64,3.82,0,1.93-1.22,3.3-3.67,4.11-2.45.81-6.58,1.21-12.41,1.21-10.84,0-16.26-2.05-16.26-6.15,0-.7.16-1.27.48-1.69.32-.42,1.05-1.02,2.2-1.78,1.29-.85,2.16-1.85,2.61-3.01.45-1.16.77-3.16.94-6,.15-2.08.22-9.54.22-22.37,0-4.07-.21-6.84-.62-8.31-.41-1.46-1.29-2.53-2.64-3.21-1.29-.62-2.15-1.18-2.59-1.69-.44-.51-.66-1.18-.66-2,0-1.08.42-2.03,1.25-2.83.83-.8,2-1.4,3.49-1.78,1.26-.32,2.99-.48,5.19-.48.97,0,3.38.15,7.25.44.73.06,1.89.09,3.47.09,2.64,0,6.15-.18,10.55-.53,2.78-.21,4.73-.31,5.85-.31,6.27,0,11.46,1.51,15.56,4.53,3.69,2.72,5.54,6.5,5.54,11.34,0,2.7-.64,5.15-1.93,7.36-1.29,2.21-3.06,3.88-5.32,4.99-.94.47-1.41,1.03-1.41,1.67,0,.85.72,1.54,2.15,2.07,3.08,1.11,5.33,2.8,6.77,5.05s2.46,5.71,3.08,10.37c.26,1.93.64,3.19,1.14,3.76.5.57,1.65,1.12,3.47,1.65.56.18,1.03.55,1.41,1.12.38.57.57,1.21.57,1.91,0,.91-.35,1.82-1.05,2.75-.7.92-1.61,1.65-2.72,2.18-2.46,1.14-5.83,1.71-10.11,1.71Z"
-            />
-          </svg>
-        ) : null}
-        <span className="w-full text-center text-sm font-semibold uppercase tracking-wide text-slate-200 md:text-base">
-          {title}
-        </span>
+      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-3">
+          <TrackBadge track={track} />
+          <div>
+            <h3 className="text-lg font-black uppercase tracking-wide text-white">
+              {title}
+            </h3>
+            <p className="text-xs text-slate-400">
+              Bloques temporales proporcionales a duración.
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 text-xs">
+          <TrackMetric label="Duración total" value={`${totalMs.toLocaleString("es-AR")} ms`} />
+          <TrackMetric label="Bloques" value={`${blocks.length}`} />
+          <TrackMetric
+            label="Estado actual"
+            value={activeIndex >= 0 ? "SIMULANDO" : selectedId ? "EDITANDO" : "LISTO"}
+            active={activeIndex >= 0}
+          />
+        </div>
       </div>
 
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={(args) => {
+          const pointerHits = pointerWithin(args);
+          return pointerHits.length > 0 ? pointerHits : closestCenter(args);
+        }}
+        autoScroll={false}
         onDragStart={(e) => {
           setActiveId(String(e.active.id));
           const r = e.active.rect.current?.initial;
@@ -435,13 +487,13 @@ function TimelineRow({
           items={blocks.map((b) => b.id)}
           strategy={horizontalListSortingStrategy}
         >
-            <div className="relative flex h-28 w-full items-end gap-1.5">
+            <div className="relative flex h-36 w-full items-end gap-2 overflow-x-auto rounded-md border border-white/10 bg-black/20 px-6 pb-2 pt-3">
             {/* Marcadores absolutos 100% / 0% a la izquierda */}
-            <div className="pointer-events-none absolute -left-6 top-6 text-[10px] text-slate-400">
+            <div className="pointer-events-none absolute left-1 top-12 text-[10px] text-slate-400">
               100%
             </div>
-            <div className="pointer-events-none absolute w-full top-8 text-slate-200/10 border-1" />
-            <div className="pointer-events-none absolute -left-6 bottom-0 text-[10px] text-slate-400">
+            <div className="pointer-events-none absolute left-6 right-3 top-[4.75rem] border-t border-dashed border-slate-200/10" />
+            <div className="pointer-events-none absolute left-1 bottom-4 text-[10px] text-slate-400">
               0%
             </div>
 
@@ -466,7 +518,11 @@ function TimelineRow({
                   fill={fill}
                   onSelect={onSelect}
                   shapeStyles={getBlockStyles(b, p)}
-                  title={`${b.kind} (${b.durationMs} ms)`}
+                  title={`${b.kind} (${b.durationMs} ms)${
+                    b.kind === "stop"
+                      ? ""
+                      : ` · ${b.direction === 1 ? "Atrás" : "Adelante"}`
+                  }`}
                   disabled={!!dndDisabled}
                   onUpdateLabel={(newLabel: string) =>
                     onUpdateLabel?.(b.id, newLabel)
@@ -483,7 +539,34 @@ function TimelineRow({
             ? (() => {
                 const ab = blocks.find((x) => x.id === activeId);
                 if (!ab) return null;
-                return null;
+                return (
+                  <div
+                    className="flex items-center justify-between gap-3 rounded-md border border-cyan-200/70 bg-slate-950/95 px-3 py-2 text-xs text-white shadow-[0_20px_50px_rgba(0,0,0,0.55),0_0_24px_rgba(34,211,238,0.28)]"
+                    style={{
+                      width: overlaySize?.w ?? 140,
+                      minWidth: 92,
+                      height: Math.min(overlaySize?.h ?? 72, 86),
+                    }}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate font-black">{ab.label}</span>
+                      <span className="mt-1 block text-[10px] text-slate-400">
+                        {ab.durationMs} ms
+                      </span>
+                    </span>
+                    {ab.kind !== "stop" ? (
+                      <span
+                        className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-black ${
+                          ab.direction === 1
+                            ? "border-rose-300/45 text-rose-200"
+                            : "border-emerald-300/45 text-emerald-200"
+                        }`}
+                      >
+                        {ab.direction === 1 ? "ATRÁS" : "ADELANTE"}
+                      </span>
+                    ) : null}
+                  </div>
+                );
               })()
             : null}
         </DragOverlay>

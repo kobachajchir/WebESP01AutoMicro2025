@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { useRef } from "react";
 type Euler = { yaw: number; pitch: number; roll: number };
 
 interface RealtimeEulerPanelProps {
@@ -22,18 +23,25 @@ export default function RealtimeEulerPanel({
     pitch: number[];
     roll: number[];
   }>({ yaw: [], pitch: [], roll: [] });
+  const latestEulerRef = useRef(eulerDeg);
+
+  useEffect(() => {
+    latestEulerRef.current = eulerDeg;
+  }, [eulerDeg]);
+
 
   useEffect(() => {
     const id = window.setInterval(() => {
+      const latest = latestEulerRef.current;
       setSeries((s) => ({
-        yaw: pushClamped(s.yaw, eulerDeg.yaw, maxPoints),
-        pitch: pushClamped(s.pitch, eulerDeg.pitch, maxPoints),
-        roll: pushClamped(s.roll, eulerDeg.roll, maxPoints),
+        yaw: pushClamped(s.yaw, latest.yaw, maxPoints),
+        pitch: pushClamped(s.pitch, latest.pitch, maxPoints),
+        roll: pushClamped(s.roll, latest.roll, maxPoints),
       }));
     }, sampleMs);
 
     return () => window.clearInterval(id);
-  }, [eulerDeg, sampleMs, maxPoints]);
+  }, [sampleMs, maxPoints]);
 
   const seriesPadded = useMemo(() => {
     const pad = (arr: number[]) =>
@@ -81,18 +89,18 @@ export default function RealtimeEulerPanel({
           Lecturas MPU en tiempo real
         </h3>
         <p className="mt-1 text-xs text-slate-300">
-          Refresco actual: {sensorIntervalTime} ms
+          Orientación fusionada del MPU9250. Refresco del sensor: {sensorIntervalTime} ms
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-2">
-        <Row label="Yaw (°)" value={eulerDeg.yaw} colorDot="bg-indigo-400" />
+        <Row label="Yaw magnético" value={eulerDeg.yaw} colorDot="bg-indigo-400" />
         <Row
-          label="Pitch (°)"
+          label="Pitch"
           value={eulerDeg.pitch}
           colorDot="bg-emerald-400"
         />
-        <Row label="Roll (°)" value={eulerDeg.roll} colorDot="bg-rose-400" />
+        <Row label="Roll" value={eulerDeg.roll} colorDot="bg-rose-400" />
       </div>
 
       <div className="mt-4">

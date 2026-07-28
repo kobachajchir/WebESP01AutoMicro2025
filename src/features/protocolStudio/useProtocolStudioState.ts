@@ -18,7 +18,7 @@ import {
 import type { ScanBlockResult, TranslationResult, TranslatorViewMode } from "./types";
 
 export function useProtocolStudioState() {
-  const [source, setSource] = useState("2");
+  const [source, setSource] = useState("5");
   const [destination, setDestination] = useState("1");
   const [commandKey, setCommandKey] = useState("0x31");
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});

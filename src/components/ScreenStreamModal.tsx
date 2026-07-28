@@ -16,9 +16,9 @@ export default function ScreenStreamModal({
       isOpen={isOpen}
       onClose={onClose}
       closeOnOverlayClick={true}
-      containerClassnames="flex-col w-full max-w-[min(1400px,96vw)]"
+      containerClassnames="screen-stream-modal-content flex-col w-full max-w-[min(1400px,96vw)]"
     >
-      <div className="mb-6">
+      <div className="screen-stream-modal-heading mb-6">
         <div className="app-kicker mb-3">Stream</div>
         <h2 className="text-3xl font-black text-white">Pantalla en vivo</h2>
         <p className="mt-2 text-sm text-slate-300">

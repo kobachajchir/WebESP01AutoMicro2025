@@ -1,5 +1,6 @@
 import { baselineY, clear, drawXbm, setInverse, setWhite, textAt, withNotificationProgress } from "./helpers";
 import {
+  SCREEN_CODE_CORE_REMOTE_MODE_CHANGED,
   SCREEN_CODE_DIAG_COMMAND_RECEIVED,
   SCREEN_CODE_DIAG_CONTROLLER_CONNECTED,
   SCREEN_CODE_DIAG_CONTROLLER_DISCONNECTED,
@@ -11,6 +12,64 @@ import type { NotificationProgressArgs, OledCommand } from "./types";
 
 function notification(commands: OledCommand[], progress?: NotificationProgressArgs): OledCommand[] {
   return withNotificationProgress(commands, progress);
+}
+
+export const screen010105RemoteModeChangedCode = SCREEN_CODE_CORE_REMOTE_MODE_CHANGED;
+
+export function buildScreen010105RemoteModeChangedNotificationCommands(
+  args: { mode: string },
+  progress?: NotificationProgressArgs,
+): OledCommand[] {
+  const mode = ["IDLE", "FOLLOW", "TEST"].includes(args.mode) ? args.mode : "MODO";
+  const secondLine = `a ${mode}`;
+  const center7x10 = (text: string) => Math.max(0, Math.floor((128 - text.length * 7) / 2));
+  return notification([
+    clear(),
+    setWhite(),
+    ...drawXbm(56, 3, 16, 16, "Icon_Info_bits"),
+    ...textAt(center7x10("Cambio remoto"), baselineY(34, "Font7x10"), "Cambio remoto", "Font7x10"),
+    ...textAt(center7x10(secondLine), baselineY(52, "Font7x10"), secondLine, "Font7x10"),
+  ], progress);
+}
+
+const centerSmallNotificationTextX = (text: string) =>
+  Math.max(0, Math.floor((128 - text.length * 7) / 2));
+
+function buildUnerForwardingNotificationCommands(
+  enabled: boolean,
+  progress?: NotificationProgressArgs,
+): OledCommand[] {
+  const commands: OledCommand[] = [
+    clear(),
+    setWhite(),
+  ];
+  if (!enabled) commands.push(setInverse());
+  commands.push(...drawXbm(56, 3, 16, 16, "Icon_Link_bits"));
+  if (!enabled) {
+    commands.push(
+      setWhite(),
+      { type: "drawLine", x0: 56, y0: 3, x1: 72, y1: 19 },
+      { type: "drawLine", x0: 57, y0: 3, x1: 73, y1: 19 },
+    );
+  }
+  const state = enabled ? "activado" : "desactivado";
+  commands.push(
+    ...textAt(centerSmallNotificationTextX("Port forward"), baselineY(34, "Font7x10"), "Port forward", "Font7x10"),
+    ...textAt(centerSmallNotificationTextX(state), baselineY(52, "Font7x10"), state, "Font7x10"),
+  );
+  return notification(commands, progress);
+}
+
+export function buildScreen050417UnerForwardingEnabledNotificationCommands(
+  progress?: NotificationProgressArgs,
+): OledCommand[] {
+  return buildUnerForwardingNotificationCommands(true, progress);
+}
+
+export function buildScreen050418UnerForwardingDisabledNotificationCommands(
+  progress?: NotificationProgressArgs,
+): OledCommand[] {
+  return buildUnerForwardingNotificationCommands(false, progress);
 }
 
 export const screen060101ControllerConnectedCode = SCREEN_CODE_DIAG_CONTROLLER_CONNECTED;

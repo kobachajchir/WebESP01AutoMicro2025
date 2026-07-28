@@ -13,7 +13,7 @@ import { useProtocolStudioState } from "../features/protocolStudio/useProtocolSt
 type StudioView = "protocol" | "oled";
 
 const SEGMENTED_TOGGLE_BUTTON_CLASS =
-  "min-w-[140px] rounded-full px-4 py-2 text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40";
+  "protocol-studio-toggle min-w-[140px] rounded-full px-4 py-2 text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40";
 
 export default function ProtocolSection() {
   const studio = useProtocolStudioState();
@@ -43,9 +43,11 @@ export default function ProtocolSection() {
   }
 
   return (
-    <section className="min-h-screen w-full bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-slate-100">
-      <div className="mx-auto flex w-full max-w-[1900px] flex-col gap-6 p-6">
+    <section className="protocol-dashboard-shell min-h-screen w-full text-slate-100">
+      <div className="protocol-dashboard-frame mx-auto flex w-full max-w-[1900px] flex-col gap-6 p-6">
         <PageHeader
+          className="app-page-header home-page-header"
+          titleOverride="UNER Studio"
           setOpenInfoModal={
             activeStudio === "protocol"
               ? studio.setOpenInfoModal
@@ -55,7 +57,7 @@ export default function ProtocolSection() {
 
         <div className="relative pt-7">
           <div className="pointer-events-none absolute left-1/2 top-0 z-10 -translate-x-1/2">
-            <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-cyan-300/20 bg-slate-950/85 p-1 shadow-[0_24px_60px_rgba(0,0,0,0.34)] backdrop-blur-xl">
+            <div className="protocol-studio-switcher pointer-events-auto flex items-center gap-1 rounded-full p-1">
               <button
                 type="button"
                 className={SEGMENTED_TOGGLE_BUTTON_CLASS}
@@ -75,7 +77,7 @@ export default function ProtocolSection() {
             </div>
           </div>
 
-          <div className="app-panel-strong relative overflow-hidden px-5 pb-6 pt-14 md:px-7">
+          <div className="protocol-studio-card app-panel-strong relative overflow-hidden px-5 pb-6 pt-14 md:px-7">
             {activeStudio === "protocol" ? (
               <div className="flex flex-col gap-6">
                 <ProtocolHero

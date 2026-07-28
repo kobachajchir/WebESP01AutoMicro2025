@@ -117,6 +117,7 @@ type InteractionSession =
 export interface LopakaLikeEditorProps {
   initialDocument?: EditorDocument;
   readOnly?: boolean;
+  activeView?: "visualization" | "code";
   onDocumentChange?: (document: EditorDocument) => void;
   onCodeChange?: (result: GeneratedCodeResult) => void;
   onDirtyChange?: (dirty: boolean) => void;
@@ -147,6 +148,7 @@ interface EditorIconProps {
 export function LopakaLikeEditor({
   initialDocument,
   readOnly = false,
+  activeView = "visualization",
   onDocumentChange,
   onCodeChange,
   onDirtyChange,
@@ -897,7 +899,13 @@ export function LopakaLikeEditor({
 
   return (
     <div ref={rootRef} tabIndex={0} className="flex flex-col gap-4 outline-none">
-      <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_340px]">
+      <div
+        className={
+          activeView === "visualization"
+            ? "grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_340px]"
+            : "hidden"
+        }
+      >
         <aside className="app-panel-strong flex flex-col gap-4 p-4">
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
@@ -1230,7 +1238,13 @@ export function LopakaLikeEditor({
         </aside>
       </div>
 
-      <div className="app-panel-strong flex flex-col gap-4 p-4">
+      <div
+        className={
+          activeView === "code"
+            ? "app-panel-strong flex flex-col gap-4 p-4"
+            : "hidden"
+        }
+      >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-xl font-black text-white">Codigo</h3>

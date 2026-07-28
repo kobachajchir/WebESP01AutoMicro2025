@@ -75,10 +75,10 @@ export default function MockEulerGenerator({
       <div className="mb-2 flex items-center justify-between">
         <div>
           <span className="text-sm font-semibold uppercase tracking-wide text-white">
-            Generador mock
+            Movimiento automático
           </span>
           <p className="mt-1 text-xs text-slate-300">
-            Señal automática para validar animación y refresco.
+            Señal simulada para validar la animación y el refresco.
           </p>
         </div>
         <span
@@ -115,7 +115,7 @@ export default function MockEulerGenerator({
       </div>
 
       <p className="mt-2 text-[11px] text-slate-400">
-        Emite yaw, pitch y roll sinusoidales cada{" "}
+        Emite guiñada, cabeceo y alabeo sinusoidales cada{" "}
         <span className="font-medium">{clamp(ms, 50, 3000)} ms</span>.
       </p>
     </div>

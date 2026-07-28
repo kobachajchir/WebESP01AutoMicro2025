@@ -4,16 +4,24 @@ export const IDLE_SUMMARY = "Todavia no se analizo ninguna entrada.";
 
 export const NODE_OPTIONS = [
   { value: "1", label: "0x1 - MCU" },
-  { value: "2", label: "0x2 - ESP / PC bridge" },
-  { value: "3", label: "0x3 - Web App" },
+  { value: "2", label: "0x2 - PC / Qt" },
+  { value: "5", label: "0x5 - Web diagnóstico (ESP sustituye el nodo)" },
   { value: "4", label: "0x4 - NRF remoto" },
   { value: "15", label: "0xF - Broadcast" },
 ];
 
 export const NODE_NAMES: Record<number, string> = {
   0x1: "MCU",
-  0x2: "ESP / PC bridge",
-  0x3: "Web App",
+  0x2: "PC / Qt",
+  0x3: "ESP broker",
+  0x5: "Web client 0",
+  0x6: "Web client 1",
+  0x7: "Web client 2",
+  0x8: "Web client 3",
+  0x9: "Web client 4",
+  0xa: "Web client 5",
+  0xb: "Web client 6",
+  0xc: "Web client 7",
   0x4: "NRF remoto",
   0xf: "Broadcast",
 };
@@ -195,7 +203,7 @@ export const FRAME_COMMANDS: Record<string, CommandDefinition> = {
   },
   "0x19": {
     name: "RESET_MCU",
-    desc: "Reinicia el STM32. La web lo envia como stmPacket con payload.data; la ESP valida y reenvia el frame UNER v2 con ruta ESP/PC -> MCU (0x21).",
+    desc: "No operativo: FirmwareF4 declara 0x19 pero no registra un handler. La Web no debe enviarlo.",
     fields: [],
     minPayload: 0,
     maxPayload: 0,
@@ -230,7 +238,7 @@ export const FRAME_COMMANDS: Record<string, CommandDefinition> = {
   },
   "0x22": {
     name: "TELEMETRY_DATA",
-    desc: "Dato de telemetria MPU6050. Payload esperado de 17 bytes: [schema, seqL, seqH, accXl, accXh, accYl, accYh, accZl, accZh, gyroXl, gyroXh, gyroYl, gyroYh, gyroZl, gyroZh, tempL, tempH].",
+    desc: "Formato legacy 0x22 de 17 bytes, conservado solo para diagnóstico histórico. La telemetría MPU9250 vigente usa 0x60/0x90 y un snapshot float32 de 42 bytes.",
     fields: [],
     minPayload: 17,
     maxPayload: 17,
@@ -498,6 +506,14 @@ export const FRAME_COMMANDS: Record<string, CommandDefinition> = {
     maxPayload: 5,
     kind: "event",
   },
+  "0x6F": {
+    name: "GET_BOOT_REPORT",
+    desc: "Consulta el mailbox consumido al arrancar. Response fija de 22 bytes con schema, estado, handoff, flags, perfil de pines, versiones, tamano y CRC32.",
+    fields: [],
+    minPayload: 0,
+    maxPayload: 22,
+    kind: "request",
+  },
   "0x80": {
     name: "EVT_BOOT",
     desc: "Emitido al iniciar la app.",
@@ -690,6 +706,14 @@ export const FRAME_COMMANDS: Record<string, CommandDefinition> = {
     fields: [],
     minPayload: 1,
     maxPayload: 1,
+    kind: "event",
+  },
+  "0x9F": {
+    name: "EVT_MCU_BOOT_REPORT",
+    desc: "Evento de 22 bytes con el mismo layout de GET_BOOT_REPORT. La F4 lo publica al conectarse una interfaz compatible.",
+    fields: [],
+    minPayload: 22,
+    maxPayload: 22,
     kind: "event",
   },
   "0xE0": {

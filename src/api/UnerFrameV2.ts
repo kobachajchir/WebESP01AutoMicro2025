@@ -18,18 +18,58 @@ export const UNER_V2_CMD = {
   GET_SCAN_RESULTS: 0x15,
   REBOOT_ESP: 0x16,
   STOP_SCAN: 0x18,
-  RESET_MCU: 0x19,
   WIFI_GET_DETAIL: 0x1a,
-  AUTH_PIN_GRANTED: 0x59,
   GET_CAR_MODE: 0x5b,
   GET_MPU_SNAPSHOT: 0x60,
   SET_MPU_STREAM: 0x61,
   STOP_MPU_STREAM: 0x62,
+  GET_IR_SNAPSHOT: 0x6a,
+  SET_IR_STREAM: 0x6b,
+  STOP_IR_STREAM: 0x6c,
+  GET_BOOT_REPORT: 0x6f,
   EVT_APP_GET_MPU_READINGS: 0x90,
+  EVT_APP_GET_IR_READINGS: 0x91,
   EVT_SCREEN_CHANGED: 0x95,
   EVT_MENU_SELECTION_CHANGED: 0x96,
   EVT_CAR_MODE_CHANGED: 0x97,
+  EVT_MCU_BOOT_REPORT: 0x9f,
 } as const;
+
+export const IR_STREAM_LIMITS = {
+  MIN_PERIOD_MS: 20,
+  MAX_PERIOD_MS: 1000,
+  PAYLOAD_BYTES: 56,
+} as const;
+
+export const IR_SENSOR_ORDER = [
+  "lineCenter",
+  "lineRight",
+  "objectCenter",
+  "lineLeft",
+  "objectLeftCenter",
+  "objectRightCenter",
+  "objectLeft45",
+  "objectRight45",
+] as const;
+
+export type IrSensorKey = (typeof IR_SENSOR_ORDER)[number];
+
+export interface IrSnapshot {
+  status: number;
+  flags: number;
+  sampleSeq: number;
+  periodMs: number;
+  tickMs: number;
+  raw: Record<IrSensorKey, number>;
+  norm: Record<IrSensorKey, number>;
+  linePattern: number;
+  lineAlignment: number;
+  confidence: number;
+  ambiguous: boolean;
+  lineWidthMm: number;
+  lateralErrorMm: number;
+  lateralErrorNorm: number;
+}
 
 export const ESP_REBOOT_MODE = {
   NORMAL: 0x00,
@@ -98,10 +138,6 @@ export function buildEspRebootRequestFrame(
   });
 }
 
-export function buildStmResetFrame(): Uint8Array {
-  return buildUnerV2Frame({ cmd: UNER_V2_CMD.RESET_MCU });
-}
-
 export function buildGetCarModeFrame(): Uint8Array {
   return buildUnerV2Frame({ cmd: UNER_V2_CMD.GET_CAR_MODE });
 }
@@ -124,11 +160,80 @@ export function buildStopMpuStreamFrame(): Uint8Array {
   return buildUnerV2Frame({ cmd: UNER_V2_CMD.STOP_MPU_STREAM });
 }
 
+export function buildGetIrSnapshotFrame(): Uint8Array {
+  return buildUnerV2Frame({ cmd: UNER_V2_CMD.GET_IR_SNAPSHOT });
+}
+
+export function buildSetIrStreamFrame(
+  periodMs: number,
+  enable = true,
+): Uint8Array {
+  const normalizedPeriod = normalizeIrStreamPeriodMs(periodMs);
+  const payload = enable
+    ? [
+        0x01,
+        normalizedPeriod & 0xff,
+        (normalizedPeriod >> 8) & 0xff,
+      ]
+    : [0x00];
+
+  return buildUnerV2Frame({
+    cmd: UNER_V2_CMD.SET_IR_STREAM,
+    payload,
+  });
+}
+
+export function buildStopIrStreamFrame(): Uint8Array {
+  return buildUnerV2Frame({ cmd: UNER_V2_CMD.STOP_IR_STREAM });
+}
+
 export function buildDisableMpuStreamFrame(): Uint8Array {
   return buildUnerV2Frame({
     cmd: UNER_V2_CMD.SET_MPU_STREAM,
     payload: [0x00],
   });
+}
+
+export function normalizeIrStreamPeriodMs(value: number): number {
+  if (!Number.isFinite(value)) {
+    return IR_STREAM_LIMITS.MIN_PERIOD_MS;
+  }
+
+  return Math.min(
+    IR_STREAM_LIMITS.MAX_PERIOD_MS,
+    Math.max(IR_STREAM_LIMITS.MIN_PERIOD_MS, Math.round(value)),
+  );
+}
+
+export function decodeIrSnapshot(payload: Uint8Array): IrSnapshot | null {
+  if (payload.length !== IR_STREAM_LIMITS.PAYLOAD_BYTES) {
+    return null;
+  }
+
+  const view = new DataView(
+    payload.buffer,
+    payload.byteOffset,
+    payload.byteLength,
+  );
+  const rawValues = readIrSensorArray(view, 10);
+  const normValues = readIrSensorArray(view, 26);
+
+  return {
+    status: view.getUint8(0),
+    flags: view.getUint8(1),
+    sampleSeq: view.getUint16(2, true),
+    periodMs: view.getUint16(4, true),
+    tickMs: view.getUint32(6, true),
+    raw: rawValues,
+    norm: normValues,
+    linePattern: view.getUint8(42),
+    lineAlignment: view.getUint8(43),
+    confidence: view.getUint8(44),
+    ambiguous: view.getUint8(45) !== 0,
+    lineWidthMm: view.getUint16(46, true),
+    lateralErrorMm: view.getFloat32(48, true),
+    lateralErrorNorm: view.getFloat32(52, true),
+  };
 }
 
 export function formatUnerFrameHex(frame: Uint8Array): string {
@@ -297,4 +402,17 @@ function findHeaderIndex(bytes: number[]): number {
 
 function xorChecksum(bytes: number[]): number {
   return bytes.reduce((acc, byte) => acc ^ byte, 0) & 0xff;
+}
+
+function readIrSensorArray(
+  view: DataView,
+  offset: number,
+): Record<IrSensorKey, number> {
+  return IR_SENSOR_ORDER.reduce(
+    (acc, key, index) => {
+      acc[key] = view.getUint16(offset + index * 2, true);
+      return acc;
+    },
+    {} as Record<IrSensorKey, number>,
+  );
 }

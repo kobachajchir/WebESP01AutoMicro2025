@@ -5,6 +5,7 @@ export * from "./dashboardScreens";
 export * from "./menuScreens";
 export * from "./connectivityScreens";
 export * from "./sensorScreens";
+export * from "./displayScreens";
 export * from "./motorScreens";
 export * from "./settingsScreens";
 export * from "./notificationScreens";
