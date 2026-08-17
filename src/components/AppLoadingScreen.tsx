@@ -1,6 +1,13 @@
+import type { ReactNode } from "react";
 import logoDashboard from "../assets/LogoDashboard.webp";
 
-export default function AppLoadingScreen({ label }: { label: string }) {
+export default function AppLoadingScreen({
+  label,
+  children,
+}: {
+  label: string;
+  children?: ReactNode;
+}) {
   return (
     <div className="app-loading-screen" role="status" aria-live="polite" aria-label={label}>
       <div className="app-loading-screen__grid" aria-hidden="true" />
@@ -14,6 +21,7 @@ export default function AppLoadingScreen({ label }: { label: string }) {
         </div>
         <span className="app-loading-screen__spinner" aria-hidden="true" />
         <p>{label}</p>
+        {children}
       </div>
     </div>
   );
