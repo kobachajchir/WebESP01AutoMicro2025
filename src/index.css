@@ -4372,6 +4372,96 @@ button.app-mode-toggle--dev[data-state="on"] + .app-mode-toggle__label,
     linear-gradient(180deg, rgb(248 250 252 / 0.98), rgb(236 244 249 / 0.98));
 }
 
+.track-canvas-overlay-group {
+  position: absolute;
+  top: 0.85rem;
+  left: 0.85rem;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  pointer-events: none;
+}
+
+.track-canvas-overlay-group > * {
+  pointer-events: auto;
+}
+
+.track-canvas-overlay-group .track-canvas-overlay {
+  position: static;
+  top: auto;
+  left: auto;
+}
+
+.sensor-scene-overlay-top-left {
+  position: absolute;
+  top: 0.85rem;
+  left: 0.85rem;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  pointer-events: auto;
+}
+
+.render-quality-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  border-radius: 8px;
+  padding: 0.45rem 0.62rem;
+  font-size: 0.68rem;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform 140ms ease, border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease, color 140ms ease;
+  user-select: none;
+  font-family: inherit;
+  line-height: 1;
+}
+
+.render-quality-toggle:active {
+  transform: scale(0.96);
+}
+
+.render-quality-toggle--hd {
+  border: 1px solid rgb(34 211 238 / 0.55);
+  background: rgb(3 8 14 / 0.72);
+  color: #22d3ee;
+  box-shadow: 0 0 16px rgb(34 211 238 / 0.22);
+}
+
+.render-quality-toggle--hd:hover {
+  border-color: rgb(103 232 249 / 0.85);
+  background: rgb(8 24 38 / 0.85);
+  color: #67e8f9;
+  box-shadow: 0 0 20px rgb(34 211 238 / 0.35);
+}
+
+.render-quality-toggle--sd {
+  border: 1px solid rgb(148 163 184 / 0.3);
+  background: rgb(3 8 14 / 0.62);
+  color: #94a3b8;
+}
+
+.render-quality-toggle--sd:hover {
+  border-color: rgb(203 213 225 / 0.55);
+  background: rgb(15 23 42 / 0.8);
+  color: #cbd5e1;
+}
+
+.render-quality-toggle__dot {
+  width: 0.34rem;
+  height: 0.34rem;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+}
+
 .track-canvas-overlay {
   position: absolute;
   top: 0.85rem;
@@ -6678,3 +6768,17 @@ label.sensor-tool-button {
   color: var(--ui-text) !important;
   box-shadow: var(--ui-shadow-soft) !important;
 }
+
+:root[data-theme="light"] .render-quality-toggle--hd {
+  border-color: rgb(2 132 199 / 0.4) !important;
+  background: rgb(240 249 255 / 0.92) !important;
+  color: #0284c7 !important;
+  box-shadow: 0 2px 8px rgb(2 132 199 / 0.12) !important;
+}
+
+:root[data-theme="light"] .render-quality-toggle--sd {
+  border-color: rgb(100 116 139 / 0.35) !important;
+  background: rgb(248 250 252 / 0.92) !important;
+  color: #64748b !important;
+}
+

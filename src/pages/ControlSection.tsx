@@ -14,6 +14,7 @@ import Modal from "../components/modal";
 import SystemResetActions from "../components/SystemResetActions";
 import ThemeModeToggleCard from "../components/ThemeModeToggleCard";
 import HdAssetsSettingsCard from "../components/HdAssetsSettingsCard";
+import HdModelQualityButton from "../components/HdModelQualityButton";
 import { usePreferredModelUrl } from "../contexts/AssetQualityContext";
 import { getSharedDracoLoader, ResilientGLTFLoader } from "../utils/dracoLoader";
 import ModelLoadingScreen from "../components/ModelLoadingScreen";
@@ -2913,8 +2914,11 @@ function MotionSimulationPanel({
  isSimulating={isSimulating}
  />
  <div className="pointer-events-none absolute inset-0">
- <div className="absolute left-3 top-3 rounded-md border border-amber-300/40 bg-[var(--ui-bg-0)]/85 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide text-amber-200 shadow-[0_0_18px_rgba(245,158,11,0.16)] backdrop-blur-sm">
+ <div className="absolute left-3 top-3 z-10 flex items-center gap-2 pointer-events-auto">
+ <HdModelQualityButton />
+ <div className="rounded-md border border-amber-300/40 bg-[var(--ui-bg-0)]/85 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide text-amber-200 shadow-[0_0_18px_rgba(245,158,11,0.16)] backdrop-blur-sm">
  Frente físico: lado TCRT
+ </div>
  </div>
  <svg
  viewBox="-140 -95 280 190"

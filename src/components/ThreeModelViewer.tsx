@@ -6,6 +6,7 @@ import * as THREE from "three";
 import { getSharedDracoLoader, ResilientGLTFLoader } from "../utils/dracoLoader";
 import { useModelLoadingState } from "../hooks/useModelLoadingState";
 import ModelLoadingScreen from "./ModelLoadingScreen";
+import HdModelQualityButton from "./HdModelQualityButton";
 
 // Extender JSX para incluir OrbitControls usando la nueva sintaxis v9
 declare module "@react-three/fiber" {
@@ -182,6 +183,9 @@ export default function ThreeModelViewer({
       ].join(" ")}
     >
       <ModelLoadingScreen visible={isModelLoading} />
+      <div className="sensor-scene-overlay-top-left">
+        <HdModelQualityButton />
+      </div>
       <Canvas
         gl={(props) => {
           const renderer = new THREE.WebGLRenderer({

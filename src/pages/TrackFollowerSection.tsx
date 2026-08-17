@@ -27,6 +27,7 @@ import { useModelLoadingState } from "../hooks/useModelLoadingState";
 import Modal from "../components/modal";
 import ThemeModeToggleCard from "../components/ThemeModeToggleCard";
 import HdAssetsSettingsCard from "../components/HdAssetsSettingsCard";
+import HdModelQualityButton from "../components/HdModelQualityButton";
 import { toast } from "sonner";
 import { usePreferredModelUrl } from "../contexts/AssetQualityContext";
 
@@ -485,13 +486,16 @@ export default function TrackFollowerSection() {
                 renderMode={renderMode}
                 latestLine={latestLine}
               />
-              <div className="track-canvas-overlay">
-                <span>Frente físico: lado TCRT</span>
-                <strong>
-                  {latestLine.present
-                    ? `${Math.round(latestLine.confidence * 100)}% confianza`
-                    : "Línea no detectada"}
-                </strong>
+              <div className="track-canvas-overlay-group">
+                <HdModelQualityButton />
+                <div className="track-canvas-overlay">
+                  <span>Frente físico: lado TCRT</span>
+                  <strong>
+                    {latestLine.present
+                      ? `${Math.round(latestLine.confidence * 100)}% confianza`
+                      : "Línea no detectada"}
+                  </strong>
+                </div>
               </div>
             </div>
 

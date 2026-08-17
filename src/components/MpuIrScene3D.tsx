@@ -18,6 +18,7 @@ import type { IrSensorKey } from "../api/UnerFrameV2";
 import { getSharedDracoLoader, ResilientGLTFLoader } from "../utils/dracoLoader";
 import { useModelLoadingState } from "../hooks/useModelLoadingState";
 import ModelLoadingScreen from "./ModelLoadingScreen";
+import HdModelQualityButton from "./HdModelQualityButton";
 import {
   IR_OBJECT_ADC_MAX,
   IR_OBJECT_CONE_HALF_ANGLE_DEG,
@@ -214,6 +215,9 @@ const MpuIrScene3D = forwardRef<MpuIrScene3DHandle, MpuIrScene3DProps>(
     return (
       <div className="sensor-scene-shell">
         <ModelLoadingScreen visible={isModelLoading} />
+        <div className="sensor-scene-overlay-top-left">
+          <HdModelQualityButton />
+        </div>
         <Canvas
           camera={{ position: [2.7, 2.0, 3.05], fov: 40, near: 0.1, far: 80 }}
           dpr={[1, 2]}

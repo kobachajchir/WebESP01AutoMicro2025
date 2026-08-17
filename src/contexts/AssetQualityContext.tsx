@@ -26,8 +26,10 @@ interface AssetQualityContextValue {
   internetAvailable: boolean;
   hdAssetsEnabled: boolean;
   hdAssetsActive: boolean;
+  isHdModelActive: boolean;
   hdModelUrl: string | null;
   setHdAssetsEnabled: (enabled: boolean) => void;
+  toggleHdModelQuality: () => void;
   refreshInternetStatus: () => void;
   resolveModelUrl: (localUrl: string) => string;
 }
@@ -122,6 +124,9 @@ export function AssetQualityProvider({ children }: { children: ReactNode }) {
     };
   }, [runInternetProbe]);
 
+  const [isHdModelActiveState, setIsHdModelActiveState] = useState<boolean>(
+    () => readStoredHdPreference(),
+  );
   const downloadedUrlRef = useRef<string | null>(null);
   const downloadingRef = useRef(false);
 
@@ -168,6 +173,7 @@ export function AssetQualityProvider({ children }: { children: ReactNode }) {
 
   const setHdAssetsEnabled = useCallback((enabled: boolean) => {
     setHdAssetsEnabledState(enabled);
+    setIsHdModelActiveState(enabled);
     try {
       window.localStorage.setItem(HD_ASSETS_STORAGE_KEY, String(enabled));
     } catch {
@@ -176,6 +182,25 @@ export function AssetQualityProvider({ children }: { children: ReactNode }) {
     if (enabled && hdModelUrl && internetStatus === "online") {
       downloadHdModel(hdModelUrl, true);
     }
+  }, [downloadHdModel, hdModelUrl, internetStatus]);
+
+  const toggleHdModelQuality = useCallback(() => {
+    setIsHdModelActiveState((current) => {
+      const next = !current;
+      if (next) {
+        toast.info("Cambiando a modelo 3D HD (Alta definición)", {
+          id: "model-quality-toggle",
+        });
+        if (hdModelUrl && internetStatus === "online") {
+          downloadHdModel(hdModelUrl, false);
+        }
+      } else {
+        toast.info("Cambiando a modelo 3D SD (Estándar)", {
+          id: "model-quality-toggle",
+        });
+      }
+      return next;
+    });
   }, [downloadHdModel, hdModelUrl, internetStatus]);
 
   useEffect(() => {
@@ -187,6 +212,7 @@ export function AssetQualityProvider({ children }: { children: ReactNode }) {
   const internetAvailable = internetStatus === "online";
   const hdAssetsActive =
     internetAvailable && hdAssetsEnabledState && hdModelUrl !== null;
+  const isHdModelActive = hdAssetsActive && isHdModelActiveState;
 
   const value = useMemo<AssetQualityContextValue>(
     () => ({
@@ -194,14 +220,16 @@ export function AssetQualityProvider({ children }: { children: ReactNode }) {
       internetAvailable,
       hdAssetsEnabled: hdAssetsEnabledState,
       hdAssetsActive,
+      isHdModelActive,
       hdModelUrl,
       setHdAssetsEnabled,
+      toggleHdModelQuality,
       refreshInternetStatus,
       resolveModelUrl: (localUrl: string) =>
         resolvePreferredModelUrl({
           localUrl,
           hdUrl: hdModelUrl,
-          hdAssetsEnabled: hdAssetsEnabledState,
+          hdAssetsEnabled: hdAssetsActive && isHdModelActiveState,
           internetStatus,
         }),
     }),
@@ -211,8 +239,11 @@ export function AssetQualityProvider({ children }: { children: ReactNode }) {
       hdModelUrl,
       internetAvailable,
       internetStatus,
+      isHdModelActive,
+      isHdModelActiveState,
       refreshInternetStatus,
       setHdAssetsEnabled,
+      toggleHdModelQuality,
     ],
   );
 
