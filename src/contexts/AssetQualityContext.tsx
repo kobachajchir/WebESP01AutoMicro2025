@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 import {
   createContext,
   useCallback,
@@ -9,11 +8,14 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useLoader } from "@react-three/fiber";
+import { toast } from "sonner";
 import {
   checkInternetAccess,
   resolvePreferredModelUrl,
   type InternetStatus,
 } from "../utils/assetQuality";
+import { getSharedDracoLoader, ResilientGLTFLoader } from "../utils/dracoLoader";
 
 const HD_ASSETS_STORAGE_KEY = "web-esp01-use-hd-assets-v1";
 const INTERNET_RECHECK_INTERVAL_MS = 30_000;
@@ -120,6 +122,50 @@ export function AssetQualityProvider({ children }: { children: ReactNode }) {
     };
   }, [runInternetProbe]);
 
+  const downloadedUrlRef = useRef<string | null>(null);
+  const downloadingRef = useRef(false);
+
+  const downloadHdModel = useCallback((url: string, showToasts: boolean = true) => {
+    if (downloadedUrlRef.current === url || downloadingRef.current) return;
+    downloadingRef.current = true;
+
+    if (showToasts) {
+      toast.loading("Descargando modelo 3D HD desde GitHub...", {
+        id: "hd-asset-download",
+      });
+    }
+
+    fetch(url, { cache: "force-cache" })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        await res.arrayBuffer();
+        downloadedUrlRef.current = url;
+        downloadingRef.current = false;
+        try {
+          useLoader.preload(ResilientGLTFLoader, url, (loader) => {
+            const base = import.meta.env.BASE_URL || "/";
+            loader.setDRACOLoader(getSharedDracoLoader(base));
+          });
+        } catch {
+          // Preload context fallback
+        }
+        if (showToasts) {
+          toast.success("¡Modelo 3D HD descargado con éxito desde GitHub!", {
+            id: "hd-asset-download",
+          });
+        }
+      })
+      .catch((err) => {
+        downloadingRef.current = false;
+        console.warn("Fallo descarga del modelo HD:", err);
+        if (showToasts) {
+          toast.error("No se pudo descargar el modelo HD. Usando modelo estándar.", {
+            id: "hd-asset-download",
+          });
+        }
+      });
+  }, []);
+
   const setHdAssetsEnabled = useCallback((enabled: boolean) => {
     setHdAssetsEnabledState(enabled);
     try {
@@ -127,7 +173,16 @@ export function AssetQualityProvider({ children }: { children: ReactNode }) {
     } catch {
       // La preferencia sigue activa durante esta sesión si storage no está disponible.
     }
-  }, []);
+    if (enabled && hdModelUrl && internetStatus === "online") {
+      downloadHdModel(hdModelUrl, true);
+    }
+  }, [downloadHdModel, hdModelUrl, internetStatus]);
+
+  useEffect(() => {
+    if (internetStatus === "online" && hdAssetsEnabledState && hdModelUrl) {
+      downloadHdModel(hdModelUrl, false);
+    }
+  }, [downloadHdModel, hdAssetsEnabledState, hdModelUrl, internetStatus]);
 
   const internetAvailable = internetStatus === "online";
   const hdAssetsActive =

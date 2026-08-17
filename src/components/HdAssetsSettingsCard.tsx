@@ -23,11 +23,9 @@ export default function HdAssetsSettingsCard({
 
   function handleToggle(checked: boolean) {
     setHdAssetsEnabled(checked);
-    toast.info(
-      checked
-        ? "Carga de modelo 3D HD habilitada (vía Internet)"
-        : "Usando modelo 3D optimizado local",
-    );
+    if (!checked) {
+      toast.info("Usando modelo 3D optimizado local");
+    }
   }
 
   return (
