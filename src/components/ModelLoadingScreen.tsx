@@ -16,8 +16,8 @@ export default function ModelLoadingScreen({
   const label =
     customLabel ??
     (isHd
-      ? "Cargando modelo 3D HD (Alta definición)..."
-      : "Cargando modelo 3D local...");
+      ? "Cargando modelo 3D HD"
+      : "Cargando modelo 3D local");
 
   return (
     <AppLoadingScreen label={label}>
