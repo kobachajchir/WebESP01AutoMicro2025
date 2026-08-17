@@ -13,7 +13,7 @@ import { useWebSocket } from "../hooks/useWebSocket";
 import { ESP_COMMANDS } from "../protocol/wsApi";
 import { useUser } from "./UserContext";
 
-export type CarModeLabel = "IDLE" | "FOLLOW" | "TEST" | "UNKNOWN";
+export type CarModeLabel = "IDLE" | "FOLLOW" | "TEST" | "GOTO" | "UNKNOWN";
 export type SelectableCarMode = Exclude<CarModeLabel, "UNKNOWN">;
 export type CarModeStatus = "idle" | "loading" | "synced" | "error";
 
@@ -37,11 +37,13 @@ const CAR_MODE_LABEL_BY_VALUE: Record<number, CarModeLabel> = {
   0x00: "IDLE",
   0x01: "FOLLOW",
   0x02: "TEST",
+  0x03: "GOTO",
 };
 const CAR_MODE_VALUE_BY_LABEL: Record<SelectableCarMode, number> = {
   IDLE: 0x00,
   FOLLOW: 0x01,
   TEST: 0x02,
+  GOTO: 0x03,
 };
 
 const CarModeContext = createContext<CarModeContextValue | undefined>(undefined);

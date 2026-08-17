@@ -141,7 +141,7 @@ export function useProtocolStudioState() {
         tone:
           gap.kind === "boot_reset"
             ? "bg-amber-500/10 ring-amber-400/45 text-amber-100"
-            : "bg-slate-500/10 ring-slate-400/35 text-slate-200",
+            : "bg-[var(--ui-panel)] ring-[var(--ui-ring)] text-[var(--ui-text)]",
       })),
       ...scanResult.invalidCandidates.map((candidate, index) => ({
         type: "invalid" as const,

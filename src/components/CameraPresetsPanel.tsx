@@ -22,10 +22,10 @@ export default function CameraPresetsPanel({
       className={`app-panel-strong w-full rounded-md border border-indigo-300/18 p-4 ${className}`}
     >
       <div className="mb-3">
-        <h3 className="m-0 text-sm font-semibold uppercase tracking-wide text-white">
+        <h3 className="m-0 text-sm font-semibold uppercase tracking-wide text-[var(--ui-text)]">
           Vistas
         </h3>
-        <p className="mt-1 text-xs text-slate-300">
+        <p className="mt-1 text-xs text-[var(--ui-muted)]">
           Atajos de cámara para revisar la postura del modelo.
         </p>
       </div>

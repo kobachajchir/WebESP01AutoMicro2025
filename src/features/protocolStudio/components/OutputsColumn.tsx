@@ -43,27 +43,27 @@ export function OutputsColumn(props: OutputsColumnProps) {
       <Panel title="Salidas">
         <div className="space-y-4">
           <div className="grid gap-4 2xl:grid-cols-2">
-            <div className="rounded-2xl border border-white/10 bg-slate-950/35 p-4">
+            <div className="rounded-2xl border border-[var(--ui-ring)] bg-[var(--ui-bg-0)]/35 p-4">
               <div className={SMALL_LABEL_CLASS}>Hex limpio</div>
-              <div className="rounded-xl border border-white/10 bg-slate-950/50 p-3 font-mono text-sm text-slate-100">
+              <div className="rounded-xl border border-[var(--ui-ring)] bg-[var(--ui-bg-0)]/50 p-3 font-mono text-sm text-[var(--ui-text)]">
                 {outputs.plain || "-"}
               </div>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-slate-950/35 p-4">
+            <div className="rounded-2xl border border-[var(--ui-ring)] bg-[var(--ui-bg-0)]/35 p-4">
               <div className={SMALL_LABEL_CLASS}>Formato RealTerm</div>
-              <div className="rounded-xl border border-white/10 bg-slate-950/50 p-3 font-mono text-sm text-slate-100">
+              <div className="rounded-xl border border-[var(--ui-ring)] bg-[var(--ui-bg-0)]/50 p-3 font-mono text-sm text-[var(--ui-text)]">
                 {outputs.realterm || "-"}
               </div>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-slate-950/35 p-4">
+            <div className="rounded-2xl border border-[var(--ui-ring)] bg-[var(--ui-bg-0)]/35 p-4">
               <div className={SMALL_LABEL_CLASS}>Array C / Arduino</div>
-              <div className="rounded-xl border border-white/10 bg-slate-950/50 p-3 font-mono text-sm text-slate-100">
+              <div className="rounded-xl border border-[var(--ui-ring)] bg-[var(--ui-bg-0)]/50 p-3 font-mono text-sm text-[var(--ui-text)]">
                 {outputs.c || "-"}
               </div>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-slate-950/35 p-4">
+            <div className="rounded-2xl border border-[var(--ui-ring)] bg-[var(--ui-bg-0)]/35 p-4">
               <div className={SMALL_LABEL_CLASS}>Python bytes literal</div>
-              <div className="rounded-xl border border-white/10 bg-slate-950/50 p-3 font-mono text-sm text-slate-100">
+              <div className="rounded-xl border border-[var(--ui-ring)] bg-[var(--ui-bg-0)]/50 p-3 font-mono text-sm text-[var(--ui-text)]">
                 {outputs.py || "-"}
               </div>
             </div>

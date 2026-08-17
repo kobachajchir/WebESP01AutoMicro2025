@@ -74,10 +74,10 @@ export default function MockEulerGenerator({
     <div className="app-panel-strong rounded-md border border-emerald-300/18 p-4">
       <div className="mb-2 flex items-center justify-between">
         <div>
-          <span className="text-sm font-semibold uppercase tracking-wide text-white">
+          <span className="text-sm font-semibold uppercase tracking-wide text-[var(--ui-text)]">
             Movimiento automático
           </span>
-          <p className="mt-1 text-xs text-slate-300">
+          <p className="mt-1 text-xs text-[var(--ui-muted)]">
             Señal simulada para validar la animación y el refresco.
           </p>
         </div>
@@ -85,14 +85,14 @@ export default function MockEulerGenerator({
           className={`rounded-full px-2 py-0.5 text-[11px] ring-1 ${
             active
               ? "bg-emerald-500/20 text-emerald-300 ring-emerald-400/40"
-              : "bg-slate-500/10 text-slate-400 ring-white/10"
+              : "bg-[var(--ui-panel)] text-[var(--ui-muted)] ring-[var(--ui-ring)]"
           }`}
         >
           {active ? "Activo" : "Inactivo"}
         </span>
       </div>
 
-      <label className="mb-1 block text-xs text-slate-300">Intervalo (ms)</label>
+      <label className="mb-1 block text-xs text-[var(--ui-muted)]">Intervalo (ms)</label>
       <div className="flex items-center gap-3">
         <input
           type="range"
@@ -110,11 +110,11 @@ export default function MockEulerGenerator({
           step={10}
           value={clamp(ms, 50, 3000)}
           onChange={(e) => onMsChange(clamp(Number(e.target.value), 50, 3000))}
-          className="app-input w-24 rounded-md px-2 py-1.5 text-slate-100"
+          className="app-input w-24 rounded-md px-2 py-1.5 text-[var(--ui-text)]"
         />
       </div>
 
-      <p className="mt-2 text-[11px] text-slate-400">
+      <p className="mt-2 text-[11px] text-[var(--ui-muted)]">
         Emite guiñada, cabeceo y alabeo sinusoidales cada{" "}
         <span className="font-medium">{clamp(ms, 50, 3000)} ms</span>.
       </p>

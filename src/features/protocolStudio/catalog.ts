@@ -737,11 +737,11 @@ export const FRAME_COMMANDS: Record<string, CommandDefinition> = {
 export const PANEL_CLASS =
   "app-panel p-4";
 export const INPUT_CLASS =
-  "app-input w-full px-3 py-2 text-sm placeholder:text-slate-200";
+  "app-input w-full px-3 py-2 text-sm placeholder:text-[var(--ui-text)]";
 export const SMALL_LABEL_CLASS =
-  "mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-slate-200";
+  "mb-2 block text-xs font-medium uppercase tracking-[0.18em] text-[var(--ui-text)]";
 export const NOTE_CLASS =
-  "app-panel-strong border-l-2 border-cyan-400 p-3 text-sm text-slate-300";
+  "app-panel-strong border-l-2 border-cyan-400 p-3 text-sm text-[var(--ui-muted)]";
 export const BUTTON_CLASS =
   "app-button inline-flex items-center justify-center px-4 py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40";
 export const GHOST_BUTTON_CLASS =

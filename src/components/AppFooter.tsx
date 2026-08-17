@@ -3,12 +3,12 @@ export default function AppFooter() {
   return (
     <footer
       role="contentinfo"
-      className="w-full mt-auto text-slate-100 absolute bottom-0 left-0 right-0 flex items-center justify-center"
+      className="w-full mt-auto text-[var(--ui-text)] absolute bottom-0 left-0 right-0 flex items-center justify-center"
     >
-      <div className="overflow-hidden bg-white/5 backdrop-blur ring-1 ring-white/10 shadow-sm w-full flex flex-row items-center justify-center">
+      <div className="overflow-hidden bg-[var(--ui-panel-hover)] backdrop-blur ring-1 ring-[var(--ui-ring)] shadow-sm w-full flex flex-row items-center justify-center">
         <div className="px-4 py-2 flex items-center justify-center">
-          <p className="text-sm md:text-base text-slate-300 text-center">
-            <span className="font-semibold text-slate-100">Koba Chajchir</span>
+          <p className="text-sm md:text-base text-[var(--ui-muted)] text-center">
+            <span className="font-semibold text-[var(--ui-text)]">Koba Chajchir</span>
             {" - "}Proyecto final{" - "}
             <span className="bg-clip-text">Microcontroladores 2025</span>
           </p>

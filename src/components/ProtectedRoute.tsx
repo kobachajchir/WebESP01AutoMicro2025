@@ -1,5 +1,5 @@
 import { useUser } from "../contexts/UserContext";
-import NavigateVT from "./NavigateVT";
+import { Navigate } from "react-router-dom";
 import AppLoadingScreen from "./AppLoadingScreen";
 
 export const ProtectedRoute: React.FC<{ children: React.ReactNode; loadingLabel?: string }> = ({
@@ -12,5 +12,5 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode; loadingLabel?
     return <AppLoadingScreen label={loadingLabel} />;
   }
 
-  return user ? <>{children}</> : <NavigateVT to="/login" replace />;
+  return user ? <>{children}</> : <Navigate to="/login" replace />;
 };

@@ -45,6 +45,19 @@
   --vt-ease: cubic-bezier(.2, .8, .2, 1);
 }
 
+/* Apple Typography utilities */
+.apple-text-display {
+  font-size: clamp(2rem, 5vw, 4rem);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-optical-sizing: auto;
+}
+.apple-text-body {
+  font-size: 1rem;
+  line-height: 1.5;
+  letter-spacing: 0;
+}
+
 /* IR object calibration workbench */
 .app-dialog:has(.ir-calibration-modal-content) {
   width: min(96vw, 78rem);
@@ -350,41 +363,6 @@
   }
 }
 
-:root[data-theme="light"] {
-  --ui-bg-0: #eef6fb;
-  --ui-bg-1: #f8fbff;
-  --ui-bg-2: #dceaf2;
-  --ui-panel: rgb(255 255 255 / 0.58);
-  --ui-panel-strong: rgb(255 255 255 / 0.78);
-  --ui-panel-hover: rgb(255 255 255 / 0.88);
-  --ui-field: rgb(255 255 255 / 0.86);
-  --ui-ring: rgb(15 49 68 / 0.16);
-  --ui-ring-strong: rgb(8 145 178 / 0.36);
-  --ui-text: #071923;
-  --ui-muted: #43576a;
-  --ui-subtle: #64748b;
-  --ui-ink: #f8fafc;
-  --ui-base: #047857;
-  --ui-accent: #0369a1;
-  --ui-cyan: #0369a1;
-  --ui-emerald: #047857;
-  --ui-base-soft: rgb(4 120 87 / 0.24);
-  --ui-base-wash: rgb(4 120 87 / 0.14);
-  --ui-base-trace: rgb(4 120 87 / 0.07);
-  --ui-accent-soft: rgb(3 105 161 / 0.26);
-  --ui-accent-wash: rgb(3 105 161 / 0.14);
-  --ui-accent-trace: rgb(3 105 161 / 0.08);
-  --ui-ring-strong: rgb(3 105 161 / 0.34);
-  --ui-shadow-soft: 0 14px 34px rgb(15 23 42 / 0.12);
-  --ui-shadow-lifted: 0 24px 70px rgb(15 23 42 / 0.2);
-  --ui-title-color: var(--ui-accent);
-  --ui-action-bg: var(--ui-base);
-  --ui-action-hover-bg: var(--ui-accent);
-  --ui-action-ink: #f8fafc;
-  --ui-action-hover-ink: #f8fafc;
-  --ui-success-bg: var(--ui-base);
-  --ui-page-background: #eef6fb;
-}
 
 * {
   box-sizing: border-box;
@@ -417,7 +395,50 @@ body {
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6, .app-title {
+  letter-spacing: -0.02em;
+  font-optical-sizing: auto;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+:root[data-theme="light"] {
+  --ui-bg-0: #f8fafc;
+  --ui-bg-1: #f1f5f9;
+  --ui-bg-2: #e2e8f0;
+  --ui-panel: rgb(255 255 255 / 0.58);
+  --ui-panel-strong: rgb(255 255 255 / 0.78);
+  --ui-panel-hover: rgb(241 245 249 / 0.88);
+  --ui-field: rgb(255 255 255 / 0.86);
+  --ui-ring: rgb(15 23 42 / 0.1);
+  --ui-ring-strong: rgb(3 105 161 / 0.32);
+  --ui-text: #0f172a;
+  --ui-muted: #64748b;
+  --ui-subtle: #94a3b8;
+  --ui-ink: #ffffff;
+  --ui-base: #0369a1;
+  --ui-accent: #0ea5e9;
+  --ui-cyan: #0ea5e9;
+  --ui-emerald: #059669;
+  --ui-base-soft: rgb(3 105 161 / 0.12);
+  --ui-base-wash: rgb(3 105 161 / 0.06);
+  --ui-base-trace: rgb(3 105 161 / 0.03);
+  --ui-accent-soft: rgb(14 165 233 / 0.12);
+  --ui-accent-wash: rgb(14 165 233 / 0.06);
+  --ui-accent-trace: rgb(14 165 233 / 0.03);
+  --ui-violet: #7c3aed;
+  --ui-rose: #e11d48;
+  --ui-amber: #d97706;
+  --ui-title-color: var(--ui-base);
+  --ui-action-bg: var(--ui-base);
+  --ui-action-hover-bg: var(--ui-accent);
+  --ui-action-ink: var(--ui-panel);
+  --ui-action-hover-ink: var(--ui-panel);
+  --ui-page-background: var(--ui-bg-1);
 }
 
 :root[data-theme="light"] body,
@@ -425,26 +446,6 @@ body {
   color-scheme: light;
   color: var(--ui-text);
   background: var(--ui-bg-0);
-}
-
-:root[data-theme="light"] .app-shell {
-  color: var(--ui-text);
-  background: var(--ui-page-background);
-}
-
-:root[data-theme="light"] .app-shell .text-white,
-:root[data-theme="light"] .app-dialog .text-white,
-:root[data-theme="light"] .app-shell .text-slate-50,
-:root[data-theme="light"] .app-shell .text-slate-100,
-:root[data-theme="light"] .app-shell .text-slate-200 {
-  color: var(--ui-text) !important;
-}
-
-:root[data-theme="light"] .app-shell .text-slate-300,
-:root[data-theme="light"] .app-shell .text-slate-400,
-:root[data-theme="light"] .app-dialog .text-slate-300,
-:root[data-theme="light"] .app-dialog .text-slate-400 {
-  color: var(--ui-muted) !important;
 }
 
 ::selection {
@@ -589,7 +590,18 @@ body {
   color: var(--ui-action-ink);
   background: var(--ui-action-bg);
   box-shadow: 0 10px 26px rgb(0 0 0 / 0.2);
-  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background 180ms ease, opacity 180ms ease;
+  /* Removed transform and other properties from non-interruptible transition */
+  transition: border-color 100ms ease, box-shadow 100ms ease, background 100ms ease, opacity 100ms ease;
+}
+
+.app-button:active,
+.refresh-btn:active,
+.btn-indigo:active,
+.btn-success:active,
+.btn-danger:active,
+.btn-green:active {
+  transform: scale(0.97);
+  transition: transform 100ms ease-out; /* instant feedback on pointer-down */
 }
 
 .app-button:hover,
@@ -654,13 +666,19 @@ body {
 .wifi-btn {
   border: 1px solid var(--ui-ring);
   border-radius: var(--ui-radius);
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0.03)),
-    var(--ui-panel-strong);
+  background: var(--ui-panel-strong);
   color: var(--ui-text);
   box-shadow: var(--ui-shadow-soft);
   backdrop-filter: blur(var(--ui-blur)) saturate(145%);
   -webkit-backdrop-filter: blur(var(--ui-blur)) saturate(145%);
+  transition: all 200ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.estado-btn:active,
+.control-btn:active,
+.wifi-btn:active {
+  transform: scale(0.97);
+  transition: transform 100ms ease-out;
 }
 
 .estado-btn {
@@ -679,9 +697,7 @@ body {
 .control-btn:hover,
 .wifi-btn:hover {
   color: var(--ui-text) !important;
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.12), rgb(255 255 255 / 0.05)),
-    var(--ui-panel-strong) !important;
+  background: var(--ui-panel-hover) !important;
   box-shadow: var(--ui-shadow-lifted);
 }
 
@@ -853,7 +869,7 @@ body {
   display: flex;
   min-height: calc(100vh - clamp(1.5rem, 3.4vw, 3rem));
   flex-direction: column;
-  width: min(100%, 1440px);
+  width: min(100%, 2400px);
   margin: 0 auto;
   border: 1px solid rgb(34 211 238 / 0.16);
   border-radius: 8px;
@@ -2375,6 +2391,21 @@ body {
   color: var(--ui-muted);
 }
 
+@media (max-width: 640px) {
+  .app-modal-root {
+    align-items: flex-end;
+  }
+  .app-dialog {
+    width: 100vw;
+    max-height: 90vh;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-bottom: none;
+    border-left: none;
+    border-right: none;
+  }
+}
+
 .app-dialog h1,
 .app-dialog h2,
 .app-dialog h3,
@@ -3687,668 +3718,120 @@ button.app-mode-toggle--dev[data-state="on"] + .app-mode-toggle__label,
 :root[data-theme="dark"] .app-shell :is(.bg-white\/5, .bg-white\/10, .bg-white\/70, .bg-white\/80, .bg-slate-950\/35, .bg-slate-950\/45, .bg-slate-950\/50, .bg-slate-950\/55, .bg-slate-950\/60, .bg-slate-950\/70, .bg-slate-950\/80) {
   background-color: rgb(2 8 14 / 0.46) !important;
 }
-
-:root[data-theme="dark"] .app-shell :is(.text-slate-900, .text-neutral-900, .text-black) {
-  color: #f8fafc !important;
-}
-
-:root[data-theme="light"] .app-dialog__overlay {
-  background:
-    linear-gradient(180deg, rgb(225 239 247 / 0.72), rgb(248 251 255 / 0.82));
-}
-
-:root[data-theme="light"] .app-dialog,
-:root[data-theme="light"] .screen-stream-modal-heading,
-:root[data-theme="light"] .screen-stream-workspace,
-:root[data-theme="light"] .screen-dashboard__workspace {
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.78), rgb(255 255 255 / 0.52)),
-    var(--ui-panel);
-  border-color: var(--ui-ring);
-  color: var(--ui-text);
-}
-
-:root[data-theme="light"] .home-command-shell,
-:root[data-theme="light"] .wifi-dashboard-shell,
-:root[data-theme="light"] .track-dashboard-shell,
-:root[data-theme="light"] .sensor-dashboard-shell,
-:root[data-theme="light"] .control-dashboard-shell {
-  color: var(--ui-text);
-  background:
-    radial-gradient(circle at 72% 10%, rgb(8 145 178 / 0.12), transparent 34%),
-    linear-gradient(180deg, rgb(238 247 252 / 0.98), rgb(248 251 255 / 0.98)),
-    #eef6fb;
-}
-
-:root[data-theme="light"] .home-grid-bg {
-  background-image:
-    linear-gradient(rgb(8 145 178 / 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(8 145 178 / 0.08) 1px, transparent 1px),
-    linear-gradient(135deg, transparent 0 48%, rgb(8 145 178 / 0.055) 49% 51%, transparent 52% 100%);
-}
-
-:root[data-theme="light"] .home-dynamic-background {
-  opacity: 0.14;
-  filter: saturate(1.1) drop-shadow(0 0 42px rgb(8 145 178 / 0.14));
-}
-
-:root[data-theme="light"] .home-dynamic-background canvas {
-  mix-blend-mode: multiply;
-}
-
-:root[data-theme="light"] .home-dashboard-frame,
-:root[data-theme="light"] .control-dashboard-frame,
-:root[data-theme="light"] .home-page-header,
-:root[data-theme="light"] .home-tech-panel,
-:root[data-theme="light"] .home-health-panel,
-:root[data-theme="light"] .home-heartbeat-card,
-:root[data-theme="light"] .home-health-status,
-:root[data-theme="light"] .home-system-strip,
-:root[data-theme="light"] .home-hero-panel,
-:root[data-theme="light"] .home-module-card,
-:root[data-theme="light"] .home-page-header .toolbar-btn,
-:root[data-theme="light"] .screen-dashboard__trigger,
-:root[data-theme="light"] .settings-dashboard-card,
-:root[data-theme="light"] .settings-identity-card,
-:root[data-theme="light"] .info-dashboard-card {
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.72), rgb(255 255 255 / 0.44)),
-    var(--ui-panel);
-  border-color: var(--ui-ring);
-  color: var(--ui-text);
-  box-shadow: var(--ui-shadow-soft);
-}
-
-:root[data-theme="light"] .home-oled-copy h2,
-:root[data-theme="light"] .home-hero-copy h2,
-:root[data-theme="light"] .home-status-pill__value,
-:root[data-theme="light"] .home-health-status strong,
-:root[data-theme="light"] .home-heartbeat-title,
-:root[data-theme="light"] .home-module-card__title,
-:root[data-theme="light"] .screen-dashboard__title {
-  color: var(--ui-text);
-}
-
-:root[data-theme="light"] .home-module-card__description,
-:root[data-theme="light"] .home-hero-copy p,
-:root[data-theme="light"] .home-health-status small,
-:root[data-theme="light"] .home-heartbeat-subtitle,
-:root[data-theme="light"] .screen-dashboard__hint {
-  color: var(--ui-muted);
-}
-
-:root[data-theme="light"] .home-module-card__title {
-  color: #f7fbff;
-}
-
-:root[data-theme="light"] .home-module-card__description {
-  color: #c5d2df;
-}
-
-:root[data-theme="light"] .theme-mode-toggle__track {
-  background: rgb(226 239 247 / 0.86);
-}
-
-:root[data-theme="light"] .screen-stream-workspace :is(.bg-slate-950\/40, .bg-slate-950\/45, .bg-slate-950\/50, .bg-slate-950\/55, .bg-slate-950\/80),
-:root[data-theme="light"] .app-shell :is(.bg-slate-950\/35, .bg-slate-950\/45, .bg-slate-950\/50, .bg-slate-950\/60, .bg-slate-950\/70) {
-  background-color: rgb(255 255 255 / 0.56) !important;
-}
-
-:root[data-theme="light"] :is(
-  .wifi-dashboard-frame,
-  .track-dashboard-frame,
-  .sensor-dashboard-frame,
-  .control-dashboard-frame,
-  .motor-dashboard-frame,
-  .section-status-strip,
-  .wifi-panel,
-  .wifi-form-card,
-  .wifi-networks-card,
-  .wifi-ap-summary-card,
-  .wifi-network-card,
-  .track-map-panel,
-  .track-panel-card,
-  .track-control-console,
-  .track-console-group,
-  .track-map-panel__modes,
-  .track-status-pair,
-  .sensor-connection-bar,
-  .sensor-toolbox,
-  .sensor-status-panel,
-  .sensor-side-block,
-  .sensor-scene-shell,
-  .sensor-sensitivity-control,
-  .sensor-bottom-console,
-  .sensor-console-group,
-  .sensor-console-card,
-  .sensor-simulation-workbench,
-  .app-panel,
-  .app-panel-strong
-) {
-  border-color: var(--ui-ring);
-  color: var(--ui-text);
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.74), rgb(255 255 255 / 0.5)),
-    var(--ui-panel);
-  box-shadow: var(--ui-shadow-soft);
-}
-
-:root[data-theme="light"] :is(.wifi-dashboard-grid-bg, .track-dashboard-grid-bg, .sensor-dashboard-grid-bg) {
-  background-image:
-    linear-gradient(rgb(3 105 161 / 0.075) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(3 105 161 / 0.075) 1px, transparent 1px),
-    linear-gradient(135deg, transparent 0 48%, rgb(3 105 161 / 0.05) 49% 51%, transparent 52% 100%);
-}
-
-:root[data-theme="light"] :is(
-  .section-status-row,
-  .section-status-row__detail,
-  .track-strip-metric,
-  .track-status-pair,
-  .sensor-console-group__header strong,
-  .sensor-console-card header,
-  .sensor-side-block__body,
-  .wifi-card-heading p,
-  .wifi-network-card p,
-  .track-note
-) {
-  color: var(--ui-muted);
-}
-
-:root[data-theme="light"] :is(
-  .section-status-row__value,
-  .track-strip-metric strong,
-  .track-panel-card > header h3,
-  .sensor-console-card header,
-  .sensor-side-block header,
-  .wifi-card-heading h3,
-  .wifi-network-card strong
-) {
-  color: var(--ui-text);
-}
-
-:root[data-theme="light"] :is(
-  .section-status-row--ok .section-status-row__value,
-  .track-status-pair--ok strong,
-  .track-strip-metric--ok strong,
-  .sensor-tone-ok
-) {
-  color: #047857;
-}
-
-:root[data-theme="light"] :is(
-  .section-status-row--info .section-status-row__value,
-  .track-status-pair--info strong,
-  .track-strip-metric--info strong,
-  .sensor-tone-info
-) {
-  color: #0369a1;
-}
-
-:root[data-theme="light"] :is(
-  .section-status-row--error .section-status-row__value,
-  .track-status-pair--error strong,
-  .track-strip-metric--error strong,
-  .sensor-tone-error
-) {
-  color: #be123c;
-}
-
-:root[data-theme="light"] :is(
-  .wifi-input,
-  .sensor-console-input,
-  .sensor-number-control input,
-  .track-number-control input
-) {
-  border-color: var(--ui-ring);
-  color: var(--ui-text);
-  background: var(--ui-field);
-}
-
-:root[data-theme="light"] :is(.sensor-switch, .track-inline-toggle) {
-  border-color: var(--ui-ring);
-  color: var(--ui-muted);
-  background: rgb(255 255 255 / 0.66);
-}
-
-:root[data-theme="light"] .sensor-switch__track,
-:root[data-theme="light"] .track-inline-toggle i {
-  background: rgb(203 213 225 / 0.9);
-}
-
-:root[data-theme="light"] .sensor-vertical-group {
-  border-color: rgb(15 49 68 / 0.12);
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.34), rgb(255 255 255 / 0.18)),
-    rgb(255 255 255 / 0.2);
-}
-
-:root[data-theme="light"] .sensor-vertical-bar__track {
-  border-color: rgb(15 49 68 / 0.12);
-  background: rgb(226 232 240 / 0.78);
-}
-
-:root[data-theme="light"] .settings-appearance-card .flex.flex-row {
-  color: var(--ui-text);
-}
-
-:root[data-theme="light"] button.app-mode-toggle[data-state="off"] {
-  background: rgb(226 232 240 / 0.86) !important;
-}
-
-.protocol-dashboard-shell,
-.docs-dashboard-shell {
-  position: relative;
-  min-height: 100vh;
-  overflow-x: hidden;
-  color: var(--ui-text);
-  background:
-    radial-gradient(circle at 74% 8%, var(--ui-accent-trace), transparent 34%),
-    radial-gradient(circle at 12% 26%, var(--ui-base-trace), transparent 30%),
-    linear-gradient(180deg, var(--ui-bg-0), var(--ui-bg-1));
-  isolation: isolate;
-}
-
-.protocol-dashboard-shell::before,
-.docs-dashboard-shell::before {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  content: "";
-  background-image:
-    linear-gradient(var(--ui-accent-trace) 1px, transparent 1px),
-    linear-gradient(90deg, var(--ui-accent-trace) 1px, transparent 1px),
-    linear-gradient(135deg, transparent 0 48%, var(--ui-base-trace) 49% 51%, transparent 52% 100%);
-  background-size: 38px 38px, 38px 38px, 120px 120px;
-  mask-image: linear-gradient(to bottom, black, rgb(0 0 0 / 0.72) 76%, transparent);
-}
-
-.protocol-dashboard-frame,
-.docs-dashboard-frame {
-  position: relative;
-  z-index: 1;
-}
-
-.protocol-studio-switcher {
-  border: 1px solid var(--ui-ring);
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0.025)),
-    var(--ui-panel-strong);
-  box-shadow: var(--ui-shadow-soft);
-  backdrop-filter: blur(var(--ui-blur)) saturate(145%);
-  -webkit-backdrop-filter: blur(var(--ui-blur)) saturate(145%);
-}
-
-.protocol-studio-toggle {
-  color: var(--ui-text);
-}
-
-.protocol-studio-card {
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.07), rgb(255 255 255 / 0.022)),
-    var(--ui-panel-strong);
-}
-
-.protocol-builder-panel {
-  padding: 0.9rem;
-}
-
-.protocol-builder-subpanel {
-  min-width: 0;
-  border: 1px solid var(--ui-ring);
-  border-radius: var(--ui-radius);
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.055), rgb(255 255 255 / 0.018)),
-    var(--ui-panel);
-  padding: 0.85rem;
-}
-
-.protocol-subpanel-heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.8rem;
-  border-bottom: 1px solid var(--ui-ring);
-  padding-bottom: 0.6rem;
-}
-
-.protocol-subpanel-heading span {
-  color: var(--ui-text);
-  font-size: 0.76rem;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.protocol-subpanel-heading small {
-  color: var(--ui-muted);
-  font-size: 0.68rem;
-  font-weight: 800;
-}
-
-.protocol-frame-card {
-  position: relative;
-  overflow: hidden;
-  border: 1px solid var(--ui-ring);
-  border-radius: var(--ui-radius);
-  background:
-    radial-gradient(circle at top left, var(--ui-accent-wash), transparent 26%),
-    radial-gradient(circle at bottom right, var(--ui-base-wash), transparent 30%),
-    var(--ui-panel-strong);
-  padding: 1rem;
-  box-shadow: var(--ui-shadow-soft);
-  backdrop-filter: blur(var(--ui-blur)) saturate(145%);
-  -webkit-backdrop-filter: blur(var(--ui-blur)) saturate(145%);
-}
-
-.protocol-frame-card--empty {
-  min-height: 8rem;
-}
-
-.docs-hero-card,
-.docs-related-card,
-.docs-content-card {
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.075), rgb(255 255 255 / 0.025)),
-    var(--ui-panel-strong);
-}
-
-.docs-topic-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
-}
-
+/* ── DOCS SECTION INTERACTIONS & STYLES ── */
 .docs-topic-card {
-  position: relative;
-  min-height: 15.5rem;
-  overflow: hidden;
-  border: 1px solid var(--ui-ring);
-  border-radius: var(--ui-radius);
-  color: var(--ui-text);
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.065), rgb(255 255 255 / 0.02)),
-    var(--ui-panel);
-  box-shadow: var(--ui-shadow-soft);
-  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
-  backdrop-filter: blur(var(--ui-blur)) saturate(145%);
-  -webkit-backdrop-filter: blur(var(--ui-blur)) saturate(145%);
-}
-
-.docs-topic-card:hover,
-.docs-topic-card--active {
-  border-color: var(--ui-ring-strong);
-  background:
-    linear-gradient(180deg, var(--ui-accent-wash), var(--ui-accent-trace)),
-    var(--ui-panel-hover);
-  box-shadow: var(--ui-shadow-lifted);
-  transform: translateY(-2px);
-}
-
-.docs-topic-icon-card {
-  display: grid;
-  flex: 0 0 auto;
-  place-items: center;
-  border: 1px solid var(--ui-ring);
-  border-radius: var(--ui-radius);
   background: var(--ui-panel);
-  padding: 1rem;
-  color: var(--ui-accent);
-}
-
-.docs-firmware-switcher {
   border: 1px solid var(--ui-ring);
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.08), rgb(255 255 255 / 0.025)),
-    var(--ui-panel-strong);
-  box-shadow: var(--ui-shadow-soft);
-  backdrop-filter: blur(var(--ui-blur)) saturate(145%);
-  -webkit-backdrop-filter: blur(var(--ui-blur)) saturate(145%);
+  border-radius: 1rem;
+  transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1), background-color 200ms ease, box-shadow 200ms ease;
+  cursor: pointer;
+  /* Stagger animation setup */
+  opacity: 0;
+  animation: docs-stagger-in 400ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
 }
 
-.docs-firmware-toggle {
-  color: var(--ui-text);
-  white-space: nowrap;
-}
-
-.docs-profile-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
-}
-
-.docs-profile-fact,
-.docs-scope-card,
-.docs-flow-step,
-.docs-reference-card {
-  border: 1px solid var(--ui-ring);
-  border-radius: var(--ui-radius);
-  background: var(--ui-panel);
-}
-
-.docs-profile-fact {
-  padding: 0.9rem 1rem;
-}
-
-.docs-profile-fact dt {
-  color: var(--ui-muted);
-  font-size: 0.66rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.docs-profile-fact dd {
-  margin-top: 0.45rem;
-  color: var(--ui-text);
-  font-size: 0.86rem;
-  font-weight: 750;
-  line-height: 1.35;
-}
-
-.docs-scope-card {
-  padding: 1rem;
-  background:
-    linear-gradient(135deg, var(--ui-accent-wash), transparent 65%),
-    var(--ui-panel);
-}
-
+.docs-topic-grid,
+.docs-profile-grid,
 .docs-flow-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1rem;
-  list-style: none;
-  padding: 0;
-}
-
-.docs-flow-step {
-  position: relative;
-  min-width: 0;
-  padding: 1rem;
-}
-
-.docs-flow-step:not(:last-child)::after {
-  position: absolute;
-  top: 50%;
-  right: -0.78rem;
-  z-index: 2;
-  width: 0.55rem;
-  height: 0.55rem;
-  content: "";
-  border-top: 2px solid var(--ui-accent);
-  border-right: 2px solid var(--ui-accent);
-  transform: translateY(-50%) rotate(45deg);
-}
-
-.docs-flow-step__index {
-  display: grid;
-  width: 1.75rem;
-  height: 1.75rem;
-  margin-bottom: 0.8rem;
-  place-items: center;
-  border: 1px solid var(--ui-ring-strong);
-  border-radius: 999px;
-  color: var(--ui-action-hover-ink);
-  background: var(--ui-accent);
-  font-size: 0.72rem;
-  font-weight: 900;
-}
-
-.docs-inline-path {
-  overflow-wrap: anywhere;
-  color: var(--ui-accent);
-  font-size: 0.7rem;
-  line-height: 1.45;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
 }
 
 .docs-media-grid,
 .docs-reference-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
 }
 
-.docs-media-card {
+.docs-profile-fact {
   display: flex;
-  min-width: 0;
-  overflow: hidden;
   flex-direction: column;
+  gap: 0.35rem;
+  padding: 1rem 1.25rem;
+  background: var(--ui-bg-1, rgb(15 23 42 / 0.2));
   border: 1px solid var(--ui-ring);
-  border-radius: var(--ui-radius);
-  background: var(--ui-panel);
+  border-radius: 0.75rem;
+  transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
-.docs-media-card__image,
-.docs-media-card__placeholder {
-  width: 100%;
-  aspect-ratio: 16 / 8;
-  border-bottom: 1px solid var(--ui-ring);
+.docs-profile-fact:hover {
+  background: var(--ui-panel-strong, var(--ui-panel));
 }
 
-.docs-media-card__image {
-  display: block;
-  object-fit: cover;
-}
-
-.docs-media-card__placeholder {
-  display: grid;
-  place-items: center;
-  color: var(--ui-muted);
-  background:
-    linear-gradient(var(--ui-accent-trace) 1px, transparent 1px),
-    linear-gradient(90deg, var(--ui-accent-trace) 1px, transparent 1px),
-    radial-gradient(circle at 50% 45%, var(--ui-accent-wash), transparent 45%),
-    var(--ui-panel-strong);
-  background-size: 24px 24px, 24px 24px, auto, auto;
-}
-
-.docs-media-card__placeholder span {
-  border: 1px solid var(--ui-ring-strong);
-  border-radius: 999px;
-  padding: 0.45rem 0.8rem;
-  background: var(--ui-panel-strong);
-  font-size: 0.68rem;
-  font-weight: 900;
+.docs-profile-fact dt {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
   letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
-.docs-media-kind,
-.docs-media-status {
-  font-size: 0.62rem;
-  font-weight: 850;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.docs-media-kind {
   color: var(--ui-muted);
 }
 
-.docs-media-status {
-  border: 1px solid var(--ui-ring);
-  border-radius: 999px;
-  padding: 0.3rem 0.5rem;
+.docs-profile-fact dd {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ui-text);
+  margin: 0;
 }
 
-.docs-media-status--disponible {
-  border-color: rgb(52 211 153 / 0.32);
-  color: rgb(167 243 208);
-  background: rgb(16 185 129 / 0.1);
+/* Parent hover dims others */
+.docs-topic-grid:has(.docs-topic-card:hover) .docs-topic-card:not(:hover) {
+  opacity: 0.6;
+  filter: blur(1px);
 }
 
-.docs-media-status--planificada {
-  border-color: rgb(251 191 36 / 0.3);
-  color: rgb(253 230 138);
-  background: rgb(245 158 11 / 0.09);
+.docs-topic-card:hover {
+  background: var(--ui-panel-strong, var(--ui-panel));
+  box-shadow: var(--ui-shadow-soft);
+  transform: translateY(-2px);
 }
 
-.docs-reference-card {
-  min-width: 0;
-  padding: 1rem;
+.docs-topic-card:active {
+  transform: scale(0.97);
+}
+
+@keyframes docs-stagger-in {
+  from {
+    opacity: 0;
+    transform: translateY(15px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .docs-related-button,
-.docs-bullet-card {
-  border: 1px solid var(--ui-ring);
-  border-radius: var(--ui-radius);
-  color: var(--ui-text);
-  background: var(--ui-panel);
-  transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
+.docs-media-card {
+  transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1), background-color 200ms ease;
+  border-radius: 0.75rem;
+  cursor: pointer;
 }
 
-.docs-related-button:hover {
-  border-color: var(--ui-ring-strong);
-  background: var(--ui-panel-hover);
-  transform: translateY(-1px);
+.docs-related-button:hover,
+.docs-media-card:hover {
+  background-color: var(--ui-panel-strong, var(--ui-panel));
 }
 
-:root[data-theme="light"] .protocol-frame-card :is(.text-cyan-50, .text-cyan-100\/80) {
-  color: #0e7490 !important;
+.docs-related-button:active,
+.docs-media-card:active {
+  transform: scale(0.97);
 }
 
-:root[data-theme="light"] .protocol-frame-card :is(.text-emerald-50, .text-emerald-100\/80) {
-  color: #047857 !important;
+.docs-media-card__image {
+  transition: opacity 400ms ease, filter 400ms ease;
+  opacity: 1;
+  filter: blur(0);
 }
 
-:root[data-theme="light"] .protocol-frame-card :is(.text-amber-50, .text-amber-100\/80) {
-  color: #b45309 !important;
-}
-
-:root[data-theme="light"] .protocol-frame-card :is(.text-violet-50, .text-violet-100\/80) {
-  color: #6d28d9 !important;
-}
-
-:root[data-theme="light"] .protocol-frame-card :is(.text-rose-50, .text-rose-100\/80) {
-  color: #be123c !important;
-}
-
-:root[data-theme="light"] .protocol-frame-card :is(.text-sky-50, .text-sky-100\/80) {
-  color: #0369a1 !important;
-}
-
-:root[data-theme="light"] .protocol-frame-card :is(.text-slate-50, .text-slate-100\/80) {
-  color: var(--ui-text) !important;
-}
-
-:root[data-theme="light"] .protocol-dashboard-shell :is(.text-cyan-100, .text-cyan-200, .text-cyan-300) {
-  color: #0369a1 !important;
-}
-
-:root[data-theme="light"] .protocol-dashboard-shell :is(.text-emerald-100, .text-emerald-200, .text-emerald-300) {
-  color: #047857 !important;
-}
-
-:root[data-theme="light"] .protocol-dashboard-shell :is(.text-violet-100, .text-violet-200, .text-violet-300) {
-  color: #6d28d9 !important;
-}
-
-:root[data-theme="light"] .protocol-dashboard-shell :is(.text-amber-100, .text-amber-200, .text-amber-300) {
-  color: #b45309 !important;
-}
-
-:root[data-theme="light"] .protocol-dashboard-shell :is(.text-rose-100, .text-rose-200, .text-rose-300) {
-  color: #be123c !important;
+@starting-style {
+  .docs-media-card__image {
+    opacity: 0;
+    filter: blur(8px);
+  }
 }
 
 @media (max-width: 1180px) {
@@ -4426,7 +3909,7 @@ button.app-mode-toggle--dev[data-state="on"] + .app-mode-toggle__label,
 
 .wifi-dashboard-frame {
   position: relative;
-  width: min(100%, 1440px);
+  width: min(100%, 2400px);
   margin: 0 auto;
   border: 1px solid rgb(34 211 238 / 0.16);
   border-radius: 8px;
@@ -4704,7 +4187,7 @@ button.app-mode-toggle--dev[data-state="on"] + .app-mode-toggle__label,
 .track-dashboard-frame {
   position: relative;
   z-index: 1;
-  width: min(100%, 1500px);
+  width: min(100%, 2400px);
   margin: 0 auto;
   overflow: hidden;
   border: 1px solid rgb(34 211 238 / 0.16);
@@ -5316,7 +4799,7 @@ button.app-mode-toggle--dev[data-state="on"] + .app-mode-toggle__label,
 .sensor-dashboard-frame {
   position: relative;
   display: grid;
-  width: min(100%, 1500px);
+  width: min(100%, 2400px);
   min-height: calc(100vh - clamp(1.5rem, 3.4vw, 3rem));
   margin: 0 auto;
   grid-template-rows: auto auto auto minmax(0, 1fr) auto;
@@ -6587,31 +6070,7 @@ label.sensor-tool-button {
   }
 }
 
-@keyframes modal-in {
-  from {
-    opacity: 0;
-    transform: translateY(10px) scale(0.98);
-    filter: blur(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-    filter: blur(0);
-  }
-}
 
-@keyframes modal-out {
-  from {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-    filter: blur(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateY(10px) scale(0.98);
-    filter: blur(8px);
-  }
-}
 
 @keyframes vt-depth-in {
   from {
@@ -6742,4 +6201,478 @@ label.sensor-tool-button {
 
 @keyframes app-loading-spin {
   to { transform: rotate(360deg); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LIGHT MODE OVERRIDES — Apple HIG
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── 1. Shell backgrounds ── */
+:root[data-theme="light"] .home-command-shell,
+:root[data-theme="light"] .wifi-dashboard-shell,
+:root[data-theme="light"] .track-dashboard-shell,
+:root[data-theme="light"] .sensor-dashboard-shell {
+  background: var(--ui-bg-0) !important;
+  color: var(--ui-text) !important;
+}
+
+/* ── 2. Dashboard frames ── */
+:root[data-theme="light"] .home-dashboard-frame,
+:root[data-theme="light"] .wifi-dashboard-frame,
+:root[data-theme="light"] .track-dashboard-frame,
+:root[data-theme="light"] .sensor-dashboard-frame {
+  background: var(--ui-bg-1) !important;
+  box-shadow: var(--ui-shadow-soft) !important;
+}
+
+/* ── 3. Headers ── */
+:root[data-theme="light"] .home-page-header,
+:root[data-theme="light"] .sensor-dashboard-header {
+  background: rgb(255 255 255 / 0.72) !important;
+  backdrop-filter: blur(18px) saturate(145%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(145%) !important;
+}
+:root[data-theme="light"] .home-page-header .toolbar-btn {
+  background: rgb(255 255 255 / 0.58) !important;
+  box-shadow: var(--ui-shadow-soft) !important;
+}
+
+/* ── 4. Panels & cards (glassmorphic in both modes) ── */
+:root[data-theme="light"] .home-tech-panel,
+:root[data-theme="light"] .home-health-panel,
+:root[data-theme="light"] .home-heartbeat-card,
+:root[data-theme="light"] .home-system-strip,
+:root[data-theme="light"] .section-status-strip,
+:root[data-theme="light"] .home-hero-panel,
+:root[data-theme="light"] .home-module-card,
+:root[data-theme="light"] .screen-dashboard__trigger,
+:root[data-theme="light"] .screen-dashboard__workspace,
+:root[data-theme="light"] .screen-stream-workspace,
+:root[data-theme="light"] .screen-stream-modal-heading,
+:root[data-theme="light"] .screen-live-control-block,
+:root[data-theme="light"] .dashboard-modal-heading,
+:root[data-theme="light"] .screen-dashboard__trigger--embedded,
+:root[data-theme="light"] .wifi-panel,
+:root[data-theme="light"] .wifi-form-card,
+:root[data-theme="light"] .wifi-networks-card,
+:root[data-theme="light"] .wifi-ap-summary-card,
+:root[data-theme="light"] .track-map-panel,
+:root[data-theme="light"] .track-panel-card,
+:root[data-theme="light"] .track-control-console,
+:root[data-theme="light"] .track-console-group,
+:root[data-theme="light"] .sensor-toolbox,
+:root[data-theme="light"] .sensor-status-panel,
+:root[data-theme="light"] .sensor-dashboard-stage,
+:root[data-theme="light"] .sensor-side-block,
+:root[data-theme="light"] .sensor-console-card,
+:root[data-theme="light"] .sensor-sensitivity-control,
+:root[data-theme="light"] .sensor-vertical-group,
+:root[data-theme="light"] .sensor-console-group,
+:root[data-theme="light"] .sensor-simulation-workbench,
+:root[data-theme="light"] .sensor-bottom-console,
+:root[data-theme="light"] .settings-dashboard-card,
+:root[data-theme="light"] .settings-identity-card,
+:root[data-theme="light"] .info-dashboard-card,
+:root[data-theme="light"] .qt-diagnostics-card,
+:root[data-theme="light"] .about-project-card,
+:root[data-theme="light"] .about-data-card,
+:root[data-theme="light"] .about-photo-placeholder,
+:root[data-theme="light"] .about-qr-card,
+:root[data-theme="light"] .about-repository-card,
+:root[data-theme="light"] .about-project-feedback {
+  background: var(--ui-panel) !important;
+  background-image: none !important;
+  border-color: var(--ui-ring) !important;
+  box-shadow: var(--ui-shadow-soft) !important;
+}
+
+/* ── 5. Dialog / Modal ── */
+:root[data-theme="light"] .app-dialog__overlay {
+  background: linear-gradient(180deg, rgb(15 23 42 / 0.25), rgb(15 23 42 / 0.45)) !important;
+}
+:root[data-theme="light"] .app-dialog {
+  background: rgb(255 255 255 / 0.82) !important;
+  background-image: none !important;
+  border-color: var(--ui-ring) !important;
+  backdrop-filter: blur(24px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(150%) !important;
+  box-shadow: var(--ui-shadow-lifted) !important;
+}
+:root[data-theme="light"] .app-dialog code {
+  background: rgb(15 23 42 / 0.06) !important;
+  color: var(--ui-accent) !important;
+}
+
+/* ── 6. Status pill / strip backgrounds ── */
+:root[data-theme="light"] .home-status-pill,
+:root[data-theme="light"] .home-health-status,
+:root[data-theme="light"] .track-canvas-overlay,
+:root[data-theme="light"] .track-action-button,
+:root[data-theme="light"] .track-map-panel__modes,
+:root[data-theme="light"] .track-inline-toggle,
+:root[data-theme="light"] .track-number-control,
+:root[data-theme="light"] .sensor-connection-bar,
+:root[data-theme="light"] .sensor-connection-action,
+:root[data-theme="light"] .sensor-tool-button,
+:root[data-theme="light"] .sensor-console-action,
+:root[data-theme="light"] .sensor-console-secondary,
+:root[data-theme="light"] .sensor-number-control input,
+:root[data-theme="light"] .sensor-console-input,
+:root[data-theme="light"] .track-number-control input,
+:root[data-theme="light"] .wifi-network-card__strength i,
+:root[data-theme="light"] .about-repository-qr-placeholder {
+  background: var(--ui-bg-2) !important;
+}
+
+/* ── 7. Tab groups / toggle tracks ── */
+:root[data-theme="light"] .settings-modal-tab-group,
+:root[data-theme="light"] .sensor-console-tabs {
+  background: var(--ui-bg-2) !important;
+  box-shadow: none !important;
+}
+:root[data-theme="light"] .settings-modal-tab {
+  border-color: var(--ui-ring) !important;
+  color: var(--ui-muted) !important;
+}
+:root[data-theme="light"] .settings-modal-tab:hover,
+:root[data-theme="light"] .sensor-console-tab:hover {
+  color: var(--ui-text) !important;
+  background: rgb(15 23 42 / 0.04) !important;
+}
+:root[data-theme="light"] .settings-modal-tab--active {
+  box-shadow: var(--ui-shadow-soft) !important;
+}
+:root[data-theme="light"] .theme-mode-toggle__track,
+:root[data-theme="light"] .dev-mode-toggle__track {
+  background: var(--ui-bg-2) !important;
+}
+:root[data-theme="light"] button.app-mode-toggle {
+  background: rgb(241 245 249 / 0.88) !important;
+  box-shadow: var(--ui-shadow-soft) !important;
+}
+:root[data-theme="light"] .sensor-switch {
+  background: var(--ui-bg-2) !important;
+}
+:root[data-theme="light"] .sensor-console-tab--real.sensor-console-tab--active {
+  background: linear-gradient(135deg, rgb(3 105 161 / 0.15), rgb(14 165 233 / 0.10)) !important;
+  color: #0369a1 !important;
+}
+:root[data-theme="light"] .sensor-console-tab--simulated.sensor-console-tab--active {
+  background: linear-gradient(135deg, rgb(99 102 241 / 0.12), rgb(79 70 229 / 0.08)) !important;
+  color: #4338ca !important;
+}
+:root[data-theme="light"] .sensor-console-group--simulated {
+  background: rgb(99 102 241 / 0.06) !important;
+}
+
+/* ── 8. Module card vignette ── */
+:root[data-theme="light"] .home-module-card {
+  color: var(--ui-text) !important;
+}
+:root[data-theme="light"] .home-module-card::after {
+  background: linear-gradient(180deg, transparent 40%, rgb(255 255 255 / 0.92)) !important;
+}
+:root[data-theme="light"] .home-module-card__meta {
+  background: rgb(241 245 249 / 0.78) !important;
+}
+
+/* ── 9. Buttons ── */
+:root[data-theme="light"] .app-button,
+:root[data-theme="light"] .refresh-btn,
+:root[data-theme="light"] .btn-indigo,
+:root[data-theme="light"] .btn-success,
+:root[data-theme="light"] .btn-danger,
+:root[data-theme="light"] .btn-green {
+  border-color: var(--ui-ring) !important;
+  box-shadow: var(--ui-shadow-soft) !important;
+}
+:root[data-theme="light"] .estado-btn,
+:root[data-theme="light"] .control-btn,
+:root[data-theme="light"] .wifi-btn {
+  background: var(--ui-panel) !important;
+  background-image: none !important;
+}
+
+/* ── 10. PRIMARY TEXT: headings, titles, strong values ── */
+:root[data-theme="light"] .home-mode-copy h2,
+:root[data-theme="light"] .home-oled-copy h2,
+:root[data-theme="light"] .home-hero-copy h2,
+:root[data-theme="light"] .home-health-status strong,
+:root[data-theme="light"] .home-status-pill__value,
+:root[data-theme="light"] .home-system-row__value,
+:root[data-theme="light"] .section-status-row__value,
+:root[data-theme="light"] .home-floating-dropdown,
+:root[data-theme="light"] .screen-dashboard__title,
+:root[data-theme="light"] .wifi-card-heading h3,
+:root[data-theme="light"] .track-map-panel__header h2,
+:root[data-theme="light"] .track-panel-card > header h3,
+:root[data-theme="light"] .track-sensor-bar strong,
+:root[data-theme="light"] .track-action-button strong,
+:root[data-theme="light"] .track-status-pair strong,
+:root[data-theme="light"] .track-strip-metric strong,
+:root[data-theme="light"] .track-inline-toggle,
+:root[data-theme="light"] .track-number-control,
+:root[data-theme="light"] .track-number-control input,
+:root[data-theme="light"] .sensor-connection-bar__main strong,
+:root[data-theme="light"] .sensor-vertical-group > header,
+:root[data-theme="light"] .sensor-vertical-bar > strong,
+:root[data-theme="light"] .sensor-console-card__label,
+:root[data-theme="light"] .sensor-simulation-workbench__header h2,
+:root[data-theme="light"] .sensor-modal-copy h2,
+:root[data-theme="light"] .sensor-bar-row strong {
+  color: var(--ui-text) !important;
+}
+
+/* ── 11. MUTED TEXT: subtitles, labels, hints ── */
+:root[data-theme="light"] .app-kicker {
+  color: #0369a1 !important;
+  background: #e0f2fe !important;
+  border-color: #bae6fd !important;
+}
+
+:root[data-theme="light"] .home-status-pill,
+:root[data-theme="light"] .home-hero-copy p,
+:root[data-theme="light"] .home-health-status small,
+:root[data-theme="light"] .home-heartbeat-subtitle,
+:root[data-theme="light"] .home-inline-status,
+:root[data-theme="light"] .home-system-row,
+:root[data-theme="light"] .screen-dashboard__hint,
+:root[data-theme="light"] .section-status-row,
+:root[data-theme="light"] .section-status-row__detail,
+:root[data-theme="light"] .wifi-card-heading p,
+:root[data-theme="light"] .wifi-network-card__strength,
+:root[data-theme="light"] .track-strip-metric,
+:root[data-theme="light"] .track-sensor-bar span,
+:root[data-theme="light"] .track-action-button span,
+:root[data-theme="light"] .track-status-pair,
+:root[data-theme="light"] .track-note,
+:root[data-theme="light"] .sensor-vertical-bar,
+:root[data-theme="light"] .sensor-vertical-group > header span,
+:root[data-theme="light"] .sensor-status-row,
+:root[data-theme="light"] .sensor-bar-row,
+:root[data-theme="light"] .sensor-switch,
+:root[data-theme="light"] .sensor-number-control,
+:root[data-theme="light"] .sensor-modal-copy label,
+:root[data-theme="light"] .sensor-modal-copy,
+:root[data-theme="light"] .sensor-tool-button,
+:root[data-theme="light"] .sensor-console-action,
+:root[data-theme="light"] .sensor-console-secondary,
+:root[data-theme="light"] .sensor-console-tab,
+:root[data-theme="light"] .sensor-console-tab__copy small,
+:root[data-theme="light"] .sensor-console-group__header strong,
+:root[data-theme="light"] .settings-modal-tab,
+:root[data-theme="light"] .home-mode-message {
+  color: var(--ui-muted) !important;
+}
+
+/* ── 12. ACCENT TEXT: kickers, interactive elements ── */
+:root[data-theme="light"] .home-kicker,
+:root[data-theme="light"] .home-primary-action,
+:root[data-theme="light"] .home-axis,
+:root[data-theme="light"] .screen-dashboard__trigger,
+:root[data-theme="light"] .screen-dashboard__eyebrow,
+:root[data-theme="light"] .wifi-network-card__icon,
+:root[data-theme="light"] .wifi-signal-icon,
+:root[data-theme="light"] .wifi-network-card__action,
+:root[data-theme="light"] .track-kicker,
+:root[data-theme="light"] .track-panel-card > header span,
+:root[data-theme="light"] .track-console-group > header,
+:root[data-theme="light"] .track-number-control strong,
+:root[data-theme="light"] .track-segment-button--active,
+:root[data-theme="light"] .sensor-toolbox h2,
+:root[data-theme="light"] .sensor-side-block header,
+:root[data-theme="light"] .sensor-connection-bar__main span,
+:root[data-theme="light"] .sensor-connection-action,
+:root[data-theme="light"] .sensor-tool-button--active,
+:root[data-theme="light"] .sensor-console-group__header > div:first-child > span,
+:root[data-theme="light"] .sensor-console-group__collapse,
+:root[data-theme="light"] .sensor-number-control span,
+:root[data-theme="light"] .sensor-switch--active,
+:root[data-theme="light"] .about-data-card > span,
+:root[data-theme="light"] .about-data-card dl > .about-data-section,
+:root[data-theme="light"] .about-repository-card__link,
+:root[data-theme="light"] .about-repository-qr-placeholder,
+:root[data-theme="light"] .about-repository-card__copy code {
+  color: var(--ui-accent) !important;
+}
+
+/* Custom contrast overrides for light theme kickers and specific titles */
+:root[data-theme="light"] .home-kicker,
+:root[data-theme="light"] .app-kicker,
+:root[data-theme="light"] .home-heartbeat-title {
+  color: #0369a1 !important;
+}
+
+/* ── 13. STATUS COLORS (darkened for light bg contrast) ── */
+:root[data-theme="light"] .home-status-pill--ok .home-status-pill__value,
+:root[data-theme="light"] .home-inline-status--ok,
+:root[data-theme="light"] .home-system-row__value--ok,
+:root[data-theme="light"] .section-status-row--ok .section-status-row__value,
+:root[data-theme="light"] .track-strip-metric--ok strong,
+:root[data-theme="light"] .track-status-pair--ok strong,
+:root[data-theme="light"] .sensor-tone-ok,
+:root[data-theme="light"] .sensor-console-card__status,
+:root[data-theme="light"] .qt-diagnostics-card--ok > strong,
+:root[data-theme="light"] .settings-assets-card__status,
+:root[data-theme="light"] .settings-card-heading__icon--online,
+:root[data-theme="light"] .home-mode-message--synced {
+  color: #047857 !important;
+}
+:root[data-theme="light"] .settings-assets-card__status-dot {
+  background: #047857 !important;
+}
+
+:root[data-theme="light"] .home-status-pill--error .home-status-pill__value,
+:root[data-theme="light"] .home-inline-status--error,
+:root[data-theme="light"] .home-system-row__value--error,
+:root[data-theme="light"] .section-status-row--error .section-status-row__value,
+:root[data-theme="light"] .track-strip-metric--error strong,
+:root[data-theme="light"] .track-status-pair--error strong,
+:root[data-theme="light"] .sensor-tone-error,
+:root[data-theme="light"] .qt-diagnostics-card--error > strong,
+:root[data-theme="light"] .home-mode-message--error,
+:root[data-theme="light"] .app-dialog__close:hover,
+:root[data-theme="light"] .sensor-tool-button--danger,
+:root[data-theme="light"] .about-project-feedback--error {
+  color: #be123c !important;
+}
+
+:root[data-theme="light"] .home-status-pill--info .home-status-pill__value,
+:root[data-theme="light"] .home-inline-status--info,
+:root[data-theme="light"] .section-status-row--info .section-status-row__value,
+:root[data-theme="light"] .track-strip-metric--info strong,
+:root[data-theme="light"] .track-status-pair--info strong,
+:root[data-theme="light"] .sensor-tone-info,
+:root[data-theme="light"] .qt-diagnostics-card--warning > strong,
+:root[data-theme="light"] .home-mode-message--loading,
+:root[data-theme="light"] .about-project-feedback--loading {
+  color: #0284c7 !important;
+}
+
+:root[data-theme="light"] .home-watchdog-alert,
+:root[data-theme="light"] .section-status-row--warn .section-status-row__value,
+:root[data-theme="light"] .track-strip-metric--warn strong,
+:root[data-theme="light"] .track-status-pair--warn strong,
+:root[data-theme="light"] .track-canvas-overlay,
+:root[data-theme="light"] .about-project-feedback--partial {
+  color: #a16207 !important;
+}
+
+:root[data-theme="light"] .about-project-feedback--success {
+  color: #047857 !important;
+}
+
+/* ── 14. Simulated / Indigo accents ── */
+:root[data-theme="light"] .sensor-console-group--simulated .sensor-console-group__header > div:first-child > span,
+:root[data-theme="light"] .sensor-console-group--simulated .sensor-console-group__collapse,
+:root[data-theme="light"] .sensor-simulation-workbench__header > span,
+:root[data-theme="light"] .sensor-simulation-workbench__status {
+  color: #4338ca !important;
+}
+
+/* ── 15. Logo / QR backgrounds ── */
+:root[data-theme="light"] .about-project-card__logo-shell {
+  background: radial-gradient(circle, rgb(14 165 233 / 0.08), rgb(241 245 249 / 0.72)) !important;
+}
+
+/* ── 16. Loading screen ── */
+:root[data-theme="light"] .app-loading-screen {
+  background: linear-gradient(145deg, var(--ui-bg-2), var(--ui-bg-1), var(--ui-bg-2)) !important;
+  color: var(--ui-text) !important;
+}
+:root[data-theme="light"] .app-loading-screen p {
+  color: var(--ui-accent) !important;
+}
+:root[data-theme="light"] .app-loading-screen__logo-shell {
+  background: var(--ui-panel) !important;
+  box-shadow: var(--ui-shadow-soft) !important;
+}
+:root[data-theme="light"] .app-loading-screen__spinner {
+  border-color: var(--ui-ring) !important;
+  border-top-color: var(--ui-accent) !important;
+  box-shadow: none !important;
+}
+
+/* ── 17. Mode toggle knob ── */
+:root[data-theme="light"] button.app-mode-toggle > span:first-child {
+  background: var(--ui-text) !important;
+}
+:root[data-theme="light"] .app-mode-toggle__label:has(+ input:checked) {
+  color: var(--ui-accent) !important;
+}
+
+/* ── 18. Sensor dashboard stage ── */
+:root[data-theme="light"] .sensor-dashboard-stage {
+  background: var(--ui-bg-1) !important;
+  background-image: none !important;
+}
+
+/* ── 19. Sensor bar tracks ── */
+:root[data-theme="light"] .sensor-vertical-bar__track,
+:root[data-theme="light"] .sensor-bar,
+:root[data-theme="light"] .track-sensor-bar__track,
+:root[data-theme="light"] .track-inline-toggle i {
+  background: var(--ui-bg-2) !important;
+}
+
+/* ── 20. Hover states for tool buttons ── */
+:root[data-theme="light"] .sensor-tool-button:hover,
+:root[data-theme="light"] .sensor-console-action:hover,
+:root[data-theme="light"] .sensor-console-secondary:hover {
+  color: var(--ui-text) !important;
+  background: rgb(15 23 42 / 0.06) !important;
+}
+
+/* ── 21. Segment buttons (track) ── */
+:root[data-theme="light"] .track-segment-button {
+  color: var(--ui-muted) !important;
+}
+:root[data-theme="light"] .track-canvas-overlay strong {
+  color: var(--ui-text) !important;
+}
+
+/* ── 22. Sensor status row values ── */
+:root[data-theme="light"] .sensor-status-row__value,
+:root[data-theme="light"] .sensor-tone-muted,
+:root[data-theme="light"] .sensor-bar-row strong {
+  color: var(--ui-text) !important;
+}
+
+/* ── 23. Input fields in light mode ── */
+:root[data-theme="light"] .app-shell input,
+:root[data-theme="light"] .app-shell textarea,
+:root[data-theme="light"] .app-shell select,
+:root[data-theme="light"] .app-input {
+  box-shadow: inset 0 1px 2px rgb(15 23 42 / 0.06) !important;
+}
+
+/* ── 24. Home floating dropdown hover ── */
+:root[data-theme="light"] .home-floating-dropdown:hover {
+  color: var(--ui-text) !important;
+  background: rgb(15 23 42 / 0.04) !important;
+}
+
+/* ── 25. Watchdog alert background ── */
+:root[data-theme="light"] .home-watchdog-alert {
+  background: rgb(217 119 6 / 0.08) !important;
+}
+
+/* ── 26. Control & Motor dashboard shells (match explicit dark blocks at ~line 3677) ── */
+:root[data-theme="light"] .control-dashboard-shell,
+:root[data-theme="light"] .motor-dashboard-shell {
+  background: var(--ui-bg-0) !important;
+  color: var(--ui-text) !important;
+}
+
+:root[data-theme="light"] .control-dashboard-frame,
+:root[data-theme="light"] .motor-dashboard-frame,
+:root[data-theme="light"] .sensor-scene-shell,
+:root[data-theme="light"] .sensor-tool-panel,
+:root[data-theme="light"] .sensor-side-panel,
+:root[data-theme="light"] .sensor-control-panel {
+  background: var(--ui-panel) !important;
+  background-image: none !important;
+  border-color: var(--ui-ring) !important;
+  color: var(--ui-text) !important;
+  box-shadow: var(--ui-shadow-soft) !important;
 }

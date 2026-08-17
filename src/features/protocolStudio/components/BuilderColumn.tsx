@@ -59,7 +59,7 @@ export function BuilderColumn(props: BuilderColumnProps) {
                     <option key={`src-${option.value}`} value={option.value}>{option.label}</option>
                   ))}
                 </select>
-                <small className="mt-1 block text-slate-500">En raw real el ESP ignora este valor y usa el nodo 0x5..0xC asignado por la sesión.</small>
+                <small className="mt-1 block text-[var(--ui-subtle)]">En raw real el ESP ignora este valor y usa el nodo 0x5..0xC asignado por la sesión.</small>
               </div>
               <div>
                 <label htmlFor="protocol-dst" className={SMALL_LABEL_CLASS}>Destino (dst)</label>
@@ -96,8 +96,8 @@ export function BuilderColumn(props: BuilderColumnProps) {
               </div>
 
               <div className={NOTE_CLASS}>
-                <p className="font-medium text-slate-200">{currentCommand?.name}</p>
-                <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-300">{currentCommand?.desc}</p>
+                <p className="font-medium text-[var(--ui-text)]">{currentCommand?.name}</p>
+                <p className="mt-2 whitespace-pre-line text-sm leading-6 text-[var(--ui-muted)]">{currentCommand?.desc}</p>
               </div>
             </div>
           </section>

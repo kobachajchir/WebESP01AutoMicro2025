@@ -39,7 +39,7 @@ export default function OledCommandPreview({
       viewBox={`0 0 ${SSD1306_WIDTH} ${SSD1306_HEIGHT}`}
       role="img"
       aria-label="Preview OLED STM"
-      className={`block aspect-[2/1] w-full rounded-md border border-cyan-300/30 bg-slate-950 ${className}`}
+      className={`block aspect-[2/1] w-full rounded-md border border-cyan-300/30 bg-[var(--ui-bg-0)] ${className}`}
     >
       <defs>
         <clipPath id={clipId}>

@@ -1,3 +1,4 @@
+import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useState } from "react";
 import logoDashboard from "../assets/LogoDashboard.webp";
 import { useEspWifiStatus } from "../contexts/EspWifiStatusContext";
@@ -221,8 +222,16 @@ export default function AboutProjectPanel() {
         <AboutChevron open={expanded} />
       </button>
 
-      {expanded ? (
-        <div id="about-project-details" className="about-project-card__details">
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            id="about-project-details"
+            className="about-project-card__details overflow-hidden"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+          >
           <div className={`about-project-feedback about-project-feedback--${loadState}`}>
             <span>{message}</span>
             <button
@@ -332,8 +341,9 @@ export default function AboutProjectPanel() {
               </a>
             ))}
           </div>
-        </div>
-      ) : null}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }

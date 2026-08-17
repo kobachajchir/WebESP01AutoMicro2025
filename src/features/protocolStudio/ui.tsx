@@ -32,7 +32,7 @@ export function Panel({ title, children, className = "", headerRight }: PanelPro
   return (
     <section className={`${PANEL_CLASS} ${className}`}>
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-200">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--ui-text)]">
           {title}
         </h2>
         {headerRight}
@@ -53,8 +53,8 @@ export function InfoCell({ label, value, tone = "cyan", className = "" }: InfoCe
       : "text-cyan-300";
 
   return (
-    <div className={`rounded-xl border border-white/10 bg-slate-950/50 p-3 text-center ${className}`}>
-      <div className="text-[10px] uppercase tracking-[0.2em] text-slate-200">{label}</div>
+    <div className={`rounded-xl border border-[var(--ui-ring)] bg-[var(--ui-bg-0)]/50 p-3 text-center ${className}`}>
+      <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--ui-text)]">{label}</div>
       <div className={`mt-1 font-mono text-sm font-bold ${toneClass}`}>{value}</div>
     </div>
   );
@@ -62,9 +62,9 @@ export function InfoCell({ label, value, tone = "cyan", className = "" }: InfoCe
 
 export function DetailItem({ label, value, className = "" }: DetailItemProps) {
   return (
-    <div className={`rounded-xl border border-white/10 bg-slate-950/50 p-3 ${className}`}>
-      <div className="text-[10px] uppercase tracking-[0.2em] text-slate-200">{label}</div>
-      <div className="mt-2 break-words font-mono text-sm text-slate-100">{value}</div>
+    <div className={`rounded-xl border border-[var(--ui-ring)] bg-[var(--ui-bg-0)]/50 p-3 ${className}`}>
+      <div className="text-[10px] uppercase tracking-[0.2em] text-[var(--ui-text)]">{label}</div>
+      <div className="mt-2 break-words font-mono text-sm text-[var(--ui-text)]">{value}</div>
     </div>
   );
 }
@@ -86,13 +86,13 @@ export function StatusPill({ tone, children }: StatusPillProps) {
 
 export function ColoredFrame({ bytes }: { bytes: number[] }) {
   if (bytes.length === 0) {
-    return <p className="text-sm text-slate-200">Sin frame para mostrar.</p>;
+    return <p className="text-sm text-[var(--ui-text)]">Sin frame para mostrar.</p>;
   }
 
   return (
-    <div className="flex min-h-14 flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-slate-950/50 p-3">
+    <div className="flex min-h-14 flex-wrap items-center gap-2 rounded-xl border border-[var(--ui-ring)] bg-[var(--ui-bg-0)]/50 p-3">
       {bytes.map((byte, index) => {
-        let colorClass = "bg-slate-500/15 text-slate-300 ring-slate-400/20";
+        let colorClass = "bg-[var(--ui-panel)] text-[var(--ui-muted)] ring-[var(--ui-ring)]";
 
         if (index < 4) {
           colorClass = "bg-cyan-500/15 text-cyan-200 ring-cyan-400/20";
@@ -105,7 +105,7 @@ export function ColoredFrame({ bytes }: { bytes: number[] }) {
         } else if (index === 8) {
           colorClass = "bg-rose-500/15 text-rose-200 ring-rose-400/20";
         } else if (index === bytes.length - 1) {
-          colorClass = "bg-slate-500/15 text-slate-300 ring-slate-400/20";
+          colorClass = "bg-[var(--ui-panel)] text-[var(--ui-muted)] ring-[var(--ui-ring)]";
         } else {
           colorClass = "bg-sky-500/15 text-sky-200 ring-sky-400/20";
         }
@@ -130,7 +130,7 @@ export function ValidationRow({ item }: { item: ValidationItem }) {
     item.tone === "ok" ? "text-emerald-300" : item.tone === "warn" ? "text-amber-300" : "text-rose-300";
 
   return (
-    <div className="rounded-xl border border-white/10 bg-slate-950/50 p-3 text-sm text-slate-200">
+    <div className="rounded-xl border border-[var(--ui-ring)] bg-[var(--ui-bg-0)]/50 p-3 text-sm text-[var(--ui-text)]">
       <span className={`mr-2 inline-flex min-w-6 justify-center font-bold ${textClass}`}>{icon}</span>
       <span>{item.message}</span>
     </div>

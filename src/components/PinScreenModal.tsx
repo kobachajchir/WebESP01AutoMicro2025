@@ -62,7 +62,7 @@ export default function PinScreenModal({
   return createPortal(
     <div className="fixed inset-0 z-[9999] h-screen w-screen">
       <div
-        className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+        className="absolute inset-0 bg-[var(--ui-bg-0)]/80 backdrop-blur-sm"
         onClick={canClose ? onClose : undefined}
         aria-hidden="true"
       />
