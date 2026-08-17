@@ -9,7 +9,7 @@ import SystemResetActions from "../components/SystemResetActions";
 import ThemeModeToggleCard from "../components/ThemeModeToggleCard";
 import HdAssetsSettingsCard from "../components/HdAssetsSettingsCard";
 import AboutProjectPanel from "../components/AboutProjectPanel";
-import ToggleButton from "../components/ToggleButton";
+import ToggleButton from "../components/toggleButton";
 import { useScreenStreamModal } from "../contexts/ScreenStreamModalContext";
 import { useScreen } from "../contexts/ScreenContext";
 import { useCarMode, type SelectableCarMode } from "../contexts/CarModeContext";
@@ -429,13 +429,7 @@ const Home: React.FC = () => {
  ? "ON"
  : "OFF";
  const qtUsbPortForwardingLabel = `${qtUsbConnected ? "Conectado" : "Desconectado"} · ${portForwardingLabel}`;
- const qtUsbPortForwardingTone: HomeTone = !qtUsbStateKnown || portForwardingEnabled === null
- ? "muted"
- : !qtUsbConnected
- ? "error"
- : portForwardingEnabled
- ? "ok"
- : "info";
+ const qtUsbPortForwardingTone: HomeTone = qtUsbConnected ? "ok" : "error";
  const watchdogLabel = `${heartbeatConfig.remainingRetries}/${heartbeatConfig.maxRetries}`;
  const wifiNetworkLabel = espWifiStatus?.networkSsid || "--";
  const wifiRssiLabel = espWifiStatus?.rssiDbm !== null && espWifiStatus?.rssiDbm !== undefined
@@ -1096,7 +1090,7 @@ const Home: React.FC = () => {
  >
  <div className="settings-dashboard-grid">
  <ThemeModeToggleCard className="settings-appearance-card--wide" />
- <HdAssetsSettingsCard />
+ <HdAssetsSettingsCard className="settings-assets-card--wide" />
  </div>
  <section className="settings-dashboard-card mt-4">
  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -1456,14 +1450,14 @@ function HomeSystemStatusStrip({
  <SystemMetricRow
  label="Estado"
  value={systemStateLabel}
- tone={connected ? "ok" : "muted"}
+ tone={connected ? "ok" : "error"}
  />
  <SystemMetricRow
  label="Conexión"
  value={connectionLabel}
  tone={connectionTone}
  />
- <SystemMetricRow label="Red ESP" value={networkLabel} tone="info" />
+ <SystemMetricRow label="Red ESP" value={networkLabel} tone={connected ? "ok" : "error"} />
  <SystemMetricRow
  label="QT / USB · PF"
  value={qtUsbPortForwardingLabel}
@@ -1527,7 +1521,23 @@ function NavigationModuleCard({
  {status}
  </span>
  <span title={metaLeft}>{metaLeft}</span>
- <span title={metaRight}>{metaRight}</span>
+ <span
+ title={metaRight}
+ className={
+ metaRight.toLowerCase().includes("offline") ||
+ metaRight.toLowerCase().includes("desconectad") ||
+ metaRight.toLowerCase().includes("no conectad")
+ ? "text-[#fb7185] font-bold"
+ : metaRight.toLowerCase().includes("real") ||
+ metaRight.toLowerCase().includes("listo") ||
+ metaRight.toLowerCase().includes("online") ||
+ metaRight.toLowerCase().includes("conectad")
+ ? "text-[#4ade80] font-bold"
+ : ""
+ }
+ >
+ {metaRight}
+ </span>
  </span>
  </button>
  );

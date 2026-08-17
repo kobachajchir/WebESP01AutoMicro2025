@@ -1,6 +1,7 @@
 // src/App.tsx
 import { lazy, Suspense, useEffect, useMemo, type ReactNode } from "react";
 import { RouterProvider, createBrowserRouter } from "react-router-dom";
+import { Toaster } from "sonner";
 import { useUser } from "./contexts/UserContext";
 import "./App.css";
 import NotFound from "./pages/NotFound";
@@ -173,8 +174,8 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full w-full relative">
-      {/* Aquí puedes agregar un Header si es necesario */}
       <RouterProvider router={router} />
+      <Toaster position="bottom-right" richColors theme="system" closeButton duration={3500} />
       <div className="mt-auto">{/*<AppFooter />*/}</div>
     </div>
   );

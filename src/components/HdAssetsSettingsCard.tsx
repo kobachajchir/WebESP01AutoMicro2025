@@ -1,5 +1,6 @@
+import { toast } from "sonner";
 import { useAssetQuality } from "../contexts/AssetQualityContext";
-import ToggleButton from "./ToggleButton";
+import ToggleButton from "./toggleButton";
 
 export default function HdAssetsSettingsCard({
   className = "",
@@ -19,6 +20,15 @@ export default function HdAssetsSettingsCard({
   }
 
   const sourceAvailable = hdModelUrl !== null;
+
+  function handleToggle(checked: boolean) {
+    setHdAssetsEnabled(checked);
+    toast.info(
+      checked
+        ? "Carga de modelo 3D HD habilitada (vía Internet)"
+        : "Usando modelo 3D optimizado local",
+    );
+  }
 
   return (
     <section
@@ -45,7 +55,7 @@ export default function HdAssetsSettingsCard({
         <div className="settings-assets-card__control">
           <ToggleButton
             checked={sourceAvailable && hdAssetsEnabled}
-            onChange={setHdAssetsEnabled}
+            onChange={handleToggle}
             disabled={!sourceAvailable}
             labels
             labelOff="Estándar"

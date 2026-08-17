@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import type { EspRebootMode } from "../api/UnerFrameV2";
 import { useUser } from "../contexts/UserContext";
 import { useWebSocket } from "../hooks/useWebSocket";
@@ -94,111 +95,137 @@ export default function SystemResetActions() {
  }, [connected, request]);
 
  async function sendReset(target: ResetTarget) {
- if (!connected) {
- setStatus({
- tone: "error",
- message: "No hay WebSocket activo para enviar el reinicio.",
- });
- return;
- }
+    if (!connected) {
+      toast.error("No hay WebSocket activo para enviar el reinicio.");
+      setStatus({
+        tone: "error",
+        message: "No hay WebSocket activo para enviar el reinicio.",
+      });
+      return;
+    }
 
- const espModeLabel =
- target === "esp"
- ? espRebootMode === "ap"
- ? "modo AP"
- : "modo red / STA"
- : null;
+    const espModeLabel =
+      target === "esp"
+        ? espRebootMode === "ap"
+          ? "modo AP"
+          : "modo red / STA"
+        : null;
 
- setPendingTarget(target);
- setStatus({
- tone: "loading",
- message: target === "esp" ? `Solicitando reinicio ESP en ${espModeLabel}...` : "Solicitando reinicio del STM32...",
- });
- try {
- await request(
- target === "esp" ? ESP_COMMANDS.REBOOT_ESP : ESP_COMMANDS.REBOOT_STM,
- target === "esp" ? { mode: espRebootMode } : {},
- { timeoutMs: 3_500 },
- );
- if (target === "stm") logout();
- setStatus({
- tone: "success",
- message: target === "esp"
- ? `Reinicio ESP confirmado para ${espModeLabel}; es normal que el enlace se corte.`
- : "RESET_MCU confirmado por el STM32. La sesion PIN se cerrara durante el reinicio.",
- });
- } catch (cause) {
- setStatus({
- tone: "error",
- message: cause instanceof Error
- ? cause.message
- : target === "esp"
- ? `El ESP no confirmo el reinicio en ${espModeLabel}.`
- : "El STM32 no confirmo rebootStm.",
- });
- } finally {
- setPendingTarget(null);
- }
- }
+    setPendingTarget(target);
+    const loadingMessage =
+      target === "esp"
+        ? `Solicitando reinicio ESP en ${espModeLabel}...`
+        : "Solicitando reinicio del STM32...";
+    setStatus({
+      tone: "loading",
+      message: loadingMessage,
+    });
+    const toastId = toast.loading(loadingMessage);
 
- async function applyExtensionProfile() {
- if (!connected) {
- setStatus({
- tone: "error",
- message: "No hay WebSocket activo para cambiar el perfil de hardware.",
- });
- return;
- }
+    try {
+      await request(
+        target === "esp" ? ESP_COMMANDS.REBOOT_ESP : ESP_COMMANDS.REBOOT_STM,
+        target === "esp" ? { mode: espRebootMode } : {},
+        { timeoutMs: 3_500 },
+      );
+      if (target === "stm") logout();
+      const successMessage =
+        target === "esp"
+          ? `Reinicio ESP confirmado (${espModeLabel}).`
+          : "RESET_MCU confirmado por el STM32.";
+      setStatus({
+        tone: "success",
+        message:
+          target === "esp"
+            ? `Reinicio ESP confirmado para ${espModeLabel}; es normal que el enlace se corte.`
+            : "RESET_MCU confirmado por el STM32. La sesion PIN se cerrara durante el reinicio.",
+      });
+      toast.success(successMessage, { id: toastId });
+    } catch (cause) {
+      const errorMessage =
+        cause instanceof Error
+          ? cause.message
+          : target === "esp"
+            ? `El ESP no confirmo el reinicio en ${espModeLabel}.`
+            : "El STM32 no confirmo rebootStm.";
+      setStatus({
+        tone: "error",
+        message: errorMessage,
+      });
+      toast.error(errorMessage, { id: toastId });
+    } finally {
+      setPendingTarget(null);
+    }
+  }
 
- setPendingTarget("profile");
- setProfileError(null);
- setStatus({
- tone: "loading",
- message: `Guardando el perfil ${profileLabel(selectedProfile)} y reiniciando la F4...`,
- });
+  async function applyExtensionProfile() {
+    if (!connected) {
+      toast.error("No hay WebSocket activo para cambiar el perfil de hardware.");
+      setStatus({
+        tone: "error",
+        message: "No hay WebSocket activo para cambiar el perfil de hardware.",
+      });
+      return;
+    }
 
- try {
- const response = await request<ExtensionProfileResponse>(
- ESP_COMMANDS.REBOOT_INTO_PROFILE,
- { profileId: selectedProfile },
- { timeoutMs: 5_000 },
- );
- if (response.success !== true || response.rebooting !== true) {
- throw new Error("La F4 rechazó el cambio de perfil y no se reinició.");
- }
+    setPendingTarget("profile");
+    setProfileError(null);
+    const label = profileLabel(selectedProfile);
+    const loadingMessage = `Guardando perfil ${label} y reiniciando F4...`;
+    setStatus({
+      tone: "loading",
+      message: loadingMessage,
+    });
+    const toastId = toast.loading(loadingMessage);
 
- const confirmedProfile = isExtensionProfileId(response.profileId)
- ? response.profileId
- : selectedProfile;
- const reconnectDelayMs =
- typeof response.reconnectDelayMs === "number" &&
- Number.isFinite(response.reconnectDelayMs)
- ? Math.min(10_000, Math.max(1_000, response.reconnectDelayMs))
- : 3_000;
+    try {
+      const response = await request<ExtensionProfileResponse>(
+        ESP_COMMANDS.REBOOT_INTO_PROFILE,
+        { profileId: selectedProfile },
+        { timeoutMs: 5_000 },
+      );
+      if (response.success !== true || response.rebooting !== true) {
+        throw new Error("La F4 rechazó el cambio de perfil y no se reinició.");
+      }
 
- setCurrentProfile(confirmedProfile);
- setStatus({
- tone: "loading",
- message: `Perfil ${profileLabel(confirmedProfile)} guardado. Esperando que la F4 vuelva a iniciar...`,
- });
+      const confirmedProfile = isExtensionProfileId(response.profileId)
+        ? response.profileId
+        : selectedProfile;
+      const reconnectDelayMs =
+        typeof response.reconnectDelayMs === "number" &&
+        Number.isFinite(response.reconnectDelayMs)
+          ? Math.min(10_000, Math.max(1_000, response.reconnectDelayMs))
+          : 3_000;
 
- await new Promise((resolve) => window.setTimeout(resolve, reconnectDelayMs));
- setStatus({
- tone: "success",
- message: "La F4 debe volver con el perfil nuevo. Iniciá sesión nuevamente para verificarlo.",
- });
- logout();
- } catch (cause) {
- setStatus({
- tone: "error",
- message: cause instanceof Error
- ? cause.message
- : "No se pudo aplicar el perfil de extensión.",
- });
- } finally {
- setPendingTarget(null);
- }
- }
+      setCurrentProfile(confirmedProfile);
+      setStatus({
+        tone: "loading",
+        message: `Perfil ${profileLabel(confirmedProfile)} guardado. Esperando que la F4 vuelva a iniciar...`,
+      });
+
+      await new Promise((resolve) => window.setTimeout(resolve, reconnectDelayMs));
+      setStatus({
+        tone: "success",
+        message: "La F4 debe volver con el perfil nuevo. Iniciá sesión nuevamente para verificarlo.",
+      });
+      toast.success(`Perfil ${profileLabel(confirmedProfile)} guardado. F4 reiniciada.`, {
+        id: toastId,
+      });
+      logout();
+    } catch (cause) {
+      const errorMessage =
+        cause instanceof Error
+          ? cause.message
+          : "No se pudo aplicar el perfil de extensión.";
+      setStatus({
+        tone: "error",
+        message: errorMessage,
+      });
+      toast.error(errorMessage, { id: toastId });
+    } finally {
+      setPendingTarget(null);
+    }
+  }
 
  return (
  <section className="app-panel-strong mt-4 p-4">

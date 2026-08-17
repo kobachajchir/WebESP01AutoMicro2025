@@ -11,6 +11,7 @@ import PageHeader from "../components/PageHeader";
 import SystemResetActions from "../components/SystemResetActions";
 import ThemeModeToggleCard from "../components/ThemeModeToggleCard";
 import HdAssetsSettingsCard from "../components/HdAssetsSettingsCard";
+import { toast } from "sonner";
 import { useWebSocket } from "../hooks/useWebSocket";
 import {
  getEspConnectionDetail,
@@ -171,100 +172,109 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  }, [espWifiStatus, provisioning]);
 
  const requestScan = useCallback(() => {
- if (activeView !== "WIFI") {
- return;
- }
+    if (activeView !== "WIFI") {
+      return;
+    }
 
- if (!connected) {
- setStationFeedback({
- tone: "error",
- text: "No hay WebSocket activo para pedir el escaneo WiFi.",
- });
- return;
- }
+    if (!connected) {
+      toast.error("No hay WebSocket activo para pedir el escaneo WiFi.");
+      setStationFeedback({
+        tone: "error",
+        text: "No hay WebSocket activo para pedir el escaneo WiFi.",
+      });
+      return;
+    }
 
- if (scanRequestInFlightRef.current) {
- console.log("[WiFi scan] pedido ignorado: ya hay un escaneo pendiente.");
- return;
- }
+    if (scanRequestInFlightRef.current) {
+      console.log("[WiFi scan] pedido ignorado: ya hay un escaneo pendiente.");
+      return;
+    }
 
- scanRequestInFlightRef.current = true;
- setScanLoading(true);
- setStationFeedback({
- tone: "info",
- text: "Solicitando al ESP el listado de redes detectadas...",
- });
+    scanRequestInFlightRef.current = true;
+    setScanLoading(true);
+    setStationFeedback({
+      tone: "info",
+      text: "Solicitando al ESP el listado de redes detectadas...",
+    });
+    toast.loading("Buscando redes WiFi cercanas...", { id: "wifi-scan" });
 
- const scanRequest = {
- requestId: createRequestId("wifi-scan"),
- target: "esp",
- command: WIFI_SCAN_START_COMMAND,
- params: {},
- };
- scanRequestIdRef.current = scanRequest.requestId;
- if (scanResultTimeoutRef.current !== null) {
- window.clearTimeout(scanResultTimeoutRef.current);
- }
- scanResultTimeoutRef.current = window.setTimeout(() => {
- scanResultTimeoutRef.current = null;
- scanRequestInFlightRef.current = false;
- scanRequestIdRef.current = null;
- setScanLoading(false);
- setStationFeedback({
- tone: "error",
- text: "El escaneo WiFi no entrego resultados dentro de 20 segundos.",
- });
- }, WIFI_SCAN_RECOVERY_TIMEOUT_MS);
+    const scanRequest = {
+      requestId: createRequestId("wifi-scan"),
+      target: "esp",
+      command: WIFI_SCAN_START_COMMAND,
+      params: {},
+    };
+    scanRequestIdRef.current = scanRequest.requestId;
+    if (scanResultTimeoutRef.current !== null) {
+      window.clearTimeout(scanResultTimeoutRef.current);
+    }
+    scanResultTimeoutRef.current = window.setTimeout(() => {
+      scanResultTimeoutRef.current = null;
+      scanRequestInFlightRef.current = false;
+      scanRequestIdRef.current = null;
+      setScanLoading(false);
+      setStationFeedback({
+        tone: "error",
+        text: "El escaneo WiFi no entrego resultados dentro de 20 segundos.",
+      });
+      toast.error("El escaneo WiFi no entregó resultados dentro de 20 segundos.", {
+        id: "wifi-scan",
+      });
+    }, WIFI_SCAN_RECOVERY_TIMEOUT_MS);
 
- console.log("[WiFi scan] pidiendo redes:", scanRequest);
- void request<Record<string, unknown>>(
- WIFI_SCAN_START_COMMAND,
- {},
- { requestId: scanRequest.requestId, timeoutMs: 7_000 },
- ).then((data) => {
- const scanResult = readWifiScanResult(data);
- if (scanResult.hasExplicitList) {
- if (scanResultTimeoutRef.current !== null) {
- window.clearTimeout(scanResultTimeoutRef.current);
- scanResultTimeoutRef.current = null;
- }
- scanRequestInFlightRef.current = false;
- scanRequestIdRef.current = null;
- setAvailableNetworks(scanResult.networks);
- setReportedNetworkCount(scanResult.reportedCount);
- setScanLoading(false);
- setStationFeedback({ tone: "success", text: formatScanResultsFeedback(scanResult) });
- return;
- }
+    console.log("[WiFi scan] pidiendo redes:", scanRequest);
+    void request<Record<string, unknown>>(
+      WIFI_SCAN_START_COMMAND,
+      {},
+      { requestId: scanRequest.requestId, timeoutMs: 7_000 },
+    ).then((data) => {
+      const scanResult = readWifiScanResult(data);
+      if (scanResult.hasExplicitList) {
+        if (scanResultTimeoutRef.current !== null) {
+          window.clearTimeout(scanResultTimeoutRef.current);
+          scanResultTimeoutRef.current = null;
+        }
+        scanRequestInFlightRef.current = false;
+        scanRequestIdRef.current = null;
+        setAvailableNetworks(scanResult.networks);
+        setReportedNetworkCount(scanResult.reportedCount);
+        setScanLoading(false);
+        const feedbackText = formatScanResultsFeedback(scanResult);
+        setStationFeedback({ tone: "success", text: feedbackText });
+        toast.success(feedbackText, { id: "wifi-scan" });
+        return;
+      }
 
- setStationFeedback({ tone: "info", text: "Escaneo iniciado en la ESP; esperando wifi.scan.results..." });
- }).catch((cause) => {
- const recoverableDisconnect =
- cause instanceof EspApiError &&
- (cause.code === "connection_lost" ||
- cause.code === "offline" ||
- cause.code === "timeout");
- if (recoverableDisconnect && scanRequestInFlightRef.current) {
- setScanLoading(true);
- setStationFeedback({
- tone: "info",
- text: "El enlace se interrumpio durante el barrido. Esperando hasta 20 segundos a que el ESP reconecte y entregue las redes...",
- });
- return;
- }
- if (scanResultTimeoutRef.current !== null) {
- window.clearTimeout(scanResultTimeoutRef.current);
- scanResultTimeoutRef.current = null;
- }
- scanRequestInFlightRef.current = false;
- scanRequestIdRef.current = null;
- setScanLoading(false);
- setStationFeedback({
- tone: "error",
- text: cause instanceof Error ? cause.message : "El ESP rechazo el escaneo WiFi.",
- });
- });
- }, [activeView, connected, request]);
+      setStationFeedback({ tone: "info", text: "Escaneo iniciado en la ESP; esperando wifi.scan.results..." });
+    }).catch((cause) => {
+      const recoverableDisconnect =
+        cause instanceof EspApiError &&
+        (cause.code === "connection_lost" ||
+          cause.code === "offline" ||
+          cause.code === "timeout");
+      if (recoverableDisconnect && scanRequestInFlightRef.current) {
+        setScanLoading(true);
+        setStationFeedback({
+          tone: "info",
+          text: "El enlace se interrumpio durante el barrido. Esperando hasta 20 segundos a que el ESP reconecte y entregue las redes...",
+        });
+        return;
+      }
+      if (scanResultTimeoutRef.current !== null) {
+        window.clearTimeout(scanResultTimeoutRef.current);
+        scanResultTimeoutRef.current = null;
+      }
+      scanRequestInFlightRef.current = false;
+      scanRequestIdRef.current = null;
+      setScanLoading(false);
+      const errorMsg = cause instanceof Error ? cause.message : "El ESP rechazo el escaneo WiFi.";
+      setStationFeedback({
+        tone: "error",
+        text: errorMsg,
+      });
+      toast.error(errorMsg, { id: "wifi-scan" });
+    });
+  }, [activeView, connected, request]);
 
  const refreshApClients = useCallback(async () => {
  if (!connected) {

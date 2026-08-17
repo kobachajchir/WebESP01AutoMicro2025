@@ -1,14 +1,12 @@
-import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import DocsFirmwareSelector from "../features/docs/DocsFirmwareSelector";
 import {
- DOC_FIRMWARE_PROFILES,
- DOC_TOPICS,
- docsTopicHref,
- getDocFirmwareTarget,
- type DocFirmwareTarget,
- type DocTopicSlug,
+  DOC_FIRMWARE_PROFILES,
+  DOC_TOPICS,
+  docsTopicHref,
+  getDocFirmwareTarget,
+  type DocFirmwareTarget,
 } from "../features/docs/docsContent";
 import { renderDocTopicIcon } from "../features/docs/docsCatalog";
 

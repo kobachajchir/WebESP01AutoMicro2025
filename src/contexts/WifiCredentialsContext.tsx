@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { toast } from "sonner";
 import WifiCredentialsModal from "../components/WifiCredentialsModal";
 import { useWebSocket } from "../hooks/useWebSocket";
 import {
@@ -424,6 +425,28 @@ export function WifiCredentialsProvider({
       clearCloseTimer();
     };
   }, [clearCloseTimer]);
+
+  const prevStatusRef = useRef<WifiCredentialsStatus>("idle");
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    prevStatusRef.current = state.status;
+
+    if (prev === state.status || state.status === "idle") return;
+
+    if (state.status === "success") {
+      toast.success(`Conectado a WiFi "${state.ssid}" (IP: ${state.ip})`, {
+        id: "wifi-creds-status",
+      });
+    } else if (state.status === "failed" || state.status === "timeout") {
+      toast.error(state.error ?? `Error al asociar con "${state.ssid}"`, {
+        id: "wifi-creds-status",
+      });
+    } else if (state.status === "submitting" || state.status === "connecting") {
+      toast.loading(`Enviando credenciales y conectando a "${state.ssid}"...`, {
+        id: "wifi-creds-status",
+      });
+    }
+  }, [state.error, state.ip, state.ssid, state.status]);
 
   return (
     <WifiCredentialsContext.Provider

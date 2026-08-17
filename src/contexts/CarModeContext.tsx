@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { toast } from "sonner";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { ESP_COMMANDS } from "../protocol/wsApi";
 import { useUser } from "./UserContext";
@@ -16,6 +17,14 @@ import { useUser } from "./UserContext";
 export type CarModeLabel = "IDLE" | "FOLLOW" | "TEST" | "GOTO" | "UNKNOWN";
 export type SelectableCarMode = Exclude<CarModeLabel, "UNKNOWN">;
 export type CarModeStatus = "idle" | "loading" | "synced" | "error";
+
+export const CAR_MODE_NAMES: Record<CarModeLabel, string> = {
+  IDLE: "Manual / Detenido",
+  FOLLOW: "Seguidor de Línea",
+  TEST: "Banco de Pruebas",
+  GOTO: "Navegación GoTo",
+  UNKNOWN: "Desconocido",
+};
 
 interface CarModeContextValue {
   mode: CarModeLabel;
@@ -97,11 +106,14 @@ export function CarModeProvider({ children }: CarModeProviderProps) {
 
   const setCarMode = useCallback(async (nextMode: SelectableCarMode): Promise<boolean> => {
     if (!connected || !remotePinAuthenticated) {
+      toast.error("Se requiere conexión activa y PIN autenticado para cambiar de modo.");
       setStatus("error");
       return false;
     }
 
     const expectedMode = CAR_MODE_VALUE_BY_LABEL[nextMode];
+    const modeFriendlyName = CAR_MODE_NAMES[nextMode] ?? nextMode;
+    const toastId = toast.loading(`Cambiando a modo ${modeFriendlyName}...`);
     setStatus("loading");
     try {
       const data = await request<Record<string, unknown>>(
@@ -111,6 +123,7 @@ export function CarModeProvider({ children }: CarModeProviderProps) {
       );
       if (typeof data.status === "number" && data.status !== 0) {
         console.warn(`[car-mode] F4 rechazo el cambio de modo (status ${data.status}).`);
+        toast.error(`La F4 rechazó el modo ${modeFriendlyName}`, { id: toastId });
         setStatus("error");
         requestCarMode();
         return false;
@@ -120,6 +133,7 @@ export function CarModeProvider({ children }: CarModeProviderProps) {
         applyCarModeValue(confirmedMode, "setCarMode");
       }
       if (confirmedMode === expectedMode) {
+        toast.success(`Modo ${modeFriendlyName} activado`, { id: toastId });
         return true;
       }
     } catch (cause) {
@@ -129,6 +143,7 @@ export function CarModeProvider({ children }: CarModeProviderProps) {
     // La F4 publica carModeChanged al aplicar el modo. Si la respuesta directa
     // se pierde, ese evento sigue siendo una confirmacion autoritativa.
     if (rawModeRef.current === expectedMode) {
+      toast.success(`Modo ${modeFriendlyName} activado`, { id: toastId });
       setStatus("synced");
       return true;
     }
@@ -146,6 +161,7 @@ export function CarModeProvider({ children }: CarModeProviderProps) {
         applyCarModeValue(confirmedMode, "setCarMode.verify");
       }
       if (confirmedMode === expectedMode) {
+        toast.success(`Modo ${modeFriendlyName} activado`, { id: toastId });
         return true;
       }
     } catch (verificationCause) {
@@ -153,10 +169,12 @@ export function CarModeProvider({ children }: CarModeProviderProps) {
     }
 
     if (rawModeRef.current === expectedMode) {
+      toast.success(`Modo ${modeFriendlyName} activado`, { id: toastId });
       setStatus("synced");
       return true;
     }
 
+    toast.error(`No se pudo confirmar el modo ${modeFriendlyName}`, { id: toastId });
     setStatus("error");
     requestCarMode();
     return false;

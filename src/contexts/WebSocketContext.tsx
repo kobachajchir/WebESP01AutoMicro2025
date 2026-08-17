@@ -9,6 +9,7 @@ import React, {
  type ReactNode,
 } from "react";
 import Modal from "../components/modal";
+import { toast } from "sonner";
 import { EspClient, type EspApiError } from "../protocol/espClient";
 import {
  parseWsEnvelope,
@@ -265,6 +266,30 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
  rawListenerSet.clear();
  };
  }, [clearTimer, connect]);
+
+  const prevPhaseRef = useRef<ConnectionPhase>("idle");
+  useEffect(() => {
+    const prev = prevPhaseRef.current;
+    prevPhaseRef.current = connectionPhase;
+
+    if (prev === connectionPhase) return;
+
+    if (connectionPhase === "ready") {
+      if (prev !== "idle") {
+        toast.success(mockMode ? "Modo Mock activado" : "Conectado al ESP-01", {
+          id: "ws-connection-status",
+        });
+      }
+    } else if (connectionPhase === "retry_wait") {
+      toast.loading("Reconectando con la placa...", {
+        id: "ws-connection-status",
+      });
+    } else if (connectionPhase === "failed") {
+      toast.error("No se pudo conectar con el ESP-01", {
+        id: "ws-connection-status",
+      });
+    }
+  }, [connectionPhase, mockMode]);
 
  useEffect(() => {
  if (!heartbeatConfig.isActive || !connected || lastHeartbeatAt === null) return;

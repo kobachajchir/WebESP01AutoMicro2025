@@ -1,11 +1,12 @@
 import { useState } from "react";
+import { toast } from "sonner";
 import {
   applyThemeMode,
   loadThemeMode,
   saveThemeMode,
   type ThemeMode,
 } from "../utils/theme";
-import ToggleButton from "./ToggleButton";
+import ToggleButton from "./toggleButton";
 
 export default function ThemeModeToggleCard({
   className = "",
@@ -19,6 +20,7 @@ export default function ThemeModeToggleCard({
     setThemeMode(nextMode);
     saveThemeMode(nextMode);
     applyThemeMode(nextMode);
+    toast.info(`Tema cambiado a ${nextMode === "dark" ? "modo oscuro" : "modo claro"}`);
   }
 
   return (

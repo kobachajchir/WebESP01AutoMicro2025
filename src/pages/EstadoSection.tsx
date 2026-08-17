@@ -3,7 +3,7 @@ import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import PageHeader from "../components/PageHeader";
 import Modal from "../components/modal";
 import MpuIrScene3D from "../components/MpuIrScene3D";
-import RealtimeEulerPanel from "../components/RealtimeEulerPanel";
+import RealtimeEulerPanel from "../components/RealTimeEulerPanel";
 import MockEulerGenerator from "../components/MockEulerGenerator";
 import OrientationControls from "../components/OrientationControls";
 import SectionStatusStrip from "../components/SectionStatusStrip";

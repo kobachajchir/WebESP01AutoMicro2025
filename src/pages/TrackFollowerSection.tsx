@@ -27,6 +27,7 @@ import { useModelLoadingState } from "../hooks/useModelLoadingState";
 import Modal from "../components/modal";
 import ThemeModeToggleCard from "../components/ThemeModeToggleCard";
 import HdAssetsSettingsCard from "../components/HdAssetsSettingsCard";
+import { toast } from "sonner";
 import { usePreferredModelUrl } from "../contexts/AssetQualityContext";
 
 type CameraMode = "top" | "iso" | "chase" | "orbit";
@@ -366,6 +367,7 @@ export default function TrackFollowerSection() {
         ? `Solicitando IR compartido cada ${normalizedPeriod} ms.`
         : "Liberando IR de la vista seguidor; otros consumidores se conservan.",
     }));
+    toast.info(enable ? "Streaming de sensores IR iniciado" : "Streaming de sensores IR detenido");
   }
 
   function resetSession() {
@@ -378,6 +380,7 @@ export default function TrackFollowerSection() {
     setSeqGapCount(0);
     setLineLostCount(0);
     setRecording(false);
+    toast.info("Mapeo y trayectoria reiniciados");
   }
 
   function exportNdjson() {
@@ -415,6 +418,7 @@ export default function TrackFollowerSection() {
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+    toast.success(`Sesión exportada (${trackPoints.length} puntos capturados)`);
   }
 
   return (
