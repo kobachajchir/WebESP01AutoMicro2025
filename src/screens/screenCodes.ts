@@ -234,3 +234,37 @@ export function getValidationPinDigitsCount(
 
   return Math.max(1, def.pinDigitsCount ?? 4);
 }
+
+export const SCREEN_CODE_CORE_FAVORITES: ScreenCode = 0x010202;
+
+export const SCREEN_CODE_CONNECTIVITY_OSK_WIFI_SSID: ScreenCode = 0x02020E;
+
+export const SCREEN_CODE_CONNECTIVITY_OSK_WIFI_PASSWORD: ScreenCode = 0x02020F;
+
+export const SCREEN_CODE_CONNECTIVITY_OSK_WIFI_IPV4: ScreenCode = 0x020210;
+
+export const SCREEN_CODE_SENSORS_IR_AMBIENT: ScreenCode = 0x030203;
+
+export const SCREEN_CODE_SENSORS_KEYBOARD_MENU: ScreenCode = 0x030600;
+
+export const SCREEN_CODE_TEST_KEYBOARD_ASCII: ScreenCode = 0x030601;
+
+export const SCREEN_CODE_TEST_KEYBOARD_NUMERIC: ScreenCode = 0x030602;
+
+export const SCREEN_CODE_SETTINGS_ABOUT_BOOTLOADER: ScreenCode = 0x050204;
+
+export const SCREEN_CODE_SETTINGS_SYSTEM_MENU: ScreenCode = 0x050500;
+
+export const SCREEN_CODE_SETTINGS_SYSTEM_BOOTLOADER_CONFIRM: ScreenCode = 0x050501;
+
+export const SCREEN_CODE_SETTINGS_PREFS_IR_MENU: ScreenCode = 0x050419;
+
+export const SCREEN_CODE_SETTINGS_PREFS_IR_OBJECTS: ScreenCode = 0x05041A;
+
+export const SCREEN_CODE_SETTINGS_PREFS_IR_LINE: ScreenCode = 0x05041B;
+
+export const SCREEN_CODE_SETTINGS_PREFS_IR_LIGHTS: ScreenCode = 0x05041C;
+
+export const SCREEN_CODE_INPUT_KEYBOARD_ALPHA: ScreenCode = 0x090101;
+
+export const SCREEN_CODE_INPUT_KEYBOARD_NUMERIC: ScreenCode = 0x090102;

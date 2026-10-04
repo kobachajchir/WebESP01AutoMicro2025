@@ -27,6 +27,23 @@ export interface ScreenMeta {
 }
 
 export const SCREEN_META_BY_CODE: Record<number, ScreenMeta> = {
+  0x010202: { title: "CORE FAVORITES", menu: 0x01, submenu: 0x02, page: 0x02 },
+  0x02020e: { title: "CONNECTIVITY OSK WIFI SSID", menu: 0x02, submenu: 0x02, page: 0x0E },
+  0x02020f: { title: "CONNECTIVITY OSK WIFI PASSWORD", menu: 0x02, submenu: 0x02, page: 0x0F },
+  0x020210: { title: "CONNECTIVITY OSK WIFI IPV4", menu: 0x02, submenu: 0x02, page: 0x10 },
+  0x030203: { title: "SENSORS IR AMBIENT", menu: 0x03, submenu: 0x02, page: 0x03 },
+  0x030600: { title: "SENSORS KEYBOARD MENU", menu: 0x03, submenu: 0x06, page: 0x00 },
+  0x030601: { title: "TEST KEYBOARD ASCII", menu: 0x03, submenu: 0x06, page: 0x01 },
+  0x030602: { title: "TEST KEYBOARD NUMERIC", menu: 0x03, submenu: 0x06, page: 0x02 },
+  0x050204: { title: "SETTINGS ABOUT BOOTLOADER", menu: 0x05, submenu: 0x02, page: 0x04 },
+  0x050500: { title: "SETTINGS SYSTEM MENU", menu: 0x05, submenu: 0x05, page: 0x00 },
+  0x050501: { title: "SETTINGS SYSTEM BOOTLOADER CONFIRM", menu: 0x05, submenu: 0x05, page: 0x01 },
+  0x050419: { title: "SETTINGS PREFS IR MENU", menu: 0x05, submenu: 0x04, page: 0x19 },
+  0x05041a: { title: "SETTINGS PREFS IR OBJECTS", menu: 0x05, submenu: 0x04, page: 0x1A },
+  0x05041b: { title: "SETTINGS PREFS IR LINE", menu: 0x05, submenu: 0x04, page: 0x1B },
+  0x05041c: { title: "SETTINGS PREFS IR LIGHTS", menu: 0x05, submenu: 0x04, page: 0x1C },
+  0x090101: { title: "INPUT KEYBOARD ALPHA", menu: 0x09, submenu: 0x01, page: 0x01 },
+  0x090102: { title: "INPUT KEYBOARD NUMERIC", menu: 0x09, submenu: 0x01, page: 0x02 },
   0x010001: screenMeta("Startup / arranque", 0x010001, SCREEN_SOURCES.SYSTEM, [0x01, 0x00, 0x01, 0x00, 0x05]),
   0x010101: screenMeta("Dashboard / Inicio", 0x010101, SCREEN_SOURCES.RENDER, [0x01, 0x01, 0x01, 0x00, 0x02]),
   0x010102: screenMeta("Cambio de modo", 0x010102, SCREEN_SOURCES.RENDER, [0x02, 0x01, 0x01, 0x00, 0x02]),
@@ -46,7 +63,7 @@ export const SCREEN_META_BY_CODE: Record<number, ScreenMeta> = {
   0x02020a: screenMeta("Credenciales WiFi desde Web", 0x02020a, SCREEN_SOURCES.NOTIFICATION, [0x0a, 0x02, 0x02, 0x00, 0x03]),
   0x02020b: screenMeta("Credenciales WiFi aceptadas", 0x02020b, SCREEN_SOURCES.NOTIFICATION, [0x0b, 0x02, 0x02, 0x00, 0x03]),
   0x02020c: screenMeta("Credenciales WiFi fallidas", 0x02020c, SCREEN_SOURCES.NOTIFICATION, [0x0c, 0x02, 0x02, 0x00, 0x03]),
-  0x02020d: screenMeta("Ingreso local de clave WiFi (AT)", 0x02020d, SCREEN_SOURCES.RENDER, [0x0d, 0x02, 0x02, 0x00, 0x02]),
+  0x02020d: screenMeta("Ingreso local de Password WiFi (AT)", 0x02020d, SCREEN_SOURCES.RENDER, [0x0d, 0x02, 0x02, 0x00, 0x02]),
 
   0x020301: screenMeta("Menu Enlace ESP", 0x020301, SCREEN_SOURCES.MENU, [0x01, 0x03, 0x02, 0x00, 0x01]),
   0x020302: screenMeta("Chequeando conexion ESP", 0x020302, SCREEN_SOURCES.NOTIFICATION, [0x02, 0x03, 0x02, 0x00, 0x03]),

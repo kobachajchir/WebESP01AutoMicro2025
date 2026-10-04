@@ -1,0 +1,4038 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-03",
+  "source": "Observed ESP registry + reviewed F4 handlers; metadata availability is not physical proof.",
+  "commands": [
+    {
+      "id": "0x10",
+      "name": "SET_MODE_AP",
+      "owner": "ESP",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        1,
+        255
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 300,
+      "privilege": "ESP_ADMIN",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:23; ESP:src/uner_app_handlers.cpp",
+      "fields": [],
+      "schema": "Request vacío. Respuesta ESP: status inicial + bloque WiFi variable (no asumir IP de 4 bytes solamente).",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x11",
+      "name": "SET_MODE_STA",
+      "owner": "ESP",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        1,
+        255
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 300,
+      "privilege": "ESP_ADMIN",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:24; ESP:src/uner_app_handlers.cpp",
+      "fields": [],
+      "schema": "Request vacío. Respuesta ESP: status inicial + bloque WiFi variable (no asumir IP de 4 bytes solamente).",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x12",
+      "name": "SET_CREDENTIALS",
+      "owner": "ESP",
+      "request": [
+        3,
+        98
+      ],
+      "response": [
+        1,
+        255
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 300,
+      "privilege": "ESP_ADMIN",
+      "implemented": true,
+      "sensitive": true,
+      "evidence": "ESP:src/f4_command_registry.c:25",
+      "fields": [
+        {
+          "id": "target",
+          "label": "Destino",
+          "type": "select",
+          "options": [
+            {
+              "value": "0",
+              "label": "AP"
+            },
+            {
+              "value": "1",
+              "label": "STA"
+            }
+          ]
+        },
+        {
+          "id": "ssid",
+          "label": "SSID UTF-8",
+          "type": "str",
+          "placeholder": ""
+        },
+        {
+          "id": "password",
+          "label": "Contraseña UTF-8",
+          "type": "str",
+          "placeholder": ""
+        }
+      ],
+      "schema": "target:u8 (0 AP,1 STA),ssid_len:u8,ssid:utf8,password_len:u8,password:utf8",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x13",
+      "name": "CLEAR_CREDENTIALS",
+      "owner": "ESP",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        1,
+        1
+      ],
+      "completion": "ACK_THEN_SAME_COMMAND",
+      "timeoutMs": 100,
+      "privilege": "ESP_ADMIN",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:26",
+      "fields": [],
+      "schema": "Request vacío.",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x14",
+      "name": "START_SCAN",
+      "owner": "ESP",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        2,
+        255
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 200,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:27",
+      "fields": [],
+      "schema": "Request vacío.",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x15",
+      "name": "GET_SCAN_RESULTS",
+      "owner": "ESP",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        2,
+        255
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 100,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:28",
+      "fields": [],
+      "schema": "Request vacío en el handler ESP. Respuesta variable según el servicio; conservar bytes de diagnóstico.",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x16",
+      "name": "REBOOT_ESP",
+      "owner": "ESP",
+      "request": [
+        1,
+        1
+      ],
+      "response": [
+        0,
+        0
+      ],
+      "completion": "ACK",
+      "timeoutMs": 50,
+      "privilege": "ESP_ADMIN",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:29",
+      "fields": [
+        {
+          "id": "bootMode",
+          "label": "Arranque",
+          "type": "select",
+          "options": [
+            {
+              "value": "0",
+              "label": "Normal"
+            },
+            {
+              "value": "1",
+              "label": "AP"
+            }
+          ]
+        }
+      ],
+      "schema": "Formato variable: bytes hex explícitos; esquema detallado pendiente de formulario dedicado.",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x17",
+      "name": "FACTORY_RESET",
+      "owner": "ESP",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        1,
+        1
+      ],
+      "completion": "ACK_THEN_SAME_COMMAND",
+      "timeoutMs": 200,
+      "privilege": "ESP_ADMIN",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:30",
+      "fields": [],
+      "schema": "Request vacío.",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x18",
+      "name": "STOP_SCAN",
+      "owner": "ESP",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        1,
+        2
+      ],
+      "completion": "ACK_THEN_SAME_COMMAND",
+      "timeoutMs": 100,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:31",
+      "fields": [],
+      "schema": "Request vacío.",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x19",
+      "name": "RESET_MCU",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        0,
+        0
+      ],
+      "completion": "ACK",
+      "timeoutMs": 250,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:32",
+      "fields": [],
+      "schema": "vacío; ACK [19,status] y reset diferido",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x1A",
+      "name": "WIFI_GET_DETAIL",
+      "owner": "ESP",
+      "request": [
+        1,
+        33
+      ],
+      "response": [
+        4,
+        36
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 150,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:33",
+      "fields": [
+        {
+          "id": "ssid",
+          "label": "SSID UTF-8",
+          "type": "str",
+          "placeholder": ""
+        }
+      ],
+      "schema": "ssid_len:u8,ssid:utf8; respuesta: ssid_len,ssid,rssi:i8,encryption:u8,channel:u8",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x30",
+      "name": "GET_STATUS",
+      "owner": "ESP",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        18,
+        255
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 100,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": true,
+      "evidence": "ESP:src/f4_command_registry.c:37",
+      "fields": [],
+      "schema": "Request vacío. Response: status:u8,ap_active:u8,wifi_active:u8,mode:u8,wifi_status:u8,ipv4[4],ssid_len:u8,ssid:utf8,sta_ip[4],ap_ip[4],ap_ssid_len:u8,ap_ssid,ap_pass_preview_len:u8,ap_pass_preview (hasta 16 bytes),clients:u8. La vista previa de contraseña viaja en UNER físico, no en JSON Web; tratar como sensible.",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x31",
+      "name": "PING_ALIVE",
+      "owner": "DUAL",
+      "request": [
+        0,
+        16
+      ],
+      "response": [
+        0,
+        16
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 150,
+      "privilege": "PUBLIC",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:38",
+      "fields": [
+        {
+          "id": "data",
+          "label": "Bytes a devolver por eco (0..16)",
+          "type": "bytes",
+          "placeholder": ""
+        }
+      ],
+      "schema": "Formato variable: bytes hex explícitos; esquema detallado pendiente de formulario dedicado.",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x40",
+      "name": "GET_PREFERENCES",
+      "owner": "F4",
+      "request": [
+        0,
+        1
+      ],
+      "response": [
+        1,
+        255
+      ],
+      "completion": "ACK_THEN_SAME_COMMAND",
+      "timeoutMs": 100,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:41",
+      "fields": [
+        {
+          "id": "descriptor",
+          "label": "Índice opcional (vacío = snapshot)",
+          "type": "optionalU8",
+          "placeholder": ""
+        }
+      ],
+      "schema": "vacío = snapshot 40+ssid_len; index:u8 = descriptor. No es la antigua lista de SSID.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x41",
+      "name": "REQUEST_FIRMWARE",
+      "owner": "ESP",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        1,
+        33
+      ],
+      "completion": "ACK_THEN_SAME_COMMAND",
+      "timeoutMs": 200,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:42",
+      "fields": [],
+      "schema": "Request vacío en el handler ESP. Alias USB F4 de firmware; por UART pertenece al ESP. Interpretar según destino/transporte.",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x42",
+      "name": "ECHO",
+      "owner": "F4",
+      "request": [
+        0,
+        255
+      ],
+      "response": [
+        0,
+        0
+      ],
+      "completion": "NONE",
+      "timeoutMs": 0,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:43",
+      "fields": [
+        {
+          "id": "data",
+          "label": "Notificación OLED: payload opaco; no hay respuesta de eco",
+          "type": "bytes",
+          "placeholder": ""
+        }
+      ],
+      "schema": "Notificación OLED en F4; no devuelve el payload como eco. Para eco usar 31.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x43",
+      "name": "SET_ENCODER_FAST",
+      "owner": "ESP",
+      "request": [
+        1,
+        1
+      ],
+      "response": [
+        2,
+        2
+      ],
+      "completion": "ACK_THEN_SAME_COMMAND",
+      "timeoutMs": 0,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:44; ESP:src/uner_cmdspec.c + src/uner_app_handlers.cpp:UNER_App_OnCommandTable",
+      "fields": [
+        {
+          "id": "enable",
+          "label": "Encoder rápido (ESP)",
+          "type": "u8",
+          "placeholder": "0"
+        }
+      ],
+      "schema": "ESP acepta y repite enable:u8 en [status,accepted]; no demuestra cambio del encoder F4. F4 no tiene handler local para este ID.",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "esp-handler",
+      "registryImplemented": false
+    },
+    {
+      "id": "0x44",
+      "name": "GET_CONNECTED_USERS",
+      "owner": "ESP",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        2,
+        2
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:45; ESP:src/uner_cmdspec.c + src/uner_app_handlers.cpp:UNER_App_OnCommandTable",
+      "fields": [],
+      "schema": "Handler ESP operativo; difiere del registro F4. Request vacío; response [status,connected_users].",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "esp-handler",
+      "registryImplemented": false
+    },
+    {
+      "id": "0x45",
+      "name": "GET_USER_INFO",
+      "owner": "ESP",
+      "request": [
+        1,
+        1
+      ],
+      "response": [
+        10,
+        10
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:46; ESP:src/uner_cmdspec.c + src/uner_app_handlers.cpp:UNER_App_OnCommandTable",
+      "fields": [
+        {
+          "id": "index",
+          "label": "Índice de usuario",
+          "type": "u8",
+          "placeholder": "0"
+        }
+      ],
+      "schema": "Handler ESP operativo; difiere del registro F4. index:u8; response [status,index,id:u32 LE,ip[4]].",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "esp-handler",
+      "registryImplemented": false
+    },
+    {
+      "id": "0x46",
+      "name": "GET_INTERFACES_CONNECTED",
+      "owner": "ESP",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        5,
+        5
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:47; ESP:src/uner_cmdspec.c + src/uner_app_handlers.cpp:UNER_App_OnCommandTable",
+      "fields": [],
+      "schema": "Handler ESP operativo; difiere del registro F4. Request vacío; response [status,sta,ap,usb,nrf].",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "esp-handler",
+      "registryImplemented": false
+    },
+    {
+      "id": "0x47",
+      "name": "GET_CREDENTIALS",
+      "owner": "ESP",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        1,
+        255
+      ],
+      "completion": "NACK_ONLY",
+      "timeoutMs": 0,
+      "privilege": "ESP_ADMIN",
+      "implemented": false,
+      "sensitive": true,
+      "evidence": "ESP:src/f4_command_registry.c:48; ESP:src/uner_cmdspec.c + src/uner_app_handlers.cpp:UNER_App_OnCommandTable",
+      "fields": [],
+      "schema": "Handler ESP rechaza con NACK UNKNOWN_CMD. No devuelve credenciales; reservado para lectura histórica.",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "rejected",
+      "registryImplemented": false
+    },
+    {
+      "id": "0x48",
+      "name": "CONNECT_WIFI",
+      "owner": "ESP",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        1,
+        255
+      ],
+      "completion": "ACK_THEN_SAME_COMMAND",
+      "timeoutMs": 300,
+      "privilege": "ESP_ADMIN",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:49; ESP:src/uner_app_handlers.cpp",
+      "fields": [],
+      "schema": "Request vacío en el handler ESP. Respuesta variable según el servicio; conservar bytes de diagnóstico. Respuesta ESP: status inicial + bloque WiFi variable (no asumir IP de 4 bytes solamente).",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x49",
+      "name": "DISCONNECT_WIFI",
+      "owner": "ESP",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        1,
+        255
+      ],
+      "completion": "ACK_THEN_SAME_COMMAND",
+      "timeoutMs": 100,
+      "privilege": "ESP_ADMIN",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:50; ESP:src/uner_app_handlers.cpp",
+      "fields": [],
+      "schema": "Request vacío en el handler ESP. Respuesta variable según el servicio; conservar bytes de diagnóstico. Respuesta ESP: status inicial + bloque WiFi variable (no asumir IP de 4 bytes solamente).",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x4A",
+      "name": "SET_AP_CONFIG",
+      "owner": "ESP",
+      "request": [
+        8,
+        102
+      ],
+      "response": [
+        1,
+        1
+      ],
+      "completion": "ACK_THEN_SAME_COMMAND",
+      "timeoutMs": 200,
+      "privilege": "ESP_ADMIN",
+      "implemented": true,
+      "sensitive": true,
+      "evidence": "ESP:src/f4_command_registry.c:51",
+      "fields": [
+        {
+          "id": "ssid",
+          "label": "SSID",
+          "type": "str",
+          "placeholder": ""
+        },
+        {
+          "id": "password",
+          "label": "Contraseña",
+          "type": "str",
+          "placeholder": ""
+        },
+        {
+          "id": "protected",
+          "label": "AP protegido",
+          "type": "select",
+          "options": [
+            {
+              "value": "0",
+              "label": "Desactivado"
+            },
+            {
+              "value": "1",
+              "label": "Activado"
+            }
+          ]
+        },
+        {
+          "id": "ip0",
+          "label": "IPv4 byte 0",
+          "type": "u8",
+          "placeholder": "192"
+        },
+        {
+          "id": "ip1",
+          "label": "IPv4 byte 1",
+          "type": "u8",
+          "placeholder": "168"
+        },
+        {
+          "id": "ip2",
+          "label": "IPv4 byte 2",
+          "type": "u8",
+          "placeholder": "4"
+        },
+        {
+          "id": "ip3",
+          "label": "IPv4 byte 3",
+          "type": "u8",
+          "placeholder": "1"
+        }
+      ],
+      "schema": "ssid_len,ssid,password_len,password,protected:u8,ipv4[4]. Solo origen MCU; Web configura F4 por 78.",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x4B",
+      "name": "START_AP",
+      "owner": "ESP",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        1,
+        255
+      ],
+      "completion": "ACK_THEN_SAME_COMMAND",
+      "timeoutMs": 300,
+      "privilege": "ESP_ADMIN",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:52; ESP:src/uner_app_handlers.cpp",
+      "fields": [],
+      "schema": "Request vacío en el handler ESP. Respuesta variable según el servicio; conservar bytes de diagnóstico. Respuesta ESP: status inicial + bloque WiFi variable (no asumir IP de 4 bytes solamente).",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x4C",
+      "name": "STOP_AP",
+      "owner": "ESP",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        1,
+        255
+      ],
+      "completion": "ACK_THEN_SAME_COMMAND",
+      "timeoutMs": 100,
+      "privilege": "ESP_ADMIN",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:53; ESP:src/uner_app_handlers.cpp",
+      "fields": [],
+      "schema": "Request vacío en el handler ESP. Respuesta variable según el servicio; conservar bytes de diagnóstico. Respuesta ESP: status inicial + bloque WiFi variable (no asumir IP de 4 bytes solamente).",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x4D",
+      "name": "GET_CONNECTED_USERS_MODE",
+      "owner": "ESP",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        4,
+        4
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:54; ESP:src/uner_cmdspec.c + src/uner_app_handlers.cpp:UNER_App_OnCommandTable",
+      "fields": [],
+      "schema": "Handler ESP operativo; difiere del registro F4. Request vacío; response [status,ap_mode,ap_users,ws_users].",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "esp-handler",
+      "registryImplemented": false
+    },
+    {
+      "id": "0x4E",
+      "name": "SET_AUTO_RECONNECT",
+      "owner": "ESP",
+      "request": [
+        1,
+        1
+      ],
+      "response": [
+        2,
+        2
+      ],
+      "completion": "ACK_THEN_SAME_COMMAND",
+      "timeoutMs": 100,
+      "privilege": "ESP_ADMIN",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:55",
+      "fields": [
+        {
+          "id": "enable",
+          "label": "Auto reconexión",
+          "type": "select",
+          "options": [
+            {
+              "value": "0",
+              "label": "Desactivado"
+            },
+            {
+              "value": "1",
+              "label": "Activado"
+            }
+          ]
+        }
+      ],
+      "schema": "Formato variable: bytes hex explícitos; esquema detallado pendiente de formulario dedicado.",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x51",
+      "name": "AUTH_VALIDATE_PIN",
+      "owner": "F4",
+      "request": [
+        6,
+        10
+      ],
+      "response": [
+        9,
+        9
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 1500,
+      "privilege": "PUBLIC",
+      "implemented": true,
+      "sensitive": true,
+      "evidence": "ESP:src/f4_command_registry.c:57",
+      "fields": [
+        {
+          "id": "requestId",
+          "label": "Request ID (1..255)",
+          "type": "u8",
+          "placeholder": "1"
+        },
+        {
+          "id": "scope",
+          "label": "Scope",
+          "type": "select",
+          "options": [
+            {
+              "value": "0",
+              "label": "Sesión remota"
+            },
+            {
+              "value": "1",
+              "label": "Permiso local"
+            },
+            {
+              "value": "2",
+              "label": "Cambiar PIN"
+            }
+          ]
+        },
+        {
+          "id": "pin",
+          "label": "PIN: cuatro dígitos numéricos",
+          "type": "digits",
+          "placeholder": ""
+        },
+        {
+          "id": "screenCode",
+          "label": "Pantalla (solo scope 1)",
+          "type": "hex4",
+          "placeholder": "00000000"
+        },
+        {
+          "id": "newPin",
+          "label": "Nuevo PIN (solo scope 2)",
+          "type": "digits",
+          "placeholder": ""
+        }
+      ],
+      "schema": "request_id:u8 no cero,scope:u8,pin[4] (valores numéricos 0..9, no ASCII); scope 1 agrega screen:u32 LE; scope 2 agrega new_pin[4]. Response [status,id,scope,granted,ttl_ms:u32 LE,attempts_left].",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x52",
+      "name": "GET_CURRENT_SCREEN",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        5,
+        45
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 50,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:58",
+      "fields": [],
+      "schema": "Request vacío; response screen:u32 LE,source:u8 y extensión de menú/notificación/dashboard.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x53",
+      "name": "MENU_ITEM_CLICK",
+      "owner": "F4",
+      "request": [
+        4,
+        5
+      ],
+      "response": [
+        0,
+        0
+      ],
+      "completion": "ACK",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:59",
+      "fields": [
+        {
+          "id": "screenCode",
+          "label": "Código de pantalla u32 LE",
+          "type": "hex4",
+          "placeholder": "00000000"
+        },
+        {
+          "id": "item",
+          "label": "Ítem visible (1..3)",
+          "type": "u8",
+          "placeholder": "1"
+        }
+      ],
+      "schema": "screen:u32 LE,item:u8 (1..3); ACK status 0 aplicado,2 pantalla distinta,3 inválido,4 sin handler.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x54",
+      "name": "TRIGGER_ENCODER_BUTTON",
+      "owner": "F4",
+      "request": [
+        4,
+        5
+      ],
+      "response": [
+        0,
+        0
+      ],
+      "completion": "ACK",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:60",
+      "fields": [
+        {
+          "id": "screenCode",
+          "label": "Código de pantalla u32 LE",
+          "type": "hex4",
+          "placeholder": "00000000"
+        },
+        {
+          "id": "pressKind",
+          "label": "Pulsación",
+          "type": "select",
+          "options": [
+            {
+              "value": "0",
+              "label": "Corta"
+            },
+            {
+              "value": "1",
+              "label": "Larga"
+            }
+          ]
+        }
+      ],
+      "schema": "screen:u32 LE,press:u8 (0 corta,1 larga); byte opcional. ACK de acción aplicada/rechazada.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x55",
+      "name": "TRIGGER_USER_BUTTON",
+      "owner": "F4",
+      "request": [
+        4,
+        5
+      ],
+      "response": [
+        0,
+        0
+      ],
+      "completion": "ACK",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:61",
+      "fields": [
+        {
+          "id": "screenCode",
+          "label": "Código de pantalla u32 LE",
+          "type": "hex4",
+          "placeholder": "00000000"
+        },
+        {
+          "id": "pressKind",
+          "label": "Pulsación",
+          "type": "select",
+          "options": [
+            {
+              "value": "0",
+              "label": "Corta"
+            },
+            {
+              "value": "1",
+              "label": "Larga"
+            }
+          ]
+        }
+      ],
+      "schema": "screen:u32 LE,press:u8 (0 corta,1 larga); byte opcional. ACK de acción aplicada/rechazada.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x56",
+      "name": "REQUEST_SCREEN_PAGE",
+      "owner": "F4",
+      "request": [
+        5,
+        5
+      ],
+      "response": [
+        0,
+        0
+      ],
+      "completion": "ACK",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:62",
+      "fields": [
+        {
+          "id": "screenCode",
+          "label": "Código de pantalla u32 LE",
+          "type": "hex4",
+          "placeholder": "00000000"
+        },
+        {
+          "id": "direction",
+          "label": "Página",
+          "type": "select",
+          "options": [
+            {
+              "value": "0",
+              "label": "Anterior"
+            },
+            {
+              "value": "1",
+              "label": "Siguiente"
+            }
+          ]
+        }
+      ],
+      "schema": "screen:u32 LE,direction:u8 (0 anterior,1 siguiente). El handler necesita el quinto byte.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x57",
+      "name": "TRIGGER_ENCODER_ROTATE_LEFT",
+      "owner": "F4",
+      "request": [
+        4,
+        4
+      ],
+      "response": [
+        0,
+        0
+      ],
+      "completion": "ACK",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:63",
+      "fields": [
+        {
+          "id": "screenCode",
+          "label": "Código de pantalla u32 LE",
+          "type": "hex4",
+          "placeholder": "00000000"
+        }
+      ],
+      "schema": "screen:u32 LE exacto. Giro físico izquierdo; en teclado puede cambiar fila y hacer wrap según contexto. No publica cursor ni texto.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x58",
+      "name": "TRIGGER_ENCODER_ROTATE_RIGHT",
+      "owner": "F4",
+      "request": [
+        4,
+        4
+      ],
+      "response": [
+        0,
+        0
+      ],
+      "completion": "ACK",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:64",
+      "fields": [
+        {
+          "id": "screenCode",
+          "label": "Código de pantalla u32 LE",
+          "type": "hex4",
+          "placeholder": "00000000"
+        }
+      ],
+      "schema": "screen:u32 LE exacto. Giro físico derecho; en teclado puede cambiar fila y hacer wrap según contexto. No publica cursor ni texto.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x59",
+      "name": "AUTH_PIN_GRANTED_DEPRECATED",
+      "owner": "F4",
+      "request": [
+        4,
+        4
+      ],
+      "response": [
+        0,
+        0
+      ],
+      "completion": "NACK_ONLY",
+      "timeoutMs": 50,
+      "privilege": "PUBLIC",
+      "implemented": false,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:65",
+      "fields": [
+        {
+          "id": "data",
+          "label": "Bytes hex según el esquema",
+          "type": "bytes",
+          "placeholder": ""
+        }
+      ],
+      "schema": "Formato variable: bytes hex explícitos; esquema detallado pendiente de formulario dedicado.",
+      "coverage": "raw",
+      "group": "F4",
+      "availability": "declared",
+      "registryImplemented": false
+    },
+    {
+      "id": "0x5A",
+      "name": "BINARY_ASSET_STREAM",
+      "owner": "ESP",
+      "request": [
+        1,
+        1
+      ],
+      "response": [
+        1,
+        255
+      ],
+      "completion": "ACK_THEN_SAME_COMMAND",
+      "timeoutMs": 1000,
+      "privilege": "INTERNAL",
+      "implemented": false,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:66",
+      "fields": [
+        {
+          "id": "assetId",
+          "label": "Asset ID",
+          "type": "u8",
+          "placeholder": "0"
+        }
+      ],
+      "schema": "Transferencia interna F4/ESP: request [asset_id:u8]. Chunk recibido por F4: status:u8,asset_id:u8,width:u8,height:u8,total:u16 LE,offset:u16 LE,data_len:u8,data. El registro ESP no garantiza el productor; no enviar como solicitud Web pública. Disponible para interpretar chunks; productor ESP pendiente de confirmar.",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "internal-reader",
+      "registryImplemented": false
+    },
+    {
+      "id": "0x5B",
+      "name": "GET_CAR_MODE",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        1,
+        1
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 50,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:67",
+      "fields": [],
+      "schema": "Request vacío; response [mode:u8]: 0 IDLE,1 FOLLOW,2 TEST,3 GOTO sin objetivo.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x5C",
+      "name": "WIFI_CREDENTIALS_WEB_RESULT",
+      "owner": "ESP",
+      "request": [
+        2,
+        96
+      ],
+      "response": [
+        0,
+        0
+      ],
+      "completion": "ACK",
+      "timeoutMs": 200,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:68",
+      "fields": [
+        {
+          "id": "result",
+          "label": "Resultado",
+          "type": "u8",
+          "placeholder": "0"
+        },
+        {
+          "id": "ssid",
+          "label": "SSID UTF-8",
+          "type": "str",
+          "placeholder": ""
+        },
+        {
+          "id": "data",
+          "label": "IPv4[4] solo éxito; vacío en fallo",
+          "type": "bytes",
+          "placeholder": ""
+        }
+      ],
+      "schema": "ESP → F4: result:u8,ssid_len:u8,ssid:utf8; éxito agrega IPv4[4], fallos no agregan bytes. No es una solicitud Web pública.",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x5D",
+      "name": "AUTH_REMOTE_RESULT",
+      "owner": "F4",
+      "request": [
+        1,
+        1
+      ],
+      "response": [
+        6,
+        6
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 500,
+      "privilege": "PUBLIC",
+      "implemented": true,
+      "sensitive": true,
+      "evidence": "ESP:src/f4_command_registry.c:69",
+      "fields": [
+        {
+          "id": "action",
+          "label": "Acción",
+          "type": "select",
+          "options": [
+            {
+              "value": "0",
+              "label": "Logout"
+            },
+            {
+              "value": "1",
+              "label": "Consultar sesión"
+            }
+          ]
+        }
+      ],
+      "schema": "action:u8 (0 logout,1 query); response [status,active,ttl_ms:u32 LE].",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x5E",
+      "name": "SET_I2C_POLICY",
+      "owner": "F4",
+      "request": [
+        1,
+        1
+      ],
+      "response": [
+        2,
+        2
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 50,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:70",
+      "fields": [
+        {
+          "id": "policy",
+          "label": "Política",
+          "type": "select",
+          "options": [
+            {
+              "value": "1",
+              "label": "Balanceada"
+            },
+            {
+              "value": "2",
+              "label": "Priorizar MPU"
+            },
+            {
+              "value": "3",
+              "label": "Priorizar OLED"
+            }
+          ]
+        }
+      ],
+      "schema": "policy:u8 (1 balanceada,2 MPU,3 OLED); response [status,policy].",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x5F",
+      "name": "GET_I2C_POLICY",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        2,
+        2
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 50,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:71",
+      "fields": [],
+      "schema": "Request vacío.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x60",
+      "name": "GET_MPU_SNAPSHOT",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        42,
+        42
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 50,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:72",
+      "fields": [],
+      "schema": "Snapshot 42 bytes: status:u8,flags:u8,seq:u16 LE,dt_us:u16 LE,roll/pitch/yaw:f32 grados,accel XYZ:f32 g,gyro XYZ:f32 grados/s. Request 60 vacío; 90 evento.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x61",
+      "name": "SET_MPU_STREAM",
+      "owner": "F4",
+      "request": [
+        1,
+        3
+      ],
+      "response": [
+        4,
+        4
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:73",
+      "fields": [
+        {
+          "id": "enable",
+          "label": "Stream MPU",
+          "type": "select",
+          "options": [
+            {
+              "value": "0",
+              "label": "Desactivado"
+            },
+            {
+              "value": "1",
+              "label": "Activado"
+            }
+          ]
+        },
+        {
+          "id": "period",
+          "label": "Periodo opcional ms u16 LE (20..1000)",
+          "type": "optionalU16",
+          "placeholder": "100"
+        }
+      ],
+      "schema": "enable:u8[,period_ms:u16 LE]; respuesta [status,active,period_ms:u16 LE].",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x62",
+      "name": "STOP_MPU_STREAM",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        1,
+        1
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:74",
+      "fields": [],
+      "schema": "Request vacío.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x63",
+      "name": "SET_PREFERENCES",
+      "owner": "F4",
+      "request": [
+        4,
+        64
+      ],
+      "response": [
+        5,
+        5
+      ],
+      "completion": "ACK_THEN_SAME_COMMAND",
+      "timeoutMs": 250,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:75",
+      "fields": [
+        {
+          "id": "mask",
+          "label": "Máscara u32 LE",
+          "type": "hex4",
+          "placeholder": "00000001"
+        },
+        {
+          "id": "data",
+          "label": "Valores en orden de descriptor: bool u8 / u16 LE",
+          "type": "bytes",
+          "placeholder": ""
+        }
+      ],
+      "schema": "mask:u32 LE, valores en orden de descriptor (bool u8,u16 LE). Bit 6 calibración MPU rechazado; campos AP usan 78. Response [status,changed_mask:u32 LE].",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x64",
+      "name": "GET_TELEMETRY_SNAPSHOT",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        92,
+        92
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 80,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:76",
+      "fields": [],
+      "schema": "Request vacío.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x65",
+      "name": "GET_BALANCE_PID",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        13,
+        13
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 50,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:77",
+      "fields": [],
+      "schema": "Request vacío; response [status,Kp:f32 LE,Ki:f32 LE,Kd:f32 LE].",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x66",
+      "name": "SET_BALANCE_PID",
+      "owner": "F4",
+      "request": [
+        5,
+        13
+      ],
+      "response": [
+        14,
+        14
+      ],
+      "completion": "ACK_THEN_SAME_COMMAND",
+      "timeoutMs": 80,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:78",
+      "fields": [
+        {
+          "id": "mask",
+          "label": "Máscara: bit 0 Kp, bit 1 Ki, bit 2 Kd",
+          "type": "u8",
+          "placeholder": "7"
+        },
+        {
+          "id": "kp",
+          "label": "Kp f32 LE",
+          "type": "f32",
+          "placeholder": "0"
+        },
+        {
+          "id": "ki",
+          "label": "Ki f32 LE",
+          "type": "f32",
+          "placeholder": "0"
+        },
+        {
+          "id": "kd",
+          "label": "Kd f32 LE",
+          "type": "f32",
+          "placeholder": "0"
+        }
+      ],
+      "schema": "mask:u8 (1 Kp,2 Ki,4 Kd), f32 LE presentes en orden Kp,Ki,Kd. Response [status,changed_mask,Kp:f32,Ki:f32,Kd:f32].",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x67",
+      "name": "GET_CONTROL_SNAPSHOT",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        64,
+        64
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 80,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:79",
+      "fields": [],
+      "schema": "Request vacío.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x68",
+      "name": "GET_FIRMWARE_INFO",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        1,
+        196
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 50,
+      "privilege": "PUBLIC",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:80",
+      "fields": [],
+      "schema": "Request vacío.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x69",
+      "name": "GET_BUILD_INFO",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        1,
+        149
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 50,
+      "privilege": "PUBLIC",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:81",
+      "fields": [],
+      "schema": "Request vacío.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x6A",
+      "name": "GET_IR_SNAPSHOT",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        56,
+        56
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 50,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:82",
+      "fields": [],
+      "schema": "Snapshot IR 56 bytes; mismo codec de producción f4Payloads.decodeIrSnapshot: status,flags,seq:u16,period_ms:u16,tick_ms:u32,raw[8]:u16,normalized[8]:u16,pattern,alignment,confidence,ambiguous,width_mm:u16,error_mm:f32,error_norm:f32. Todos multibyte LE.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x6B",
+      "name": "SET_IR_STREAM",
+      "owner": "F4",
+      "request": [
+        1,
+        3
+      ],
+      "response": [
+        4,
+        4
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:83",
+      "fields": [
+        {
+          "id": "enable",
+          "label": "Stream IR",
+          "type": "select",
+          "options": [
+            {
+              "value": "0",
+              "label": "Desactivado"
+            },
+            {
+              "value": "1",
+              "label": "Activado"
+            }
+          ]
+        },
+        {
+          "id": "period",
+          "label": "Periodo opcional ms u16 LE",
+          "type": "optionalU16",
+          "placeholder": "100"
+        }
+      ],
+      "schema": "enable:u8[,period_ms:u16 LE]; respuesta [status,active,period_ms:u16 LE].",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x6C",
+      "name": "STOP_IR_STREAM",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        1,
+        1
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:84",
+      "fields": [],
+      "schema": "Request vacío.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x6D",
+      "name": "OLED_CANVAS_TRANSFER",
+      "owner": "F4",
+      "request": [
+        3,
+        118
+      ],
+      "response": [
+        10,
+        10
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 1000,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:85",
+      "fields": [
+        {
+          "id": "operation",
+          "label": "Operación",
+          "type": "select",
+          "options": [
+            {
+              "value": "1",
+              "label": "BEGIN"
+            },
+            {
+              "value": "2",
+              "label": "CHUNK"
+            },
+            {
+              "value": "3",
+              "label": "COMMIT"
+            },
+            {
+              "value": "4",
+              "label": "CANCEL"
+            }
+          ]
+        },
+        {
+          "id": "transferId",
+          "label": "Transfer ID u16 LE",
+          "type": "u16",
+          "placeholder": "1"
+        },
+        {
+          "id": "crc",
+          "label": "CRC32 (BEGIN) u32 LE",
+          "type": "hex4",
+          "placeholder": "00000000"
+        },
+        {
+          "id": "offset",
+          "label": "Offset (CHUNK) u16 LE",
+          "type": "u16",
+          "placeholder": "0"
+        },
+        {
+          "id": "data",
+          "label": "Datos CHUNK: 1..112 bytes",
+          "type": "bytes",
+          "placeholder": ""
+        }
+      ],
+      "schema": "BEGIN [1,id:u16,128,64,0,total:u16=1024,crc:u32]; CHUNK [2,id:u16,offset:u16,len:u8,data(1..112)]; COMMIT [3,id:u16]; CANCEL [4,id:u16]. Response [op,status,id:u16,next_offset:u16,crc:u32]. Solo UART Web autenticada, TEST y pantalla OLED Canvas.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x6E",
+      "name": "SET_CAR_MODE",
+      "owner": "F4",
+      "request": [
+        1,
+        1
+      ],
+      "response": [
+        2,
+        2
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:86",
+      "fields": [
+        {
+          "id": "mode",
+          "label": "Modo",
+          "type": "select",
+          "options": [
+            {
+              "value": "0",
+              "label": "IDLE"
+            },
+            {
+              "value": "1",
+              "label": "FOLLOW"
+            },
+            {
+              "value": "2",
+              "label": "TEST"
+            },
+            {
+              "value": "3",
+              "label": "GOTO sin objetivo"
+            }
+          ]
+        }
+      ],
+      "schema": "mode:u8 (0 IDLE,1 FOLLOW,2 TEST,3 GOTO sin objetivo); response [status,mode].",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x6F",
+      "name": "GET_BOOT_REPORT",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        22,
+        22
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 50,
+      "privilege": "PUBLIC",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:87",
+      "fields": [],
+      "schema": "Reporte de arranque 22 bytes; mismo codec de producción f4Payloads.decodeBootReport. Request 6F vacío; 9F evento.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x70",
+      "name": "WIFI_CREDENTIALS_FLOW",
+      "owner": "ESP",
+      "request": [
+        1,
+        255
+      ],
+      "response": [
+        3,
+        255
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 500,
+      "privilege": "ESP_ADMIN",
+      "implemented": true,
+      "sensitive": true,
+      "evidence": "ESP:src/f4_command_registry.c:88",
+      "fields": [
+        {
+          "id": "action",
+          "label": "Acción",
+          "type": "select",
+          "options": [
+            {
+              "value": "0",
+              "label": "Consultar"
+            },
+            {
+              "value": "1",
+              "label": "Enviar"
+            },
+            {
+              "value": "2",
+              "label": "Cancelar"
+            }
+          ]
+        },
+        {
+          "id": "reuse",
+          "label": "Reusar contraseña",
+          "type": "select",
+          "options": [
+            {
+              "value": "0",
+              "label": "Desactivado"
+            },
+            {
+              "value": "1",
+              "label": "Activado"
+            }
+          ]
+        },
+        {
+          "id": "ssid",
+          "label": "SSID",
+          "type": "str",
+          "placeholder": ""
+        },
+        {
+          "id": "password",
+          "label": "Contraseña",
+          "type": "str",
+          "placeholder": ""
+        },
+        {
+          "id": "ip",
+          "label": "IPv4 texto",
+          "type": "str",
+          "placeholder": ""
+        },
+        {
+          "id": "gateway",
+          "label": "Gateway texto",
+          "type": "str",
+          "placeholder": ""
+        },
+        {
+          "id": "subnet",
+          "label": "Subred texto",
+          "type": "str",
+          "placeholder": ""
+        },
+        {
+          "id": "bssid",
+          "label": "BSSID texto",
+          "type": "str",
+          "placeholder": ""
+        }
+      ],
+      "schema": "0=query; 1=submit seguido flags:u8 y seis textos len:u8+utf8 (ssid,password,ip,gateway,subnet,bssid); 2=cancel seguido ssid len+utf8. Response: status:u8,action:u8,flags:u8,sta_len:u8,sta_ssid,ap_len:u8,ap_ssid.",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x71",
+      "name": "AP_CLIENTS_PAGE",
+      "owner": "ESP",
+      "request": [
+        2,
+        2
+      ],
+      "response": [
+        3,
+        255
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 250,
+      "privilege": "ESP_ADMIN",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:89",
+      "fields": [
+        {
+          "id": "page",
+          "label": "Página",
+          "type": "u8",
+          "placeholder": "0"
+        },
+        {
+          "id": "pageSize",
+          "label": "Tamaño de página",
+          "type": "u8",
+          "placeholder": "4"
+        }
+      ],
+      "schema": "page:u8,page_size:u8; response status y página variable de clientes AP.",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x72",
+      "name": "AP_CLIENT_DISCONNECT",
+      "owner": "ESP",
+      "request": [
+        6,
+        6
+      ],
+      "response": [
+        2,
+        2
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 250,
+      "privilege": "ESP_ADMIN",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:90",
+      "fields": [
+        {
+          "id": "data",
+          "label": "MAC: exactamente 6 bytes hex",
+          "type": "bytes",
+          "placeholder": ""
+        }
+      ],
+      "schema": "mac[6]; response [status,scheduled].",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x73",
+      "name": "GET_EXTENSION_PROFILE",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        2,
+        2
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:91; F4:Core/Inc/app_preferences.h:ext_profile_t",
+      "fields": [],
+      "schema": "vacío; response [status,profile]. Perfil 0 NRF24,1 BEEPER_PB12.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x74",
+      "name": "SET_EXTENSION_PROFILE",
+      "owner": "F4",
+      "request": [
+        1,
+        1
+      ],
+      "response": [
+        1,
+        1
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 3500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:92; F4:Core/Inc/app_preferences.h:ext_profile_t",
+      "fields": [
+        {
+          "id": "profile",
+          "label": "Perfil",
+          "type": "select",
+          "options": [
+            {
+              "value": "0",
+              "label": "NRF24"
+            },
+            {
+              "value": "1",
+              "label": "Beeper PB12"
+            }
+          ]
+        }
+      ],
+      "schema": "profile:u8 (0 NRF24,1 BEEPER_PB12); response [status]. Reinicio independiente 76.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x75",
+      "name": "GET_EXTENSION_PIN_MAP",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        0,
+        0
+      ],
+      "completion": "NONE",
+      "timeoutMs": 0,
+      "privilege": "STM_SESSION",
+      "implemented": false,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:94",
+      "fields": [],
+      "schema": "Request vacío.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "declared",
+      "registryImplemented": false
+    },
+    {
+      "id": "0x76",
+      "name": "REBOOT_INTO_PROFILE",
+      "owner": "F4",
+      "request": [
+        1,
+        1
+      ],
+      "response": [
+        0,
+        0
+      ],
+      "completion": "ACK",
+      "timeoutMs": 3500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:93; F4:Core/Inc/app_preferences.h:ext_profile_t",
+      "fields": [
+        {
+          "id": "profile",
+          "label": "Perfil",
+          "type": "select",
+          "options": [
+            {
+              "value": "0",
+              "label": "NRF24"
+            },
+            {
+              "value": "1",
+              "label": "Beeper PB12"
+            }
+          ]
+        }
+      ],
+      "schema": "profile:u8 (0 NRF24,1 BEEPER_PB12); ACK [76,status] antes del reinicio; no respuesta por mismo ID.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x77",
+      "name": "GET_AP_CONFIG",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        10,
+        41
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 200,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:95",
+      "fields": [],
+      "schema": "vacío; response [status,apply_state,protected,password_set,ssid_len,ssid,ipv4[4]].",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x78",
+      "name": "SET_AP_CONFIG_F4",
+      "owner": "F4",
+      "request": [
+        1,
+        103
+      ],
+      "response": [
+        3,
+        3
+      ],
+      "completion": "ACK_THEN_SAME_COMMAND",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": true,
+      "evidence": "ESP:src/f4_command_registry.c:96",
+      "fields": [
+        {
+          "id": "mask",
+          "label": "Máscara: 1 SSID, 2 contraseña, 4 protección, 8 IPv4",
+          "type": "u8",
+          "placeholder": "1"
+        },
+        {
+          "id": "ssid",
+          "label": "SSID",
+          "type": "str",
+          "placeholder": ""
+        },
+        {
+          "id": "password",
+          "label": "Contraseña (vacío conserva)",
+          "type": "str",
+          "placeholder": ""
+        },
+        {
+          "id": "protected",
+          "label": "Protegido",
+          "type": "select",
+          "options": [
+            {
+              "value": "0",
+              "label": "Desactivado"
+            },
+            {
+              "value": "1",
+              "label": "Activado"
+            }
+          ]
+        },
+        {
+          "id": "ip0",
+          "label": "IPv4 byte 0",
+          "type": "u8",
+          "placeholder": "192"
+        },
+        {
+          "id": "ip1",
+          "label": "IPv4 byte 1",
+          "type": "u8",
+          "placeholder": "168"
+        },
+        {
+          "id": "ip2",
+          "label": "IPv4 byte 2",
+          "type": "u8",
+          "placeholder": "4"
+        },
+        {
+          "id": "ip3",
+          "label": "IPv4 byte 3",
+          "type": "u8",
+          "placeholder": "1"
+        }
+      ],
+      "schema": "mask:u8 bits 0 SSID,1 contraseña,2 protección,3 IP; concatenar en ese orden len+utf8,len+utf8,bool:u8,ipv4[4]. Contraseña vacía conserva. Response [status,changed_mask,apply_state].",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x79",
+      "name": "GET_IR_EMITTERS",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        3,
+        3
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:97",
+      "fields": [],
+      "schema": "vacío; response [line_enabled,objects_enabled,persisted]. No contiene status inicial.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x7A",
+      "name": "SET_IR_EMITTERS",
+      "owner": "F4",
+      "request": [
+        3,
+        3
+      ],
+      "response": [
+        4,
+        4
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:98",
+      "fields": [
+        {
+          "id": "line",
+          "label": "Emisor línea",
+          "type": "select",
+          "options": [
+            {
+              "value": "0",
+              "label": "Desactivado"
+            },
+            {
+              "value": "1",
+              "label": "Activado"
+            }
+          ]
+        },
+        {
+          "id": "objects",
+          "label": "Emisor objetos",
+          "type": "select",
+          "options": [
+            {
+              "value": "0",
+              "label": "Desactivado"
+            },
+            {
+              "value": "1",
+              "label": "Activado"
+            }
+          ]
+        },
+        {
+          "id": "persist",
+          "label": "Persistir",
+          "type": "select",
+          "options": [
+            {
+              "value": "0",
+              "label": "Desactivado"
+            },
+            {
+              "value": "1",
+              "label": "Activado"
+            }
+          ]
+        }
+      ],
+      "schema": "[line_enabled,objects_enabled,persist]; response [status,line_enabled,objects_enabled,persisted].",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x7B",
+      "name": "GET_MOTION_STATE",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        8,
+        8
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 100,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "AMI-20261003-01; F4:Core/Src/uner_app.c; ESP:src/f4_command_registry.c",
+      "fields": [],
+      "schema": "Respuesta: [status,armed,balanceActive,commandActive,safetyStop,rejectReason,carMode,motorTestActive], ocho u8. Float32 y u16 LE; TEST directo requiere balance desactivado; marcha mantiene el balance.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x7C",
+      "name": "SET_BALANCE_ENABLED",
+      "owner": "F4",
+      "request": [
+        1,
+        1
+      ],
+      "response": [
+        8,
+        8
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 100,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "AMI-20261003-01; F4:Core/Src/uner_app.c; ESP:src/f4_command_registry.c",
+      "fields": [
+        {
+          "id": "enabled",
+          "label": "Balance activo",
+          "type": "u8",
+          "placeholder": "1"
+        }
+      ],
+      "schema": "Respuesta: [status,armed,balanceActive,commandActive,safetyStop,rejectReason,carMode,motorTestActive], ocho u8. Float32 y u16 LE; TEST directo requiere balance desactivado; marcha mantiene el balance.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x7D",
+      "name": "SET_MOTION",
+      "owner": "F4",
+      "request": [
+        10,
+        10
+      ],
+      "response": [
+        8,
+        8
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 100,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "AMI-20261003-01; F4:Core/Src/uner_app.c; ESP:src/f4_command_registry.c",
+      "fields": [
+        {
+          "id": "forwardPercent",
+          "label": "Avance (% de inclinación)",
+          "type": "f32",
+          "placeholder": "0"
+        },
+        {
+          "id": "turnPercent",
+          "label": "Giro (%)",
+          "type": "f32",
+          "placeholder": "0"
+        },
+        {
+          "id": "durationMs",
+          "label": "Duración (50–2000 ms)",
+          "type": "u16",
+          "placeholder": "750"
+        }
+      ],
+      "schema": "Respuesta: [status,armed,balanceActive,commandActive,safetyStop,rejectReason,carMode,motorTestActive], ocho u8. Float32 y u16 LE; TEST directo requiere balance desactivado; marcha mantiene el balance.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x7E",
+      "name": "STOP_MOTION",
+      "owner": "F4",
+      "request": [
+        1,
+        1
+      ],
+      "response": [
+        8,
+        8
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 100,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "AMI-20261003-01; F4:Core/Src/uner_app.c; ESP:src/f4_command_registry.c",
+      "fields": [
+        {
+          "id": "disableBalance",
+          "label": "También desactivar balance (0/1)",
+          "type": "u8",
+          "placeholder": "0"
+        }
+      ],
+      "schema": "Respuesta: [status,armed,balanceActive,commandActive,safetyStop,rejectReason,carMode,motorTestActive], ocho u8. Float32 y u16 LE; TEST directo requiere balance desactivado; marcha mantiene el balance.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x7F",
+      "name": "SET_MOTOR_TEST",
+      "owner": "F4",
+      "request": [
+        10,
+        10
+      ],
+      "response": [
+        8,
+        8
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 100,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "AMI-20261003-01; F4:Core/Src/uner_app.c; ESP:src/f4_command_registry.c",
+      "fields": [
+        {
+          "id": "leftPercent",
+          "label": "Motor izquierdo (%)",
+          "type": "f32",
+          "placeholder": "0"
+        },
+        {
+          "id": "rightPercent",
+          "label": "Motor derecho (%)",
+          "type": "f32",
+          "placeholder": "0"
+        },
+        {
+          "id": "durationMs",
+          "label": "Duración (50–2000 ms)",
+          "type": "u16",
+          "placeholder": "750"
+        }
+      ],
+      "schema": "Respuesta: [status,armed,balanceActive,commandActive,safetyStop,rejectReason,carMode,motorTestActive], ocho u8. Float32 y u16 LE; TEST directo requiere balance desactivado; marcha mantiene el balance.",
+      "coverage": "form",
+      "group": "F4",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x80",
+      "name": "EVT_BOOT",
+      "owner": "ESP",
+      "request": [
+        0,
+        255
+      ],
+      "response": [
+        0,
+        255
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:101",
+      "fields": [
+        {
+          "id": "data",
+          "label": "Bytes hex según el esquema",
+          "type": "bytes",
+          "placeholder": ""
+        }
+      ],
+      "schema": "mode:u8,wifi_status:u8,ipv4[4],ssid_len:u8,ssid:utf8; trailer de diagnóstico reset (marker,version,reason,flags). Evento sin status inicial de operación.",
+      "coverage": "raw",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x81",
+      "name": "EVT_MODE_CHANGED",
+      "owner": "ESP",
+      "request": [
+        0,
+        255
+      ],
+      "response": [
+        7,
+        39
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:102; ESP:src/uner_app_handlers.cpp:append_wifi_info",
+      "fields": [
+        {
+          "id": "mode",
+          "label": "Modo WiFi",
+          "type": "u8",
+          "placeholder": "0"
+        },
+        {
+          "id": "wifiStatus",
+          "label": "Estado WiFi",
+          "type": "u8",
+          "placeholder": "0"
+        },
+        {
+          "id": "ip0",
+          "label": "IP byte 0",
+          "type": "u8",
+          "placeholder": "0"
+        },
+        {
+          "id": "ip1",
+          "label": "IP byte 1",
+          "type": "u8",
+          "placeholder": "0"
+        },
+        {
+          "id": "ip2",
+          "label": "IP byte 2",
+          "type": "u8",
+          "placeholder": "0"
+        },
+        {
+          "id": "ip3",
+          "label": "IP byte 3",
+          "type": "u8",
+          "placeholder": "0"
+        },
+        {
+          "id": "ssid",
+          "label": "SSID UTF-8",
+          "type": "str",
+          "placeholder": ""
+        }
+      ],
+      "schema": "mode:u8,wifi_status:u8,ipv4[4],ssid_len:u8,ssid:utf8 (0..32 bytes). Evento sin status inicial de operación.",
+      "coverage": "form",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x82",
+      "name": "EVT_STA_CONNECTED",
+      "owner": "ESP",
+      "request": [
+        0,
+        255
+      ],
+      "response": [
+        7,
+        39
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:103; ESP:src/uner_app_handlers.cpp:append_wifi_info",
+      "fields": [
+        {
+          "id": "mode",
+          "label": "Modo WiFi",
+          "type": "u8",
+          "placeholder": "0"
+        },
+        {
+          "id": "wifiStatus",
+          "label": "Estado WiFi",
+          "type": "u8",
+          "placeholder": "0"
+        },
+        {
+          "id": "ip0",
+          "label": "IP byte 0",
+          "type": "u8",
+          "placeholder": "0"
+        },
+        {
+          "id": "ip1",
+          "label": "IP byte 1",
+          "type": "u8",
+          "placeholder": "0"
+        },
+        {
+          "id": "ip2",
+          "label": "IP byte 2",
+          "type": "u8",
+          "placeholder": "0"
+        },
+        {
+          "id": "ip3",
+          "label": "IP byte 3",
+          "type": "u8",
+          "placeholder": "0"
+        },
+        {
+          "id": "ssid",
+          "label": "SSID UTF-8",
+          "type": "str",
+          "placeholder": ""
+        }
+      ],
+      "schema": "mode:u8,wifi_status:u8,ipv4[4],ssid_len:u8,ssid:utf8 (0..32 bytes). Evento sin status inicial de operación.",
+      "coverage": "form",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x83",
+      "name": "EVT_STA_DISCONNECTED",
+      "owner": "ESP",
+      "request": [
+        0,
+        255
+      ],
+      "response": [
+        7,
+        39
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:104; ESP:src/uner_app_handlers.cpp:append_wifi_info",
+      "fields": [
+        {
+          "id": "mode",
+          "label": "Modo WiFi",
+          "type": "u8",
+          "placeholder": "0"
+        },
+        {
+          "id": "wifiStatus",
+          "label": "Estado WiFi",
+          "type": "u8",
+          "placeholder": "0"
+        },
+        {
+          "id": "ip0",
+          "label": "IP byte 0",
+          "type": "u8",
+          "placeholder": "0"
+        },
+        {
+          "id": "ip1",
+          "label": "IP byte 1",
+          "type": "u8",
+          "placeholder": "0"
+        },
+        {
+          "id": "ip2",
+          "label": "IP byte 2",
+          "type": "u8",
+          "placeholder": "0"
+        },
+        {
+          "id": "ip3",
+          "label": "IP byte 3",
+          "type": "u8",
+          "placeholder": "0"
+        },
+        {
+          "id": "ssid",
+          "label": "SSID UTF-8",
+          "type": "str",
+          "placeholder": ""
+        }
+      ],
+      "schema": "mode:u8,wifi_status:u8,ipv4[4],ssid_len:u8,ssid:utf8 (0..32 bytes). Evento sin status inicial de operación.",
+      "coverage": "form",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x84",
+      "name": "EVT_AP_CLIENT_JOIN",
+      "owner": "ESP",
+      "request": [
+        0,
+        255
+      ],
+      "response": [
+        1,
+        1
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:105",
+      "fields": [
+        {
+          "id": "clients",
+          "label": "Clientes AP",
+          "type": "u8",
+          "placeholder": "0"
+        }
+      ],
+      "schema": "ap_clients:u8. Cantidad de clientes AP tras incorporación/salida.",
+      "coverage": "form",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x85",
+      "name": "EVT_AP_CLIENT_LEAVE",
+      "owner": "ESP",
+      "request": [
+        0,
+        255
+      ],
+      "response": [
+        1,
+        1
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:106",
+      "fields": [
+        {
+          "id": "clients",
+          "label": "Clientes AP",
+          "type": "u8",
+          "placeholder": "0"
+        }
+      ],
+      "schema": "ap_clients:u8. Cantidad de clientes AP tras incorporación/salida.",
+      "coverage": "form",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x86",
+      "name": "EVT_APP_USER_CONNECTED",
+      "owner": "ESP",
+      "request": [
+        0,
+        255
+      ],
+      "response": [
+        4,
+        4
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:107",
+      "fields": [
+        {
+          "id": "clientId",
+          "label": "ID cliente u32 LE",
+          "type": "hex4",
+          "placeholder": "00000001"
+        }
+      ],
+      "schema": "client_id:u32 LE. Evento de conexión/desconexión del cliente.",
+      "coverage": "form",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x87",
+      "name": "EVT_APP_USER_DISCONNECTED",
+      "owner": "ESP",
+      "request": [
+        0,
+        255
+      ],
+      "response": [
+        4,
+        4
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:108",
+      "fields": [
+        {
+          "id": "clientId",
+          "label": "ID cliente u32 LE",
+          "type": "hex4",
+          "placeholder": "00000001"
+        }
+      ],
+      "schema": "client_id:u32 LE. Evento de conexión/desconexión del cliente.",
+      "coverage": "form",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x88",
+      "name": "EVT_WEBSERVER_UP",
+      "owner": "ESP",
+      "request": [
+        0,
+        255
+      ],
+      "response": [
+        0,
+        0
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:109",
+      "fields": [],
+      "schema": "Payload vacío en productor ESP actual.",
+      "coverage": "form",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x89",
+      "name": "EVT_WEBSERVER_CLIENT_CONNECTED",
+      "owner": "ESP",
+      "request": [
+        0,
+        255
+      ],
+      "response": [
+        4,
+        4
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:110",
+      "fields": [
+        {
+          "id": "clientId",
+          "label": "ID cliente u32 LE",
+          "type": "hex4",
+          "placeholder": "00000001"
+        }
+      ],
+      "schema": "client_id:u32 LE. Evento de conexión/desconexión del cliente.",
+      "coverage": "form",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x8A",
+      "name": "EVT_WEBSERVER_CLIENT_DISCONNECTED",
+      "owner": "ESP",
+      "request": [
+        0,
+        255
+      ],
+      "response": [
+        4,
+        4
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:111",
+      "fields": [
+        {
+          "id": "clientId",
+          "label": "ID cliente u32 LE",
+          "type": "hex4",
+          "placeholder": "00000001"
+        }
+      ],
+      "schema": "client_id:u32 LE. Evento de conexión/desconexión del cliente.",
+      "coverage": "form",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x8B",
+      "name": "EVT_LAST_WIFI_NOT_FOUND",
+      "owner": "ESP",
+      "request": [
+        0,
+        255
+      ],
+      "response": [
+        0,
+        255
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:112",
+      "fields": [
+        {
+          "id": "data",
+          "label": "Bytes hex según el esquema",
+          "type": "bytes",
+          "placeholder": ""
+        }
+      ],
+      "schema": "Formato variable: bytes hex explícitos; esquema detallado pendiente de formulario dedicado.",
+      "coverage": "raw",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x8C",
+      "name": "EVT_CONTROLLER_CONNECTED",
+      "owner": "ESP",
+      "request": [
+        0,
+        255
+      ],
+      "response": [
+        0,
+        255
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:113",
+      "fields": [
+        {
+          "id": "data",
+          "label": "Bytes hex según el esquema",
+          "type": "bytes",
+          "placeholder": ""
+        }
+      ],
+      "schema": "Formato variable: bytes hex explícitos; esquema detallado pendiente de formulario dedicado.",
+      "coverage": "raw",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x8D",
+      "name": "EVT_CONTROLLER_DISCONNECTED",
+      "owner": "ESP",
+      "request": [
+        0,
+        255
+      ],
+      "response": [
+        0,
+        255
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:114",
+      "fields": [
+        {
+          "id": "data",
+          "label": "Bytes hex según el esquema",
+          "type": "bytes",
+          "placeholder": ""
+        }
+      ],
+      "schema": "Formato variable: bytes hex explícitos; esquema detallado pendiente de formulario dedicado.",
+      "coverage": "raw",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x8E",
+      "name": "EVT_USB_CONNECTED",
+      "owner": "ESP",
+      "request": [
+        0,
+        255
+      ],
+      "response": [
+        0,
+        0
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:115",
+      "fields": [],
+      "schema": "Payload vacío en productor ESP actual.",
+      "coverage": "form",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x8F",
+      "name": "EVT_USB_DISCONNECTED",
+      "owner": "ESP",
+      "request": [
+        0,
+        255
+      ],
+      "response": [
+        0,
+        0
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:116",
+      "fields": [],
+      "schema": "Payload vacío en productor ESP actual.",
+      "coverage": "form",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x90",
+      "name": "EVT_MPU_STREAM",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        42,
+        42
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:117",
+      "fields": [
+        {
+          "id": "data",
+          "label": "Bytes hex según el esquema",
+          "type": "bytes",
+          "placeholder": ""
+        }
+      ],
+      "schema": "Snapshot 42 bytes: status:u8,flags:u8,seq:u16 LE,dt_us:u16 LE,roll/pitch/yaw:f32 grados,accel XYZ:f32 g,gyro XYZ:f32 grados/s. Request 60 vacío; 90 evento.",
+      "coverage": "raw",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x91",
+      "name": "EVT_IR_STREAM",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        56,
+        56
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:118",
+      "fields": [
+        {
+          "id": "data",
+          "label": "Bytes hex según el esquema",
+          "type": "bytes",
+          "placeholder": ""
+        }
+      ],
+      "schema": "Snapshot IR 56 bytes; mismo codec de producción f4Payloads.decodeIrSnapshot: status,flags,seq:u16,period_ms:u16,tick_ms:u32,raw[8]:u16,normalized[8]:u16,pattern,alignment,confidence,ambiguous,width_mm:u16,error_mm:f32,error_norm:f32. Todos multibyte LE.",
+      "coverage": "raw",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x92",
+      "name": "EVT_WIFI_CONNECTED",
+      "owner": "ESP",
+      "request": [
+        0,
+        255
+      ],
+      "response": [
+        0,
+        255
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:119",
+      "fields": [
+        {
+          "id": "data",
+          "label": "Bytes hex según el esquema",
+          "type": "bytes",
+          "placeholder": ""
+        }
+      ],
+      "schema": "Formato variable: bytes hex explícitos; esquema detallado pendiente de formulario dedicado.",
+      "coverage": "raw",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x93",
+      "name": "EVT_NETWORK_IP",
+      "owner": "ESP",
+      "request": [
+        5,
+        5
+      ],
+      "response": [
+        5,
+        5
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:120",
+      "fields": [
+        {
+          "id": "iface",
+          "label": "Interfaz",
+          "type": "select",
+          "options": [
+            {
+              "value": "1",
+              "label": "STA"
+            },
+            {
+              "value": "2",
+              "label": "AP"
+            }
+          ]
+        },
+        {
+          "id": "ip0",
+          "label": "IPv4 byte 0",
+          "type": "u8",
+          "placeholder": "192"
+        },
+        {
+          "id": "ip1",
+          "label": "IPv4 byte 1",
+          "type": "u8",
+          "placeholder": "168"
+        },
+        {
+          "id": "ip2",
+          "label": "IPv4 byte 2",
+          "type": "u8",
+          "placeholder": "4"
+        },
+        {
+          "id": "ip3",
+          "label": "IPv4 byte 3",
+          "type": "u8",
+          "placeholder": "1"
+        }
+      ],
+      "schema": "Formato variable: bytes hex explícitos; esquema detallado pendiente de formulario dedicado.",
+      "coverage": "form",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x94",
+      "name": "EVT_BOOT_COMPLETE",
+      "owner": "ESP",
+      "request": [
+        5,
+        5
+      ],
+      "response": [
+        5,
+        5
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:121",
+      "fields": [
+        {
+          "id": "iface",
+          "label": "Interfaz",
+          "type": "select",
+          "options": [
+            {
+              "value": "1",
+              "label": "STA"
+            },
+            {
+              "value": "2",
+              "label": "AP"
+            }
+          ]
+        },
+        {
+          "id": "ip0",
+          "label": "IPv4 byte 0",
+          "type": "u8",
+          "placeholder": "192"
+        },
+        {
+          "id": "ip1",
+          "label": "IPv4 byte 1",
+          "type": "u8",
+          "placeholder": "168"
+        },
+        {
+          "id": "ip2",
+          "label": "IPv4 byte 2",
+          "type": "u8",
+          "placeholder": "4"
+        },
+        {
+          "id": "ip3",
+          "label": "IPv4 byte 3",
+          "type": "u8",
+          "placeholder": "1"
+        }
+      ],
+      "schema": "Formato variable: bytes hex explícitos; esquema detallado pendiente de formulario dedicado.",
+      "coverage": "form",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x95",
+      "name": "EVT_SCREEN_CHANGED",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        5,
+        9
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:122",
+      "fields": [
+        {
+          "id": "screenCode",
+          "label": "Código de pantalla u32 LE",
+          "type": "hex4",
+          "placeholder": "00000000"
+        },
+        {
+          "id": "source",
+          "label": "Fuente",
+          "type": "u8",
+          "placeholder": "1"
+        },
+        {
+          "id": "data",
+          "label": "Opcional: remaining_ms:u16 LE,total_ms:u16 LE",
+          "type": "bytes",
+          "placeholder": ""
+        }
+      ],
+      "schema": "screen:u32 LE,source:u8[,remaining_ms:u16,total_ms:u16].",
+      "coverage": "form",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x96",
+      "name": "EVT_MENU_SELECTION_CHANGED",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        7,
+        7
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:123",
+      "fields": [
+        {
+          "id": "screenCode",
+          "label": "Código de pantalla u32 LE",
+          "type": "hex4",
+          "placeholder": "00000000"
+        },
+        {
+          "id": "selected",
+          "label": "Índice seleccionado (base 0)",
+          "type": "u8",
+          "placeholder": "0"
+        },
+        {
+          "id": "count",
+          "label": "Cantidad de ítems",
+          "type": "u8",
+          "placeholder": "1"
+        },
+        {
+          "id": "source",
+          "label": "Fuente",
+          "type": "u8",
+          "placeholder": "1"
+        }
+      ],
+      "schema": "screen:u32 LE,selected:u8,count:u8,source:u8. No contiene cursor ni buffer del teclado.",
+      "coverage": "form",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x97",
+      "name": "EVT_CAR_MODE_CHANGED",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        1,
+        1
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:124",
+      "fields": [
+        {
+          "id": "mode",
+          "label": "Modo",
+          "type": "select",
+          "options": [
+            {
+              "value": "0",
+              "label": "IDLE"
+            },
+            {
+              "value": "1",
+              "label": "FOLLOW"
+            },
+            {
+              "value": "2",
+              "label": "TEST"
+            },
+            {
+              "value": "3",
+              "label": "GOTO sin objetivo"
+            }
+          ]
+        }
+      ],
+      "schema": "mode:u8 (0 IDLE,1 FOLLOW,2 TEST,3 GOTO sin objetivo).",
+      "coverage": "form",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x98",
+      "name": "EVT_IR_EMITTERS_CHANGED",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        3,
+        3
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:125",
+      "fields": [
+        {
+          "id": "line",
+          "label": "Línea",
+          "type": "select",
+          "options": [
+            {
+              "value": "0",
+              "label": "Desactivado"
+            },
+            {
+              "value": "1",
+              "label": "Activado"
+            }
+          ]
+        },
+        {
+          "id": "objects",
+          "label": "Objetos",
+          "type": "select",
+          "options": [
+            {
+              "value": "0",
+              "label": "Desactivado"
+            },
+            {
+              "value": "1",
+              "label": "Activado"
+            }
+          ]
+        },
+        {
+          "id": "persist",
+          "label": "Persistido",
+          "type": "select",
+          "options": [
+            {
+              "value": "0",
+              "label": "Desactivado"
+            },
+            {
+              "value": "1",
+              "label": "Activado"
+            }
+          ]
+        }
+      ],
+      "schema": "line_enabled:u8,objects_enabled:u8,persisted:u8; evento sin status inicial.",
+      "coverage": "form",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x9E",
+      "name": "EVT_QT_USB_STATE",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        1,
+        1
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:126",
+      "fields": [
+        {
+          "id": "connected",
+          "label": "Qt conectado",
+          "type": "select",
+          "options": [
+            {
+              "value": "0",
+              "label": "Desactivado"
+            },
+            {
+              "value": "1",
+              "label": "Activado"
+            }
+          ]
+        }
+      ],
+      "schema": "connected:u8",
+      "coverage": "form",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x9F",
+      "name": "EVT_MCU_BOOT_REPORT",
+      "owner": "F4",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        22,
+        22
+      ],
+      "completion": "EVENT",
+      "timeoutMs": 0,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:127",
+      "fields": [
+        {
+          "id": "data",
+          "label": "Bytes hex según el esquema",
+          "type": "bytes",
+          "placeholder": ""
+        }
+      ],
+      "schema": "Reporte de arranque 22 bytes; mismo codec de producción f4Payloads.decodeBootReport. Request 6F vacío; 9F evento.",
+      "coverage": "raw",
+      "group": "Eventos",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0xA4",
+      "name": "LEGACY_WIFI_SCAN_STARTED",
+      "owner": "RESERVED",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        0,
+        0
+      ],
+      "completion": "NONE",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": false,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:129",
+      "fields": [],
+      "schema": "Request vacío.",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "declared",
+      "registryImplemented": false
+    },
+    {
+      "id": "0xA5",
+      "name": "LEGACY_WIFI_SCAN_COMPLETED",
+      "owner": "RESERVED",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        0,
+        0
+      ],
+      "completion": "NONE",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": false,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:130",
+      "fields": [],
+      "schema": "Request vacío.",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "declared",
+      "registryImplemented": false
+    },
+    {
+      "id": "0xA6",
+      "name": "LEGACY_WIFI_STA_CONNECT_REQUESTED",
+      "owner": "RESERVED",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        0,
+        0
+      ],
+      "completion": "NONE",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": false,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:131",
+      "fields": [],
+      "schema": "Request vacío.",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "declared",
+      "registryImplemented": false
+    },
+    {
+      "id": "0xA7",
+      "name": "LEGACY_WIFI_STA_DISCONNECT_REQUESTED",
+      "owner": "RESERVED",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        0,
+        0
+      ],
+      "completion": "NONE",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": false,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:132",
+      "fields": [],
+      "schema": "Request vacío.",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "declared",
+      "registryImplemented": false
+    },
+    {
+      "id": "0xA8",
+      "name": "LEGACY_WIFI_AP_STATE_REQUESTED",
+      "owner": "RESERVED",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        0,
+        0
+      ],
+      "completion": "NONE",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": false,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:133",
+      "fields": [],
+      "schema": "Request vacío.",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "declared",
+      "registryImplemented": false
+    },
+    {
+      "id": "0xA9",
+      "name": "LEGACY_WEB_COMMAND_REJECTED",
+      "owner": "RESERVED",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        0,
+        0
+      ],
+      "completion": "NONE",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": false,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:134",
+      "fields": [],
+      "schema": "Request vacío.",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "declared",
+      "registryImplemented": false
+    },
+    {
+      "id": "0xAA",
+      "name": "LEGACY_CREDENTIALS_UPDATED",
+      "owner": "RESERVED",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        0,
+        0
+      ],
+      "completion": "NONE",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": false,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:135",
+      "fields": [],
+      "schema": "Request vacío.",
+      "coverage": "form",
+      "group": "ESP / compartidos",
+      "availability": "declared",
+      "registryImplemented": false
+    },
+    {
+      "id": "0xE0",
+      "name": "ACK",
+      "owner": "DUAL",
+      "request": [
+        1,
+        2
+      ],
+      "response": [
+        0,
+        0
+      ],
+      "completion": "NONE",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:137",
+      "fields": [
+        {
+          "id": "original",
+          "label": "Comando original",
+          "type": "hex1",
+          "placeholder": "31"
+        },
+        {
+          "id": "status",
+          "label": "Status opcional",
+          "type": "optionalU8",
+          "placeholder": "0"
+        }
+      ],
+      "schema": "original_cmd:u8[,status:u8]; ACK intermedio no termina ACK_THEN_SAME_COMMAND.",
+      "coverage": "form",
+      "group": "ACK / NACK",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0xE1",
+      "name": "NACK",
+      "owner": "DUAL",
+      "request": [
+        1,
+        2
+      ],
+      "response": [
+        0,
+        0
+      ],
+      "completion": "NONE",
+      "timeoutMs": 0,
+      "privilege": "INTERNAL",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "ESP:src/f4_command_registry.c:138",
+      "fields": [
+        {
+          "id": "original",
+          "label": "Comando original",
+          "type": "hex1",
+          "placeholder": "31"
+        },
+        {
+          "id": "status",
+          "label": "Motivo opcional",
+          "type": "optionalU8",
+          "placeholder": "0"
+        }
+      ],
+      "schema": "original_cmd:u8[,reason:u8]; rechazo, no éxito.",
+      "coverage": "form",
+      "group": "ACK / NACK",
+      "availability": "implemented",
+      "registryImplemented": true
+    }
+  ]
+}

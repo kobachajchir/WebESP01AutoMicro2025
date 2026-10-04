@@ -130,12 +130,12 @@ const TOOL_DEFINITIONS: ReadonlyArray<{
  label: string;
  icon: (props: EditorIconProps) => ReactElement;
 }> = [
- { id: "select", label: "Seleccion", icon: CursorSelectIcon },
- { id: "rectangle", label: "Rectangulo", icon: RectangleToolIcon },
- { id: "circle", label: "Circulo", icon: CircleToolIcon },
- { id: "line", label: "Linea", icon: LineToolIcon },
- { id: "triangle", label: "Triangulo", icon: TriangleToolIcon },
- { id: "polygon", label: "Poligono", icon: PolygonToolIcon },
+ { id: "select", label: "Selección", icon: CursorSelectIcon },
+ { id: "rectangle", label: "Rectángulo", icon: RectangleToolIcon },
+ { id: "circle", label: "Círculo", icon: CircleToolIcon },
+ { id: "line", label: "Línea", icon: LineToolIcon },
+ { id: "triangle", label: "Triángulo", icon: TriangleToolIcon },
+ { id: "polygon", label: "Polígono", icon: PolygonToolIcon },
  { id: "text", label: "Texto", icon: TextToolIcon },
  { id: "image", label: "Imagen", icon: ImageToolIcon },
  { id: "paint", label: "Pincel", icon: PaintBrushToolIcon },
@@ -898,18 +898,18 @@ export function LopakaLikeEditor({
  }
 
  return (
- <div ref={rootRef} tabIndex={0} className="flex flex-col gap-4 outline-none">
+ <div ref={rootRef} tabIndex={0} className="oled-editor-workspace flex flex-col gap-4 outline-none">
  <div
  className={
  activeView === "visualization"
- ? "grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_340px]"
+ ? "oled-editor-layout"
  : "hidden"
  }
  >
- <aside className="app-panel-strong flex flex-col gap-4 p-4">
+ <aside className="oled-editor-layers-panel app-panel-strong flex flex-col gap-4 p-4">
  <div>
  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--ui-muted)]">
- Screen
+ Pantalla
  </div>
  <input
  className="app-input mt-2 w-full px-3 py-2 text-sm"
@@ -922,18 +922,18 @@ export function LopakaLikeEditor({
  disabled={readOnly}
  />
  <p className="mt-2 text-xs text-[var(--ui-muted)]">
- OLED {editor.state.document.screen.width}x{editor.state.document.screen.height} en una sola screen.
+ OLED {editor.state.document.screen.width}x{editor.state.document.screen.height} en un único lienzo.
  </p>
  </div>
 
  <div>
  <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--ui-muted)]">
- Layers
+ Capas
  </div>
- <div className="flex flex-col gap-2">
+ <div className="oled-editor-layers flex flex-col gap-2">
  {editor.state.document.zOrder.length === 0 ? (
  <div className="rounded-md border border-[var(--ui-ring)] bg-[var(--ui-bg-0)]/40 p-3 text-sm text-[var(--ui-muted)]">
- Todavia no hay objetos en el canvas.
+ Todavía no hay objetos. Elige una herramienta y dibuja en el lienzo.
  </div>
  ) : null}
  {[...editor.state.document.zOrder].reverse().map((id) => {
@@ -944,21 +944,19 @@ export function LopakaLikeEditor({
  return (
  <div
  key={id}
- className="rounded-md border px-3 py-2"
- style={{
- borderColor: selected ? "var(--ui-accent)" : "rgba(255,255,255,0.1)",
- background: selected ? "rgba(34,211,238,0.08)" : "rgba(2,6,23,0.28)",
- }}
+ className={`oled-editor-choice rounded-md border px-3 py-2 ${selected ? "oled-editor-choice--selected" : ""}`}
  >
+ <div className="oled-editor-layer-heading">
  <button
  type="button"
- className="flex w-full items-start justify-between gap-2 text-left"
+ className="oled-editor-layer-select"
  onClick={() => editor.setSelection({ selectedIds: [id] })}
  >
  <div>
  <div className="font-semibold text-[var(--ui-text)]">{object.name}</div>
  <div className="text-xs uppercase text-[var(--ui-muted)]">{object.kind}</div>
  </div>
+ </button>
  <div className="flex gap-1">
  <LayerActionIconButton
  label={object.hidden ? "Mostrar capa" : "Ocultar capa"}
@@ -987,7 +985,7 @@ export function LopakaLikeEditor({
  }
  />
  </div>
- </button>
+ </div>
  <div className="mt-2 flex gap-2">
  <LayerActionIconButton
  label="Subir capa"
@@ -1056,7 +1054,7 @@ export function LopakaLikeEditor({
  </aside>
 
  <div className="flex min-w-0 flex-col gap-4">
- <div className="app-panel-strong flex flex-wrap items-center gap-2 p-3">
+ <div className="oled-editor-toolbar app-panel-strong flex flex-wrap items-center gap-2 p-3">
  {TOOL_DEFINITIONS.map(({ id, label, icon: Icon }) => (
  <ToolbarIconButton
  key={id}
@@ -1068,7 +1066,7 @@ export function LopakaLikeEditor({
  </ToolbarIconButton>
  ))}
 
- <div className="ml-auto flex items-center gap-2">
+ <div className="oled-editor-toolbar-actions">
  <div className="flex items-center gap-2 rounded-full border border-[var(--ui-ring)] bg-[var(--ui-bg-0)]/35 px-2 py-1">
  <ToolbarIconButton
  label="Alejar"
@@ -1094,10 +1092,10 @@ export function LopakaLikeEditor({
  <ZoomInIcon className="h-5 w-5" />
  </ToolbarIconButton>
  </div>
- <ToolbarIconButton label="Undo" onClick={editor.undo}>
+ <ToolbarIconButton label="Deshacer" onClick={editor.undo}>
  <UndoIcon className="h-5 w-5" />
  </ToolbarIconButton>
- <ToolbarIconButton label="Redo" onClick={editor.redo}>
+ <ToolbarIconButton label="Rehacer" onClick={editor.redo}>
  <RedoIcon className="h-5 w-5" />
  </ToolbarIconButton>
  <ToolbarIconButton
@@ -1120,14 +1118,14 @@ export function LopakaLikeEditor({
  <div className="app-panel-strong flex flex-col gap-4 p-4">
  <div className="flex items-center justify-between gap-3">
  <div>
- <h2 className="text-xl font-black text-[var(--ui-text)]">Canvas</h2>
+ <h2 className="text-xl font-black text-[var(--ui-text)]">Lienzo</h2>
  </div>
  <div className="rounded-full border border-[var(--ui-ring)] bg-[var(--ui-panel)] px-3 py-1 text-xs font-semibold uppercase text-[var(--ui-muted)]">
  {getToolLabel(editor.state.activeTool)}
  </div>
  </div>
 
- <div className="overflow-auto rounded-md border border-[var(--ui-ring)] bg-[var(--ui-bg-0)]/60 p-4">
+ <div className="oled-editor-canvas-scroll">
  <div
  ref={stageRef}
  className="relative mx-auto rounded-md border border-cyan-300/20 bg-[var(--ui-bg-0)] shadow-[0_0_0_1px_rgba(34,211,238,0.08)]"
@@ -1140,7 +1138,7 @@ export function LopakaLikeEditor({
  onPointerUp={handleStagePointerUp}
  onDoubleClick={handleStageDoubleClick}
  onContextMenu={handleStageContextMenu}
- aria-label="canvas"
+ aria-label="Lienzo OLED"
  >
  <canvas
  ref={rasterCanvasRef}
@@ -1247,9 +1245,9 @@ export function LopakaLikeEditor({
  >
  <div className="flex flex-wrap items-center justify-between gap-3">
  <div>
- <h3 className="text-xl font-black text-[var(--ui-text)]">Codigo</h3>
+ <h3 className="text-xl font-black text-[var(--ui-text)]">Código generado</h3>
  <p className="text-sm text-[var(--ui-muted)]">
- El bloque generado se recalcula con cada cambio y mantiene lineMap por objeto seleccionado.
+ El código se actualiza al editar. Selecciona un objeto para identificar sus líneas.
  </p>
  </div>
  <div className="flex flex-wrap items-center gap-2">
@@ -1274,20 +1272,20 @@ export function LopakaLikeEditor({
  >
  {editor.state.ui.codeSettings.mode === "uner-commands"
  ? "Ver JSON IR"
- : "Ver UNER commands"}
+ : "Ver comandos UNER"}
  </button>
  </div>
  </div>
 
- <div className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
+ <div className="oled-editor-code-layout">
  <div className="flex flex-col gap-3">
  {(
  [
- ["wrapperFunction", "Wrapper function"],
- ["includeComments", "Comentarios por layer"],
+ ["wrapperFunction", "Función contenedora"],
+ ["includeComments", "Comentarios por capa"],
  ["declareImages", "Declarar bitmaps locales"],
  ["declareVariables", "Declarar variables de pantalla"],
- ["clearDisplay", "Limpiar display al inicio"],
+ ["clearDisplay", "Limpiar pantalla al inicio"],
  ] as Array<[keyof typeof editor.state.ui.codeSettings, string]>
  ).map(([key, label]) => (
  <label
@@ -1319,7 +1317,7 @@ export function LopakaLikeEditor({
  </label>
 
  <label className="text-sm font-semibold text-[var(--ui-text)]">
- Insertar despues
+ Insertar después
  <textarea
  className="app-input mt-2 min-h-28 w-full px-3 py-2 text-sm"
  value={editor.state.ui.codeSettings.suffix}
@@ -1345,9 +1343,7 @@ export function LopakaLikeEditor({
  return (
  <div
  key={`${index}-${line}`}
- style={{
- background: highlighted ? "rgba(34, 211, 238, 0.12)" : "transparent",
- }}
+ className={highlighted ? "oled-editor-code-line--highlighted" : undefined}
  >
  <span className="mr-4 inline-block w-8 select-none text-right text-[var(--ui-subtle)]">
  {index + 1}
@@ -1383,11 +1379,7 @@ export function LopakaLikeEditor({
  <button
  key={asset.id}
  type="button"
- className="rounded-md border p-3 text-left transition"
- style={{
- borderColor: selected ? "var(--ui-accent)" : "rgba(255,255,255,0.1)",
- background: selected ? "rgba(34,211,238,0.08)" : "rgba(2,6,23,0.28)",
- }}
+ className={`oled-editor-choice rounded-md border p-3 text-left transition ${selected ? "oled-editor-choice--selected" : ""}`}
  onClick={() => editor.selectAsset(asset.id)}
  >
  <div className="mb-3 flex items-center justify-between gap-2">
@@ -1932,7 +1924,7 @@ function ToolbarIconButton({
  title={label}
  disabled={disabled}
  onClick={onClick}
- className="flex h-11 w-11 items-center justify-center rounded-xl border transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-40"
+ className="flex h-11 w-11 items-center justify-center rounded-xl border transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40"
  style={
  active
  ? {
@@ -1971,12 +1963,7 @@ function LayerActionIconButton({
  title={label}
  disabled={disabled}
  onClick={onClick}
- className="flex h-8 w-8 items-center justify-center rounded-md border transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-40"
- style={{
- borderColor: "rgba(255,255,255,0.1)",
- background: "rgba(2,6,23,0.32)",
- color: "rgb(203 213 225)",
- }}
+ className="oled-editor-icon-button flex h-8 w-8 items-center justify-center rounded-md border disabled:cursor-not-allowed disabled:opacity-40"
  >
  {icon}
  </button>

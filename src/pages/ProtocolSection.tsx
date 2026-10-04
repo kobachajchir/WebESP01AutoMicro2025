@@ -1,3 +1,4 @@
+import "../features/studio.css";
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import Modal from "../components/modal";
@@ -13,7 +14,7 @@ import { useProtocolStudioState } from "../features/protocolStudio/useProtocolSt
 type StudioView = "protocol" | "oled";
 
 const SEGMENTED_TOGGLE_BUTTON_CLASS =
- "protocol-studio-toggle min-w-[140px] rounded-full px-4 py-2 text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40";
+ "protocol-studio-toggle min-w-[140px] rounded-full px-4 py-2 text-sm font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40";
 
 export default function ProtocolSection() {
  const studio = useProtocolStudioState();
@@ -55,13 +56,14 @@ export default function ProtocolSection() {
  }
  />
 
- <div className="relative pt-7">
- <div className="pointer-events-none absolute left-1/2 top-0 z-10 -translate-x-1/2">
+ <div className="studio-workspace">
+ <div className="studio-switcher-row">
  <div className="protocol-studio-switcher pointer-events-auto flex items-center gap-1 rounded-full p-1">
  <button
  type="button"
  className={SEGMENTED_TOGGLE_BUTTON_CLASS}
  style={segmentedButtonStyle(activeStudio === "protocol")}
+ aria-pressed={activeStudio === "protocol"}
  onClick={() => handleStudioChange("protocol")}
  >
  Protocol Studio
@@ -70,6 +72,7 @@ export default function ProtocolSection() {
  type="button"
  className={SEGMENTED_TOGGLE_BUTTON_CLASS}
  style={segmentedButtonStyle(activeStudio === "oled")}
+ aria-pressed={activeStudio === "oled"}
  onClick={() => handleStudioChange("oled")}
  >
  OLED Studio
@@ -77,7 +80,7 @@ export default function ProtocolSection() {
  </div>
  </div>
 
- <div className="protocol-studio-card app-panel-strong relative overflow-hidden px-5 pb-6 pt-14 md:px-7">
+ <div className="protocol-studio-card studio-workspace-card app-panel-strong">
  {activeStudio === "protocol" ? (
  <div className="flex flex-col gap-6">
  <ProtocolHero
@@ -206,7 +209,7 @@ function segmentedButtonStyle(active: boolean) {
  ? {
  background: "var(--ui-accent)",
  color: "var(--ui-action-hover-ink)",
- boxShadow: "0 12px 28px rgba(34,211,238,0.28)",
+ boxShadow: "none",
  }
  : {
  background: "transparent",

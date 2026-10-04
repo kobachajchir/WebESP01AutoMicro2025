@@ -1,49 +1,33 @@
+import { useMemo } from "react";
+import { useThree } from "@react-three/fiber";
+import { Html } from "@react-three/drei";
 import AppLoadingScreen from "./AppLoadingScreen";
-import { useAssetQuality } from "../contexts/AssetQualityContext";
 
 export default function ModelLoadingScreen({
   visible,
   customLabel,
+  failed = false,
 }: {
   visible: boolean;
   customLabel?: string;
+  failed?: boolean;
 }) {
-  const { isHdModelActive, toggleHdModelQuality } = useAssetQuality();
-
+  const { gl } = useThree();
+  const portal = useMemo(() => ({ current: gl.domElement.parentElement! }), [gl]);
   if (!visible) return null;
-
-  const isHd = isHdModelActive;
-  const label =
-    customLabel ??
-    (isHd
-      ? "Cargando modelo 3D HD"
-      : "Cargando modelo 3D local");
-
   return (
-    <AppLoadingScreen label={label}>
-      {isHd ? (
-        <button
-          type="button"
-          className="app-loading-screen__fallback-button"
-          onClick={toggleHdModelQuality}
-          title="Omitir espera y usar el modelo local"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            width="15"
-            height="15"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M19 12H5M12 19l-7-7 7-7" />
-          </svg>
-          <span>Usar modelo SD local</span>
-        </button>
-      ) : null}
-    </AppLoadingScreen>
+    <Html
+      fullscreen
+      portal={portal}
+      zIndexRange={[20, 20]}
+      calculatePosition={(_object, _camera, size) => [size.width / 2, size.height / 2]}
+      style={{ pointerEvents: "none" }}
+    >
+      <AppLoadingScreen
+        label={customLabel ?? "Cargando modelo 3D local"}
+        className="model-loading-screen"
+        showSpinner={!failed}
+      />
+    </Html>
   );
 }

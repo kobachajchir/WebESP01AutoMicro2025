@@ -9,3 +9,7 @@ La central de mensajes del contrato compartido está en `../../AutoMicroContract
 - El pedido del usuario autoriza escribir y publicar en `AutoMicroContracts` solo para mantener este registro y sus fichas. No autoriza modificar código de otro repositorio por implicación ni afirmar que está sincronizado sin evidencia.
 - Si la central o su remoto no están disponibles, informar que el registro quedó pendiente de publicación. No presentar el cambio como comunicado.
 - No ejecutar tests, compilaciones ni validaciones salvo pedido expreso del usuario.
+
+## AutoMicro Screen System
+
+Para pantallas, OLED, teclado, navegación o reportes de UI, leer la skill central `AutoMicroContracts/.agents/skills/automicro-screen-system/SKILL.md` en el repositorio hermano. Documentar payloads, transiciones y limitaciones remotas en Contracts. No ejecutar tests, compilaciones ni validaciones salvo pedido expreso.

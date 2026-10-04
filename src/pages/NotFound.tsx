@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import logoDashboard from "../assets/LogoDashboard.webp";
+import logoDashboard from "../assets/LogoDashboardV2.webp";
 import "./NotFound.css";
 
 export default function NotFound() {
@@ -13,7 +13,7 @@ export default function NotFound() {
           <img
             className="not-found-card__logo"
             src={logoDashboard}
-            alt="Auto Microcontroladores"
+            alt="AutoMicro"
           />
         </div>
 

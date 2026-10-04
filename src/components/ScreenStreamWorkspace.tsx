@@ -1,9 +1,12 @@
 // src/components/ScreenStreamWorkspace.tsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useSavedOledScreens } from "../contexts/SavedOledScreensContext";
 import { useScreen } from "../contexts/ScreenContext";
 import { useWebSocket } from "../hooks/useWebSocket";
-import { formatScreenCodeHex } from "../types/ScreenTypes";
+import type { ScreenStreamKeyboardActions } from "../hooks/useScreenStreamKeyboard";
+import { formatScreenCodeHex, SCREEN_GET_CURRENT_COMMAND } from "../types/ScreenTypes";
+import { ESP_COMMANDS } from "../protocol/wsApi";
+import { useIrEmitters } from "../contexts/IrEmittersContext";
 import { resolveOledScreen } from "../screens";
 import OledCommandPreview from "./OledCommandPreview";
 import PinScreenModal from "./PinScreenModal";
@@ -42,6 +45,12 @@ const UNER_PRESS_KIND_LONG = 0x01;
 
 type ScreenPageDirection = "up" | "down";
 type AuxButtonKind = "encoder" | "user";
+// DEBUG temporal: un registro por comando de teclado, solo al soltar la tecla.
+type KeyboardCommandDebug = {
+ key: string;
+ heldMs?: number;
+};
+const KEYBOARD_DEBUG_PREFIX = "[DEBUG][Pantalla en vivo][teclado]";
 const Icon_Encoder_bits = new Uint8Array([
  0xf8, 0x03, 0xfc, 0x07, 0x0e, 0x0e, 0xf7, 0x1d, 0xfb, 0x1b, 0xfb, 0x1b, 0xfb,
  0x1b, 0xfb, 0x1b, 0xfb, 0x1b, 0xf7, 0x1d, 0x0e, 0x0e, 0xfc, 0x07, 0xf8, 0x03,
@@ -99,10 +108,13 @@ function createCommandRequestId(): string {
 
 export default function ScreenStreamWorkspace({
  isModal = false,
+ keyboardActionsRef,
 }: {
  isModal?: boolean;
+ keyboardActionsRef?: React.RefObject<ScreenStreamKeyboardActions | null>;
 }) {
  const { validatePin, remotePinAuthenticated } = useUser();
+ const { state: irEmitters } = useIrEmitters();
  const { connected, request } = useWebSocket();
  const { currentScreen, requestCurrentScreen } = useScreen();
  const { rawMode, requestCarMode } = useCarMode();
@@ -146,8 +158,12 @@ export default function ScreenStreamWorkspace({
 
 
 
- const [pressedAuxButton, setPressedAuxButton] =
- useState<AuxButtonKind | null>(null);
+ const [pressedAuxButtons, setPressedAuxButtons] = useState<
+ Record<AuxButtonKind, boolean>
+ >({
+ encoder: false,
+ user: false,
+ });
  const [longPressActive, setLongPressActive] = useState<
  Record<AuxButtonKind, boolean>
  >({
@@ -180,10 +196,10 @@ export default function ScreenStreamWorkspace({
  source: currentScreen.source,
  sourceName: currentScreen.sourceName,
  title: currentScreen.title,
- rawData: currentScreen.rawData,
+ rawData: { ...currentScreen.rawData, irEmitters },
  })
  : null,
- [currentScreen],
+ [currentScreen, irEmitters],
  );
  const notificationRemainingMs = readFiniteNumber(currentScreen?.rawData?.remainingMs);
  const notificationTotalMs = readFiniteNumber(currentScreen?.rawData?.totalMs);
@@ -295,6 +311,35 @@ export default function ScreenStreamWorkspace({
  }, POST_COMMAND_SCREEN_REFRESH_DELAY_MS);
  };
 
+ const logKeyboardCommand = (
+ legacyCommand: string,
+ jsonCommand: string,
+ jsonParams: Record<string, unknown>,
+ payload: number[] | null,
+ keyboardDebug: KeyboardCommandDebug,
+ ) => {
+ const useJsonCommand = stmRemoteCommandMode === STM_REMOTE_COMMAND_MODE.JSON;
+ const blockedReason = !connected
+ ? "WebSocket desconectado"
+ : !remotePinAuthenticated
+ ? "Sesion PIN no autorizada"
+ : jsonParams.screenCode == null
+ ? "Sin pantalla activa"
+ : null;
+ console.log(`${KEYBOARD_DEBUG_PREFIX} comando al soltar`, {
+ ...keyboardDebug,
+ event: "keyup",
+ command: useJsonCommand ? jsonCommand : legacyCommand,
+ legacyCommand,
+ params: useJsonCommand ? jsonParams : { payload },
+ screenCode: jsonParams.screenCode,
+ pressKind: jsonParams.pressKind,
+ payloadHex: payload?.map((byte) => byte.toString(16).toUpperCase().padStart(2, "0")).join(" ") ?? null,
+ canSend: blockedReason === null,
+ blockedReason,
+ });
+ };
+
  const dispatchStmCommand = async (
  legacyCommand: string,
  payloadOrOptionsOrDescription:
@@ -312,6 +357,7 @@ export default function ScreenStreamWorkspace({
  jsonCommand?: string;
  jsonParams?: Record<string, unknown>;
  },
+ inputSource: "pointer" | "keyboard" = "pointer",
  ) => {
  const description =
  typeof payloadOrOptionsOrDescription === "string"
@@ -328,7 +374,7 @@ export default function ScreenStreamWorkspace({
  stmRemoteCommandMode === STM_REMOTE_COMMAND_MODE.JSON &&
  Boolean(options.jsonCommand);
  const command = useJsonCommand ? options.jsonCommand! : legacyCommand;
-
+ if (inputSource !== "keyboard") {
  console.log("[UNER][WEB->MCU] comando solicitado", {
  command,
  description,
@@ -339,12 +385,15 @@ export default function ScreenStreamWorkspace({
  payloadBytes: payload,
  params: options.jsonParams,
  });
+ }
 
  if (!connected) {
+ if (inputSource !== "keyboard") {
  console.warn("[UNER][WEB->MCU] no conectado, comando ignorado", {
  command,
  description,
  });
+ }
  setRemoteCommandStatus({ tone: "error", message: "No hay WebSocket activo." });
  return false;
  }
@@ -498,8 +547,10 @@ export default function ScreenStreamWorkspace({
  };
 
  const startAuxPress = (kind: AuxButtonKind) => {
+ if (auxPressStartRef.current[kind] !== null) return;
+
  auxPressStartRef.current[kind] = Date.now();
- setPressedAuxButton(kind);
+ setPressedAuxButtons((prev) => ({ ...prev, [kind]: true }));
  setLongPressActive((prev) => ({ ...prev, [kind]: false }));
 
  if (auxLongPressTimeoutRef.current[kind] !== null) {
@@ -507,13 +558,15 @@ export default function ScreenStreamWorkspace({
  }
 
  auxLongPressTimeoutRef.current[kind] = window.setTimeout(() => {
+ auxLongPressTimeoutRef.current[kind] = null;
+ if (auxPressStartRef.current[kind] === null) return;
  setLongPressActive((prev) => ({ ...prev, [kind]: true }));
  }, LONG_PRESS_THRESHOLD_MS);
  };
 
  const cancelAuxPress = (kind: AuxButtonKind) => {
  auxPressStartRef.current[kind] = null;
- setPressedAuxButton((prev) => (prev === kind ? null : prev));
+ setPressedAuxButtons((prev) => ({ ...prev, [kind]: false }));
  setLongPressActive((prev) => ({ ...prev, [kind]: false }));
 
  if (auxLongPressTimeoutRef.current[kind] !== null) {
@@ -522,25 +575,11 @@ export default function ScreenStreamWorkspace({
  }
  };
 
- const releaseAuxPress = (kind: AuxButtonKind) => {
+ const releaseAuxPress = (kind: AuxButtonKind, inputSource: "pointer" | "keyboard" = "pointer") => {
  const startedAt = auxPressStartRef.current[kind];
-
- if (auxLongPressTimeoutRef.current[kind] !== null) {
- window.clearTimeout(auxLongPressTimeoutRef.current[kind]!);
- auxLongPressTimeoutRef.current[kind] = null;
- }
-
- auxPressStartRef.current[kind] = null;
-
- if (!currentScreen) {
  cancelAuxPress(kind);
- return;
- }
 
- if (startedAt === null) {
- cancelAuxPress(kind);
- return;
- }
+ if (startedAt === null) return;
 
  const heldMs = Date.now() - startedAt;
  const pressKind =
@@ -557,30 +596,33 @@ export default function ScreenStreamWorkspace({
  ? STM_REMOTE_INPUT_COMMANDS.ENCODER_BUTTON
  : STM_REMOTE_INPUT_COMMANDS.USER_BUTTON;
 
- const payload = buildAuxButtonPayload(currentScreen.screenCode, pressKind);
+ const screenCode = currentScreen?.screenCode ?? null;
+ const jsonParams = { screenCode, pressKind: toRemotePressKindLabel(pressKind) };
+ const payload = screenCode === null ? null : buildAuxButtonPayload(screenCode, pressKind);
+ if (inputSource === "keyboard") {
+ logKeyboardCommand(legacyCommand, jsonCommand, jsonParams, payload, {
+ key: kind === "user" ? "U" : "M", heldMs,
+ });
+ }
+ if (payload === null) return;
 
  void dispatchStmCommand(
  legacyCommand,
  {
  payload,
  jsonCommand,
- jsonParams: {
- screenCode: currentScreen.screenCode,
- pressKind: toRemotePressKindLabel(pressKind),
- },
+ jsonParams,
  },
  `${kind === "encoder" ? "Emular botón encoder" : "Emular botón user"} como ${
  pressKind === UNER_PRESS_KIND_LONG ? "longpress" : "shortpress"
  }`,
+ inputSource,
  ).then((ok) => { if (ok) scheduleScreenRefresh(); });
-
- setPressedAuxButton((prev) => (prev === kind ? null : prev));
- setLongPressActive((prev) => ({ ...prev, [kind]: false }));
 
  };
 
- const handleEncoderRotate = (direction: "left" | "right") => {
- if (!currentScreen) {
+ const handleEncoderRotate = (direction: "left" | "right", inputSource: "pointer" | "keyboard" = "pointer") => {
+ if (!currentScreen && inputSource !== "keyboard") {
  console.warn("[Encoder] No hay currentScreen para enviar rotación");
  return;
  }
@@ -596,20 +638,27 @@ export default function ScreenStreamWorkspace({
  ? STM_REMOTE_INPUT_COMMANDS.ROTATE_LEFT
  : STM_REMOTE_INPUT_COMMANDS.ROTATE_RIGHT;
 
- const payload = buildEncoderRotatePayload(currentScreen.screenCode);
+ const screenCode = currentScreen?.screenCode ?? null;
+ const jsonParams = { screenCode };
+ const payload = screenCode === null ? null : buildEncoderRotatePayload(screenCode);
+ if (inputSource === "keyboard") {
+ logKeyboardCommand(legacyCommand, jsonCommand, jsonParams, payload, {
+ key: direction === "left" ? "ArrowUp" : "ArrowDown",
+ });
+ }
+ if (payload === null) return;
 
  void dispatchStmCommand(
  legacyCommand,
  {
  payload,
  jsonCommand,
- jsonParams: {
- screenCode: currentScreen.screenCode,
- },
+ jsonParams,
  },
  direction === "left"
  ? "Emular giro físico del encoder hacia la izquierda"
  : "Emular giro físico del encoder hacia la derecha",
+ inputSource,
  ).then((ok) => { if (ok) scheduleScreenRefresh(); });
  };
 
@@ -700,7 +749,17 @@ export default function ScreenStreamWorkspace({
  }
  };
 
- const handleManualScreenSync = () => {
+ const handleManualScreenSync = (inputSource: "pointer" | "keyboard" = "pointer") => {
+ if (inputSource === "keyboard") {
+ const blockedReason = !connected ? "WebSocket desconectado"
+ : !remotePinAuthenticated ? "Sesion PIN no autorizada" : null;
+ // DEBUG: una sola traza de la accion R al soltar, con las consultas de sincronizacion.
+ console.log(`${KEYBOARD_DEBUG_PREFIX} comando al soltar`, {
+ key: "R", event: "keyup", command: SCREEN_GET_CURRENT_COMMAND,
+ refreshCommands: [SCREEN_GET_CURRENT_COMMAND, ESP_COMMANDS.GET_CAR_MODE],
+ params: {}, canSend: blockedReason === null, blockedReason,
+ });
+ }
  const requestId = requestCurrentScreen();
  requestCarMode();
  if (!requestId) {
@@ -723,6 +782,23 @@ export default function ScreenStreamWorkspace({
  setRemoteCommandStatus({ tone: "error", message: "La F4 no respondio la sincronizacion de pantalla." });
  }, 3_500);
  };
+
+ // El modal registra el teclado; el workspace aporta las acciones con el estado actual.
+ useLayoutEffect(() => {
+ if (!keyboardActionsRef) return;
+ keyboardActionsRef.current = {
+ active: !openPinValidationModal,
+ onRotate: (direction) => handleEncoderRotate(direction, "keyboard"),
+ onRefresh: () => handleManualScreenSync("keyboard"),
+ onPressStart: startAuxPress,
+ onPressRelease: (kind) => releaseAuxPress(kind, "keyboard"),
+ onPressCancel: cancelAuxPress,
+ };
+ });
+
+ useLayoutEffect(() => () => {
+ if (keyboardActionsRef) keyboardActionsRef.current = null;
+ }, [keyboardActionsRef]);
 
  return (
  <div
@@ -763,8 +839,8 @@ export default function ScreenStreamWorkspace({
 
  {resolvedScreen ? (
  <PillWithTooltip
- label="Render OK"
- tooltip="Render OK: el screenCode actual pudo resolverse contra un builder de src/screens y generar comandos OLED válidos."
+ label={resolvedScreen.variant === "identity-only" ? "Identidad" : "Render OK"}
+ tooltip={resolvedScreen.variant === "identity-only" ? "El equipo informa qué pantalla está activa, pero faltan datos para reproducir su contenido completo." : "La pantalla pudo representarse con los datos disponibles."}
  tone="emerald"
  />
  ) : null}
@@ -826,11 +902,6 @@ export default function ScreenStreamWorkspace({
  <button
  type="button"
  className="screen-render-info-button transition"
- style={{
- borderColor: "rgba(34,211,238,0.3)",
- color: "var(--ui-accent)",
- background: "transparent",
- }}
  aria-label="Información del render"
  title="Información del render"
  onMouseEnter={() => setHoverInfo(true)}
@@ -887,7 +958,7 @@ export default function ScreenStreamWorkspace({
  <div className="screen-live-controls">
  <ControlBlock title="Controles físicos">
  <div className="screen-live-button-row">
- <LabeledLiveControl title="BTN">
+ <LabeledLiveControl title={isModal ? "BTN · U" : "BTN"}>
  <button
  type="button"
  onPointerDown={(event) => {
@@ -914,24 +985,25 @@ export default function ScreenStreamWorkspace({
  className="screen-live-button"
  style={getAccentButtonStyle(
  hoverUserBtn,
- pressedAuxButton === "user",
+ pressedAuxButtons.user,
  longPressActive.user,
  )}
  disabled={!connected || !remotePinAuthenticated}
  aria-label="Emular botón user"
- title="Botón user"
+ aria-keyshortcuts={isModal ? "U" : undefined}
+ title={isModal ? "Botón usuario (U; mantener para pulsación larga)" : "Botón user"}
  >
  <MonoBitmapIcon
  bitmap={Icon_UserBtn_bits}
  width={15}
  height={16}
  scale={2}
- color="#FFFFFF"
+ color={longPressActive.user ? "#0f172a" : "#FFFFFF"}
  />
  </button>
  </LabeledLiveControl>
 
- <LabeledLiveControl title="BTN encoder">
+ <LabeledLiveControl title={isModal ? "BTN encoder · M" : "BTN encoder"}>
  <button
  type="button"
  onPointerDown={(event) => {
@@ -958,24 +1030,25 @@ export default function ScreenStreamWorkspace({
  className="screen-live-button"
  style={getAccentButtonStyle(
  hoverEncoderBtn,
- pressedAuxButton === "encoder",
+ pressedAuxButtons.encoder,
  longPressActive.encoder,
  )}
  disabled={!connected || !remotePinAuthenticated}
  aria-label="Emular botón encoder"
- title="Botón encoder"
+ aria-keyshortcuts={isModal ? "M" : undefined}
+ title={isModal ? "Botón menú / encoder (M; mantener para pulsación larga)" : "Botón encoder"}
  >
  <MonoBitmapIcon
  bitmap={Icon_Encoder_bits}
  width={13}
  height={13}
  scale={2}
- color="#FFFFFF"
+ color={longPressActive.encoder ? "#0f172a" : "#FFFFFF"}
  />
  </button>
  </LabeledLiveControl>
 
- <LabeledLiveControl title="Giro izq.">
+ <LabeledLiveControl title={isModal ? "Giro izq. · ↑" : "Giro izq."}>
  <button
  type="button"
  onClick={() => handleEncoderRotate("left")}
@@ -988,13 +1061,14 @@ export default function ScreenStreamWorkspace({
  )}
  disabled={!connected || !remotePinAuthenticated}
  aria-label="Emular giro encoder izquierda"
- title="Girar encoder a la izquierda"
+ aria-keyshortcuts={isModal ? "ArrowUp" : undefined}
+ title={isModal ? "Girar encoder a la izquierda (↑)" : "Girar encoder a la izquierda"}
  >
  <TurnArrowIcon direction="left" />
  </button>
  </LabeledLiveControl>
 
- <LabeledLiveControl title="Giro der.">
+ <LabeledLiveControl title={isModal ? "Giro der. · ↓" : "Giro der."}>
  <button
  type="button"
  onClick={() => handleEncoderRotate("right")}
@@ -1007,7 +1081,8 @@ export default function ScreenStreamWorkspace({
  )}
  disabled={!connected || !remotePinAuthenticated}
  aria-label="Emular giro encoder derecha"
- title="Girar encoder a la derecha"
+ aria-keyshortcuts={isModal ? "ArrowDown" : undefined}
+ title={isModal ? "Girar encoder a la derecha (↓)" : "Girar encoder a la derecha"}
  >
  <TurnArrowIcon direction="right" />
  </button>
@@ -1019,7 +1094,6 @@ export default function ScreenStreamWorkspace({
  {isValidationScreen || screenHasMenuItems ? (
  <div
  className="screen-stream-preview-divider w-px self-stretch"
- style={{ background: "var(--ui-accent)" }}
  />
  ) : null}
 
@@ -1216,7 +1290,9 @@ export default function ScreenStreamWorkspace({
  <button
  type="button"
  className="screen-stream-action-button w-fit border text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40"
- onClick={handleManualScreenSync}
+ onClick={() => handleManualScreenSync()}
+ aria-keyshortcuts={isModal ? "R" : undefined}
+ title={isModal ? "Sincronizar pantalla (R)" : "Sincronizar pantalla"}
  disabled={!connected || !remotePinAuthenticated}
  onMouseEnter={() => setHoverSync(true)}
  onMouseLeave={() => setHoverSync(false)}
@@ -1360,7 +1436,8 @@ export default function ScreenStreamWorkspace({
  <button
  type="button"
  onClick={() => setSavedScreensOpen((current) => !current)}
- className="flex items-center gap-2 rounded-full border border-cyan-300/25 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:border-cyan-300/50 hover:bg-cyan-400/15"
+ aria-expanded={savedScreensOpen}
+ className="oled-saved-toggle flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold"
  >
  <span>Pantallas guardadas ({savedScreens.length})</span>
  <svg
@@ -1389,7 +1466,7 @@ export default function ScreenStreamWorkspace({
  {savedScreens.map((screen) => (
  <article
  key={screen.id}
- className="rounded-2xl border border-[var(--ui-ring)] bg-[var(--ui-bg-0)]/55 p-3"
+ className="rounded-lg border border-[var(--ui-ring)] bg-[var(--ui-panel)] p-3"
  >
  <div className="mb-3 flex items-start justify-between gap-3">
  <div>
@@ -1405,13 +1482,13 @@ export default function ScreenStreamWorkspace({
  type="button"
  onClick={() => void sendSavedScreen(screen.id)}
  disabled={oledCanvasTransfer.active}
- className="rounded-md border border-cyan-300/70 px-3 py-1.5 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-400 hover:text-[var(--ui-ink)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent disabled:hover:text-cyan-200"
+ className="oled-saved-action rounded-lg px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-45"
  >
  Mandar
  </button>
  </div>
 
- <div className="rounded-xl border border-cyan-300/15 bg-[var(--ui-bg-0)]/80 p-2">
+ <div className="rounded-lg border border-[var(--ui-ring)] bg-[var(--ui-panel-strong)] p-2">
  <OledCommandPreview
  commands={screen.commands}
  className="mx-auto max-w-[220px]"
@@ -1421,7 +1498,7 @@ export default function ScreenStreamWorkspace({
  ))}
  </div>
  ) : (
- <div className="rounded-2xl border border-dashed border-[var(--ui-ring)] bg-[var(--ui-bg-0)]/35 px-4 py-5 text-sm text-[var(--ui-muted)]">
+ <div className="rounded-lg border border-dashed border-[var(--ui-ring)] bg-[var(--ui-panel)] px-4 py-5 text-sm text-[var(--ui-muted)]">
  Todavia no hay pantallas guardadas para mostrar en el visor.
  </div>
  )
@@ -1507,7 +1584,10 @@ function isMenuControlScreenCode(screenCode: number | undefined): boolean {
  screenCode === SCREEN_CODE_CONNECTIVITY_ESP_MENU ||
  screenCode === SCREEN_CODE_SENSORS_DISPLAY_MENU ||
  screenCode === SCREEN_CODE_SENSORS_MENU ||
- screenCode === SCREEN_CODE_SETTINGS_MENU
+ screenCode === SCREEN_CODE_SETTINGS_MENU ||
+ screenCode === 0x030600 ||
+ screenCode === 0x050500 ||
+ screenCode === 0x050419
  );
 }
 

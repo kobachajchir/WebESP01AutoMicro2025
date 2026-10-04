@@ -1,16 +1,20 @@
 import type { ReactNode } from "react";
-import logoDashboard from "../assets/LogoDashboard.webp";
+import logoDashboard from "../assets/LogoDashboardV2.webp";
 
 export default function AppLoadingScreen({
   label,
   children,
+  className = "",
+  showSpinner = true,
 }: {
   label: string;
   children?: ReactNode;
+  className?: string;
+  showSpinner?: boolean;
 }) {
   return (
     <div
-      className="app-loading-screen"
+      className={`app-loading-screen ${className}`}
       role="status"
       aria-live="polite"
       aria-label={label}
@@ -23,14 +27,16 @@ export default function AppLoadingScreen({
             <img
               className="app-loading-screen__logo"
               src={logoDashboard}
-              alt="Auto Microcontroladores"
+              alt="AutoMicro"
             />
           </div>
         </div>
         <div className="app-loading-screen__status-group">
-          <div className="app-loading-screen__spinner-track" aria-hidden="true">
-            <span className="app-loading-screen__spinner" />
-          </div>
+          {showSpinner && (
+            <div className="app-loading-screen__spinner-track" aria-hidden="true">
+              <span className="app-loading-screen__spinner" />
+            </div>
+          )}
           <p className="app-loading-screen__label">{label}</p>
         </div>
         {children}

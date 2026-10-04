@@ -1,0 +1,8 @@
+.motion-control-panel{border:1px solid var(--border-color,rgba(127,127,127,.25));border-radius:16px;padding:20px;background:var(--card-bg,transparent);display:grid;gap:14px}
+.motion-control-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.motion-control-heading h2{font-size:1.3rem;font-weight:600;margin:4px 0}
+.motion-control-actions,.motion-control-readings{display:flex;gap:10px;flex-wrap:wrap}
+.motion-control-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:end}
+.motion-control-grid label{display:grid;gap:6px}.motion-control-grid button{grid-column:1/-1}
+.motion-control-panel details summary{cursor:pointer;font-weight:600}.motion-control-panel details>p{margin:12px 0}
+@media(max-width:600px){.motion-control-grid{grid-template-columns:1fr}.motion-control-panel{padding:16px}}

@@ -1,0 +1,21 @@
+{
+  "scanPaths": [
+    "src/pages",
+    "src/components",
+    "src/features/docs",
+    "src/features/protocolStudio",
+    "src/features/oledEditor"
+  ],
+  "tokenSources": ["src/index.css", "src/utils/theme.ts"],
+  "ignore": [],
+  "exceptions": [],
+  "rules": {
+    "color-literal": true,
+    "tailwind-palette": true,
+    "inline-visual-style": true,
+    "transition-all": true,
+    "direct-shadow": true,
+    "parallel-token-source": true
+  },
+  "note": "Alcance de auditoría autorizado: rutas y componentes visuales de la app. Los hallazgos son indicios estáticos; revisar su propósito antes de cambiar estilos."
+}

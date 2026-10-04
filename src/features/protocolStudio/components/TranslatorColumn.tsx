@@ -202,7 +202,7 @@ PING`}
  </button>
  </div>
  <div className={NOTE_CLASS}>
- Si el texto contiene multiples headers UNER, entra automaticamente en modo escaneo y lista frames validos,
+ Si el texto contiene multiples headers UNER, entra automaticamente en modo escaneo y lista paquetes válidos,
  candidatos invalidos y bytes fuera de frame.
  </div>
  </div>
@@ -230,14 +230,14 @@ PING`}
  <button
  key={`${segment.type}-${segment.order}-${segment.label}`}
  type="button"
- className={`group relative flex w-full min-w-0 flex-col gap-2 overflow-hidden rounded-xl p-3 text-left ring-1 transition duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 md:w-[calc(50%-0.375rem)] 2xl:w-[calc(33.333%-0.5rem)] ${segment.tone} ${
+ className={`studio-stream-card group relative flex w-full min-w-0 flex-col gap-2 overflow-hidden rounded-xl p-3 text-left ring-1 transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 md:w-[calc(50%-0.375rem)] 2xl:w-[calc(33.333%-0.5rem)] ${segment.tone} ${
  isSelected ? "outline outline-1 outline-rose-300/70" : ""
  }`}
  onClick={() => selectFrame(currentFrame)}
  >
  <StreamSegmentBody segment={segment} />
  <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-[var(--ui-bg-0)]/75 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
- <span className="rounded-md border border-rose-200/40 bg-rose-500/20 px-3 py-1 text-xs font-bold uppercase text-rose-50 shadow-sm">
+ <span className="studio-detail-action rounded-md border border-rose-200/40 bg-rose-500/20 px-3 py-1 text-xs font-bold uppercase text-rose-50 shadow-sm">
  Ver detalles
  </span>
  </span>
@@ -263,17 +263,17 @@ PING`}
  </span>
  <span className="inline-flex items-center gap-2">
  <span className="size-3 rounded-sm border border-rose-400/30 bg-rose-500/20" />
- Header invalido
+ Cabecera inválida
  </span>
  <span className="inline-flex items-center gap-2">
  <span className="size-3 rounded-sm border border-cyan-400/30 bg-cyan-500/20" />
- Frame valido
+ Paquete válido
  </span>
  </div>
 
  {scanResult.validFrames.length > 1 && !showAnalysisCard ? (
  <div className="rounded-xl border border-sky-300/25 bg-sky-500/10 p-3 text-sm text-sky-100">
- Hay varios frames validos. Elegi uno del mapa para abrir su analisis a detalle.
+ Hay varios paquetes válidos. Selecciona uno del mapa para ver su análisis.
  </div>
  ) : null}
  </div>
@@ -495,7 +495,7 @@ function AnalysisDetailCard({
  </div>
  <button
  type="button"
- className="inline-flex items-center justify-center rounded-md border border-rose-200/30 bg-rose-500/10 p-2 text-rose-100 transition hover:bg-rose-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/50"
+ className="studio-detail-action inline-flex items-center justify-center rounded-md border border-rose-200/30 bg-rose-500/10 p-2 text-rose-100 transition hover:bg-rose-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/50"
  onClick={onClose}
  aria-label="Ocultar analisis a detalle"
  >
@@ -644,7 +644,7 @@ function CopyPill({
  return (
  <button
  type="button"
- className="inline-flex items-center gap-1.5 rounded-md border border-rose-200/40 bg-rose-500/15 px-3 py-1 text-xs font-bold uppercase text-rose-50 transition hover:bg-rose-400/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/50 disabled:cursor-not-allowed disabled:opacity-40"
+ className="studio-detail-action inline-flex items-center gap-1.5 rounded-md border border-rose-200/40 bg-rose-500/15 px-3 py-1 text-xs font-bold uppercase text-rose-50 transition hover:bg-rose-400/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/50 disabled:cursor-not-allowed disabled:opacity-40"
  onClick={() => onCopy(copyKey, value)}
  disabled={!value}
  >

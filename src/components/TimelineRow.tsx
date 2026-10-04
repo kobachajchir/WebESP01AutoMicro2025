@@ -279,7 +279,7 @@ function SortableBlock({
  title={title}
  >
  <div
- className={`relative flex w-full items-center justify-center overflow-hidden border transition-all duration-300 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${timelineToneClass(
+ className={`relative flex w-full items-center justify-center overflow-hidden border transition-[transform,background-color,border-color,opacity] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${timelineToneClass(
  b.kind,
  isHighlighted,
  isSelected || isActive,

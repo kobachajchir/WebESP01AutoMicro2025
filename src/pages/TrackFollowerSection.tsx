@@ -1,6 +1,6 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
+import { useFrame, useLoader, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { type GLTF } from "three/addons/loaders/GLTFLoader.js";
 import * as THREE from "three";
@@ -23,13 +23,12 @@ import type { IrSensorKey, IrSnapshot } from "../protocol/f4Payloads";
 import { useSensorSubscription } from "../hooks/useSensorSubscription";
 import { getSharedDracoLoader, ResilientGLTFLoader } from "../utils/dracoLoader";
 import ModelLoadingScreen from "../components/ModelLoadingScreen";
-import { useModelLoadingState } from "../hooks/useModelLoadingState";
+import ModelLoadBoundary from "../components/ModelLoadBoundary";
+import WebGLCanvas from "../components/WebGLCanvas";
+import { LOCAL_AUTO_MICRO_MODEL_URL } from "../utils/localModel";
 import Modal from "../components/modal";
 import ThemeModeToggleCard from "../components/ThemeModeToggleCard";
-import HdAssetsSettingsCard from "../components/HdAssetsSettingsCard";
-import HdModelQualityButton from "../components/HdModelQualityButton";
 import { toast } from "sonner";
-import { usePreferredModelUrl } from "../contexts/AssetQualityContext";
 
 type CameraMode = "top" | "iso" | "chase" | "orbit";
 type RenderMode = "points" | "ribbon" | "debug";
@@ -113,8 +112,7 @@ const OBJECT_CHANNELS: Array<{
 
 export default function TrackFollowerSection() {
   const { connected, subscribeEvent } = useWebSocket();
-  const base = import.meta.env.BASE_URL || "/";
-  const modelUrl = usePreferredModelUrl(`${base}models/auto_micro.glb`);
+  const modelUrl = LOCAL_AUTO_MICRO_MODEL_URL;
   const poseRef = useRef<TrackPose>({ x: 0, z: 0, theta: 0, seq: 0 });
   const segmentRef = useRef(0);
   const lastPointRef = useRef<TrackPoint | null>(null);
@@ -429,7 +427,6 @@ export default function TrackFollowerSection() {
         <PageHeader
           className="app-page-header home-page-header track-page-header"
           titleOverride="Seguidor de pista"
-          leadingSlot={<TrackBrandGlyph />}
           setOpenSettingsModal={setOpenSettingsModal}
           setOpenInfoModal={setOpenInfoModal}
         />
@@ -487,7 +484,6 @@ export default function TrackFollowerSection() {
                 latestLine={latestLine}
               />
               <div className="track-canvas-overlay-group">
-                <HdModelQualityButton />
                 <div className="track-canvas-overlay">
                   <span>Frente físico: lado TCRT</span>
                   <strong>
@@ -630,7 +626,6 @@ export default function TrackFollowerSection() {
             containerClassnames="home-settings-dialog flex flex-col"
           >
             <ThemeModeToggleCard />
-            <HdAssetsSettingsCard />
           </Modal>
         ) : null}
       </div>
@@ -721,15 +716,10 @@ function TrackMapScene({
   renderMode: RenderMode;
   latestLine: LineObservation;
 }) {
-  const { isModelLoading, markModelLoaded } = useModelLoadingState(modelUrl);
-
   return (
     <>
-      <ModelLoadingScreen visible={isModelLoading} />
-      <Canvas
+      <WebGLCanvas
         camera={{ position: [0, 4.8, 0.01], fov: 42, near: 0.05, far: 90 }}
-        dpr={[1, 2]}
-        gl={{ alpha: true, antialias: true }}
         onCreated={({ gl }) => {
           gl.outputColorSpace = THREE.SRGBColorSpace;
           gl.toneMapping = THREE.ACESFilmicToneMapping;
@@ -748,16 +738,17 @@ function TrackMapScene({
         {renderMode === "ribbon" || renderMode === "debug" ? <TrackRibbon points={points} /> : null}
         <TrackPointInstances points={points} />
         <ObstacleInstances obstacles={obstacles} />
-        <Suspense fallback={<FallbackRobotMarker pose={pose} latestLine={latestLine} debug={renderMode === "debug"} />}>
+        <ModelLoadBoundary modelUrl={modelUrl}>
+        <Suspense fallback={<><FallbackRobotMarker pose={pose} latestLine={latestLine} debug={renderMode === "debug"} /><ModelLoadingScreen visible /></>}>
           <TrackVehicleModel
             modelUrl={modelUrl}
             pose={pose}
             latestLine={latestLine}
             debug={renderMode === "debug"}
-            onLoaded={markModelLoaded}
           />
         </Suspense>
-      </Canvas>
+        </ModelLoadBoundary>
+      </WebGLCanvas>
     </>
   );
 }
@@ -906,22 +897,15 @@ function TrackVehicleModel({
   pose,
   latestLine,
   debug,
-  onLoaded,
 }: {
   modelUrl: string;
   pose: TrackPose;
   latestLine: LineObservation;
   debug: boolean;
-  onLoaded: () => void;
 }) {
   const { scene } = useLoader(ResilientGLTFLoader, modelUrl, (loader) => {
-    const base = import.meta.env.BASE_URL || "/";
-    loader.setDRACOLoader(getSharedDracoLoader(base));
+    loader.setDRACOLoader(getSharedDracoLoader());
   }) as GLTF;
-
-  useEffect(() => {
-    onLoaded();
-  }, [onLoaded, scene]);
 
   const vehicleRef = useRef<THREE.Group>(null);
   const modelRef = useRef<THREE.Group>(null);
@@ -1246,19 +1230,6 @@ function TrackActionButton({
       disabled={disabled}
       onClick={onClick}
     />
-  );
-}
-
-function TrackBrandGlyph() {
-  return (
-    <span className="home-brand-glyph track-brand-glyph" aria-hidden="true">
-      <svg viewBox="0 0 24 24">
-        <path d="M4 17c3-6 5-8 8-8s5 2 8 8" />
-        <path d="M5 18h14" />
-        <path d="M8 14c1.4-1.6 2.6-2.4 4-2.4s2.6.8 4 2.4" />
-        <path d="M12 3v5M8 5l4 3 4-3" />
-      </svg>
-    </span>
   );
 }
 

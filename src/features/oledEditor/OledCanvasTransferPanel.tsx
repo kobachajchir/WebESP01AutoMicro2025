@@ -24,12 +24,11 @@ export default function OledCanvasTransferPanel({ document }: { document: Editor
  <div className="flex flex-wrap items-start justify-between gap-3">
  <div>
  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200">
- OLED Canvas transaccional
+ Transferencia de pantalla
  </div>
  <h3 className="mt-1 text-xl font-black text-[var(--ui-text)]">Enviar a OLED</h3>
  <p className="mt-2 max-w-2xl text-sm text-[var(--ui-muted)]">
- Se rasteriza el documento vivo completo. La confirmacion aparece solo cuando F4 informa
- que termino las ocho paginas por I2C/DMA.
+ Se envía el diseño actual al OLED. La confirmación aparece cuando la F4 informa que terminó de actualizar la pantalla.
  </p>
  </div>
  <span className="rounded-full border border-[var(--ui-ring)] bg-[var(--ui-panel)] px-3 py-1 font-mono text-xs text-[var(--ui-muted)]">
@@ -37,7 +36,7 @@ export default function OledCanvasTransferPanel({ document }: { document: Editor
  </span>
  </div>
 
- <div className="rounded-2xl border border-cyan-300/20 bg-gradient-to-br from-cyan-400/[0.08] via-[var(--ui-bg-0)]/45 to-[var(--ui-bg-0)]/70 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+ <div className="oled-transfer-conditions">
  <div className="mb-4 flex items-center gap-3">
  <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-cyan-300/25 bg-cyan-400/10 text-cyan-200 shadow-[0_0_24px_rgba(34,211,238,0.12)]">
  <OledConditionGlyph />
@@ -94,7 +93,7 @@ export default function OledCanvasTransferPanel({ document }: { document: Editor
  </div>
  <div className="h-2 overflow-hidden rounded-full bg-[var(--ui-panel)]">
  <div
- className={`h-full rounded-full transition-all ${transfer.state.phase === "error" ? "bg-rose-500" : "bg-cyan-400"}`}
+ className={`h-full rounded-full ${transfer.state.phase === "error" ? "bg-rose-500" : "bg-cyan-400"}`}
  style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
  />
  </div>

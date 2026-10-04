@@ -10,7 +10,6 @@ import Modal from "../components/modal";
 import PageHeader from "../components/PageHeader";
 import SystemResetActions from "../components/SystemResetActions";
 import ThemeModeToggleCard from "../components/ThemeModeToggleCard";
-import HdAssetsSettingsCard from "../components/HdAssetsSettingsCard";
 import { toast } from "sonner";
 import { useWebSocket } from "../hooks/useWebSocket";
 import {
@@ -69,7 +68,7 @@ const STATION_SUBMIT_COMMANDS = new Set([
 
 const INITIAL_STATION_FEEDBACK: InlineFeedback = {
  tone: "info",
- text: "Elegi una red, cargá la clave y enviá las credenciales al ESP.",
+ text: "Elegí una red, cargá el Password y enviá las credenciales al ESP.",
 };
 
 const INITIAL_AP_FEEDBACK: InlineFeedback = {
@@ -425,7 +424,7 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  );
  setStationFeedback({
  tone: "info",
- text: `Red seleccionada: ${label}. Completa la clave para conectar el ESP.`,
+ text: `Red seleccionada: ${label}. Completá el Password para conectar el ESP.`,
  });
  window.requestAnimationFrame(() => {
  stationSsidInputRef.current?.focus();
@@ -680,7 +679,7 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  }
  setApFeedback({
  tone: "info",
- text: "Configuración AP cargada. La clave guardada no se expone en la Web.",
+ text: "Configuración AP cargada. El Password guardado no se expone en la Web.",
  });
  })
  .catch((cause) => {
@@ -1055,7 +1054,6 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  <PageHeader
  className="app-page-header home-page-header wifi-page-header"
  titleOverride={provisioning ? "Conectar el ESP a una red" : "WiFi + AP"}
- leadingSlot={<WifiGlyph />}
  setOpenSettingsModal={setOpenSettingsModal}
  setOpenInfoModal={setOpenInfoModal}
  showSettings={!provisioning}
@@ -1085,7 +1083,7 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  {provisioning ? (
  <div className="mb-4 rounded-xl border border-cyan-300/25 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-50">
  <strong>Modo de aprovisionamiento AP.</strong>{" "}
- Elegí una red, ingresá su clave y conectá el ESP. La búsqueda sólo
+ Elegí una red, ingresá su Password y conectá el ESP. La búsqueda sólo
  comienza al pulsar Actualizar redes.
  </div>
  ) : null}
@@ -1124,7 +1122,7 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  style={segmentedButtonStyle(activeView === "WIFI")}
  onClick={() => handleActiveViewChange("WIFI")}
  >
- WIFI
+ WiFi
  </button>
  <button
  type="button"
@@ -1151,7 +1149,7 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  {provisioning
  ? "Esta vista aparece únicamente mientras el ESP mantiene su Access Point de configuración y todavía no está conectado como estación."
  : activeView === "WIFI"
- ? "La seccion Web puede enviar credenciales reales al ESP sin pasar la clave por STM32. Si STM solicita una conexion, el modal global aparece sobre cualquier pantalla."
+ ? "La sección Web puede enviar credenciales reales al ESP sin pasar el Password por STM32. Si STM solicita una conexión, el modal global aparece sobre cualquier pantalla."
  : "Estas credenciales se usan cuando el ESP levanta su propio Access Point. Combinan con el reinicio en modo AP desde Configuracion."}
  </p>
  </div>
@@ -1188,7 +1186,7 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  value={stationPassword}
  maxLength={63}
  autoComplete="new-password"
- placeholder="Vacía conserva la clave del SSID cargado"
+ placeholder="Vacío conserva el Password del SSID cargado"
  onChange={(event) =>
  setStationPassword(event.target.value)
  }
@@ -1479,7 +1477,7 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  <WifiIcon />
  <div>
  <h3>Configurar AP</h3>
- <p>Guardá SSID y clave en el ESP para el próximo arranque AP.</p>
+ <p>Guardá SSID y Password en el ESP para el próximo arranque AP.</p>
  </div>
  </div>
 
@@ -1680,7 +1678,7 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  </div>
 
  <p className="text-sm text-[var(--ui-muted)]">
- En la vista <strong>WIFI</strong>, la web puede pedir un escaneo,
+ En la vista <strong>WiFi</strong>, la web puede pedir un escaneo,
  solicitar detalle de una red y enviar credenciales reales al ESP
  para que se conecte.
  </p>
@@ -1709,7 +1707,6 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  >
  <div className="flex flex-col gap-4">
  <ThemeModeToggleCard />
- <HdAssetsSettingsCard />
  <div>
  <div className="app-kicker mb-3">Config</div>
  <h2 className="text-2xl font-black text-[var(--ui-text)]">Configuracion</h2>
@@ -1809,14 +1806,6 @@ function FeedbackBanner({ feedback }: { feedback: InlineFeedback }) {
  );
 }
 
-function WifiGlyph() {
- return (
- <span className="home-brand-glyph wifi-brand-glyph" aria-hidden="true">
- <WifiIcon />
- </span>
- );
-}
-
 function WifiHeaderStatus({
  connected,
  activeView,
@@ -1887,7 +1876,7 @@ function WifiHeaderStatus({
  detail={connectionDetail}
  tone={connected ? "ok" : "error"}
  />
- <WifiStatusPill label="Vista" value={activeView} tone="info" />
+ <WifiStatusPill label="Vista" value={activeView === "WIFI" ? "WiFi" : activeView} tone="info" />
  <WifiStatusPill
  label="Operación"
  value={operation}
@@ -1989,7 +1978,7 @@ function segmentedButtonStyle(active: boolean) {
  ? {
  background: "var(--ui-accent)",
  color: "var(--ui-action-hover-ink)",
- boxShadow: "0 12px 28px rgba(34,211,238,0.28)",
+ boxShadow: "0 12px 28px var(--ui-accent-wash)",
  }
  : {
  background: "transparent",
@@ -2000,12 +1989,12 @@ function segmentedButtonStyle(active: boolean) {
 function networkRowStyle(selected: boolean) {
  return selected
  ? {
- borderColor: "var(--ui-accent)",
- background: "rgba(34,211,238,0.14)",
+ borderColor: "var(--ui-ring-strong)",
+ background: "var(--ui-accent-wash)",
  }
  : {
- borderColor: "rgba(255,255,255,0.1)",
- background: "rgba(2,6,23,0.28)",
+ borderColor: "var(--ui-ring)",
+ background: "var(--ui-panel)",
  };
 }
 
@@ -2024,10 +2013,10 @@ function validateStationCredentials(
  return "El SSID no puede superar 32 caracteres.";
  }
  if (!reusePassword && password.length < 8) {
- return "La clave WiFi debe tener al menos 8 caracteres.";
+ return "El Password WiFi debe tener al menos 8 caracteres.";
  }
  if (password.length > 63) {
- return "La clave WiFi no puede superar 63 caracteres.";
+ return "El Password WiFi no puede superar 63 caracteres.";
  }
  if (!isValidIpv4(ip) || !isValidIpv4(gateway) || !isValidIpv4(subnet)) {
  return "IP, gateway y máscara deben usar un formato IPv4 válido.";
@@ -2050,10 +2039,10 @@ function validateApCredentials(
  return "El SSID AP no puede superar 32 caracteres.";
  }
  if (password.length > 0 && password.length < 8) {
- return "La clave AP debe tener al menos 8 caracteres.";
+ return "El Password AP debe tener al menos 8 caracteres.";
  }
  if (password.length > 63) {
- return "La clave AP no puede superar 63 caracteres.";
+ return "El Password AP no puede superar 63 caracteres.";
  }
  if (!isValidIpv4(ip)) {
  return "La IP fija AP debe usar un formato IPv4 válido.";
@@ -2086,7 +2075,7 @@ function stationResultMessage(
 
  if (status === "failed") {
  return reason === "auth_failed"
- ? `La autenticacion contra ${ssid} fallo. Revisá la clave.`
+ ? `La autenticación contra ${ssid} falló. Revisá el Password.`
  : `El ESP no pudo completar la conexion a ${ssid}.`;
  }
 

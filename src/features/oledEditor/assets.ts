@@ -51,7 +51,7 @@ const SHARED_ASSET_SEEDS: readonly SharedAssetSeed[] = [
   },
   {
     id: "Icon_Wifi_bits",
-    label: "Wifi",
+    label: "WiFi",
     width: 19,
     height: 16,
     bitOrder: "lsb",

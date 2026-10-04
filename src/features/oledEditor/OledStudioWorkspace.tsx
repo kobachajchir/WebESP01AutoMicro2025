@@ -14,7 +14,7 @@ const OLED_STUDIO_TABS: ReadonlyArray<{
 }> = [
  { id: "visualization", label: "Visualización" },
  { id: "code", label: "Código" },
- { id: "stream", label: "Stream" },
+ { id: "stream", label: "Enviar al OLED" },
 ];
 
 export default function OledStudioWorkspace() {
@@ -74,8 +74,8 @@ export default function OledStudioWorkspace() {
  };
 
  return (
- <div className="flex flex-col gap-6">
- <div className="rounded-[28px] border border-[var(--ui-ring)] bg-[var(--ui-bg-0)]/35 p-4 shadow-[0_28px_80px_rgba(2,6,23,0.45)] backdrop-blur">
+ <div className="oled-studio-workspace flex flex-col gap-6">
+ <div className="app-panel rounded-lg p-4">
  <div className="flex flex-wrap items-center justify-between gap-3">
  <div>
  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--ui-muted)]">
@@ -86,8 +86,11 @@ export default function OledStudioWorkspace() {
  <button
  type="button"
  onClick={() => setSavedScreensOpen((current) => !current)}
- className="flex items-center gap-2 rounded-full border border-cyan-300/25 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:border-cyan-300/50 hover:bg-cyan-400/15"
+ aria-label={savedScreensOpen ? "Cerrar pantallas guardadas" : "Abrir pantallas guardadas"}
+ aria-expanded={savedScreensOpen}
+ className="oled-saved-toggle flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold"
  >
+ <span>{savedScreensOpen ? "Cerrar galería" : "Abrir galería"}</span>
  <ChevronToggleIcon open={savedScreensOpen} />
  </button>
  </div>
@@ -98,7 +101,7 @@ export default function OledStudioWorkspace() {
  {savedScreens.map((screen) => (
  <article
  key={screen.id}
- className="group relative overflow-hidden rounded-2xl border border-[var(--ui-ring)] bg-[var(--ui-bg-0)]/50 p-3"
+ className="group relative overflow-hidden rounded-lg border border-[var(--ui-ring)] bg-[var(--ui-panel)] p-3"
  >
  <div className="mb-3 flex items-start justify-between gap-3">
  <div>
@@ -110,32 +113,32 @@ export default function OledStudioWorkspace() {
  </p>
  </div>
  {loadedScreenId === screen.id ? (
- <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
+ <span className="oled-saved-active rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em]">
  Activa
  </span>
  ) : null}
  </div>
 
- <div className="rounded-xl border border-cyan-300/15 bg-[var(--ui-bg-0)]/80 p-2">
+ <div className="rounded-lg border border-[var(--ui-ring)] bg-[var(--ui-panel-strong)] p-2">
  <OledCommandPreview
  commands={screen.commands}
  className="mx-auto max-w-[320px]"
  />
  </div>
 
- <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-[var(--ui-bg-0)]/78 opacity-0 transition duration-200 group-hover:pointer-events-auto group-hover:opacity-100">
+ <div className="oled-saved-overlay pointer-events-none absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-200 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
  <div className="flex gap-3">
  <button
  type="button"
  onClick={() => handleLoadScreen(screen.id)}
- className="rounded-md border border-cyan-300/70 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-400 hover:text-[var(--ui-ink)]"
+ className="oled-saved-action rounded-lg px-4 py-2 text-sm font-semibold"
  >
  Cargar
  </button>
  <button
  type="button"
  onClick={() => handleDeleteScreen(screen.id)}
- className="rounded-md border border-rose-400/70 px-4 py-2 text-sm font-semibold text-rose-200 transition hover:bg-rose-500 hover:text-[var(--ui-text)]"
+ className="oled-saved-action oled-saved-action--danger rounded-lg px-4 py-2 text-sm font-semibold"
  >
  Eliminar
  </button>
@@ -145,20 +148,30 @@ export default function OledStudioWorkspace() {
  ))}
  </div>
  ) : (
- <div className="mt-4 rounded-2xl border border-dashed border-[var(--ui-ring)] bg-[var(--ui-bg-0)]/35 px-4 py-5 text-sm text-[var(--ui-muted)]">
- Todavia no hay pantallas guardadas. Usa el icono de guardar del
- editor para empezar a poblar la galeria.
+ <div className="mt-4 rounded-lg border border-dashed border-[var(--ui-ring)] bg-[var(--ui-panel)] px-4 py-5 text-sm text-[var(--ui-muted)]">
+ Todavía no hay pantallas guardadas. Diseña una pantalla y guárdala desde la barra de herramientas para verla aquí.
  </div>
  )
  ) : null}
  </div>
 
- <div className="flex flex-col rounded-[32px] border border-[var(--ui-ring)] bg-[var(--ui-panel-strong)] p-4 shadow-[0_28px_80px_rgba(2,6,23,0.55)] backdrop-blur">
+ <div className="app-panel-strong flex flex-col rounded-lg p-4">
  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--ui-ring)] pb-4">
  <div
  role="tablist"
  aria-label="Secciones de OLED Studio"
- className="flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-[var(--ui-ring)] bg-[var(--ui-bg-0)]/55 p-1.5"
+ className="oled-studio-tablist"
+ onKeyDown={(event) => {
+   const index = OLED_STUDIO_TABS.findIndex(tab => tab.id === activeTab);
+   const next = event.key === "ArrowRight" ? (index + 1) % OLED_STUDIO_TABS.length
+     : event.key === "ArrowLeft" ? (index + OLED_STUDIO_TABS.length - 1) % OLED_STUDIO_TABS.length
+     : event.key === "Home" ? 0 : event.key === "End" ? OLED_STUDIO_TABS.length - 1 : null;
+   if (next === null) return;
+   event.preventDefault();
+   const tab = OLED_STUDIO_TABS[next];
+   setActiveTab(tab.id);
+   document.getElementById(`oled-studio-${tab.id}-tab`)?.focus();
+ }}
  >
  {OLED_STUDIO_TABS.map((tab) => {
  const selected = activeTab === tab.id;
@@ -178,7 +191,7 @@ export default function OledStudioWorkspace() {
  onClick={() => setActiveTab(tab.id)}
  className={`min-w-32 rounded-xl px-5 py-2.5 text-sm font-bold transition ${
  selected
- ? "bg-cyan-400 text-[var(--ui-ink)] shadow-[0_8px_24px_rgba(34,211,238,0.22)]"
+ ? "oled-studio-tab--active"
  : "text-[var(--ui-muted)] hover:bg-[var(--ui-panel)] hover:text-[var(--ui-text)]"
  }`}
  >
@@ -190,7 +203,7 @@ export default function OledStudioWorkspace() {
 
  <div className="flex flex-wrap items-center gap-2">
  {loadedScreenId ? (
- <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-200">
+ <span className="oled-saved-active rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em]">
  Editando guardada
  </span>
  ) : null}
@@ -200,7 +213,7 @@ export default function OledStudioWorkspace() {
  </div>
  </div>
 
- <div className="mt-4 h-[clamp(640px,72vh,820px)] overflow-y-auto pr-1">
+ <div className="oled-studio-content">
  <div
  id="oled-studio-editor-panel"
  role="tabpanel"

@@ -94,7 +94,7 @@ export default function WifiCredentialsModal({
  Credenciales solicitadas
  </h2>
  <p className="mt-2 text-sm text-[var(--ui-muted)]">
- El ESP pidio la clave para continuar con la conexion.
+ El ESP pidió el Password para continuar con la conexión.
  </p>
  </div>
 
@@ -176,7 +176,7 @@ function getFeedback(
  if (status === "requested") {
  return {
  tone: "info" as const,
- text: "Ingresa la clave real de la red solicitada.",
+ text: "Ingresá el Password real de la red solicitada.",
  };
  }
 

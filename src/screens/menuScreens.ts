@@ -98,7 +98,7 @@ export function buildMenuScreenCommands(args: MenuScreenArgs): OledCommand[] {
 }
 
 export const mainMenuItems: MenuScreenItem[] = [
-  { label: "Wifi", iconRef: "Icon_Wifi_bits", screenCode: SCREEN_CODE_CONNECTIVITY_WIFI_MENU },
+  { label: "WiFi", iconRef: "Icon_Wifi_bits", screenCode: SCREEN_CODE_CONNECTIVITY_WIFI_MENU },
   { label: "Testeo", iconRef: "Icon_Sensors_bits", screenCode: SCREEN_CODE_SENSORS_MENU },
   { label: "Balance", iconRef: "Icon_Tool_bits" },
   { label: "Motores", iconRef: "Icon_Tool_bits", screenCode: SCREEN_CODE_MOTOR_TEST },

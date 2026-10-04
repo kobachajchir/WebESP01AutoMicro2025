@@ -8,8 +8,8 @@
   padding: clamp(1.25rem, 4vw, 3rem);
   color: var(--ui-text);
   background:
-    radial-gradient(circle at 50% 38%, rgb(34 211 238 / 0.13), transparent 31rem),
-    linear-gradient(145deg, #020914 0%, #051321 52%, #020811 100%);
+    radial-gradient(circle at 50% 38%, var(--ui-accent-wash), transparent 31rem),
+    var(--ui-page-background);
 }
 
 .not-found-screen__grid {
@@ -18,8 +18,8 @@
   inset: 0;
   opacity: 0.11;
   background-image:
-    linear-gradient(rgb(34 211 238 / 0.14) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(34 211 238 / 0.14) 1px, transparent 1px);
+    linear-gradient(var(--ui-accent-trace) 1px, transparent 1px),
+    linear-gradient(90deg, var(--ui-accent-trace) 1px, transparent 1px);
   background-size: 42px 42px;
   mask-image: radial-gradient(circle at center, black 8%, transparent 72%);
 }
@@ -32,7 +32,7 @@
   width: min(70vw, 48rem);
   aspect-ratio: 1;
   border-radius: 50%;
-  background: rgb(14 165 233 / 0.08);
+  background: var(--ui-accent-trace);
   filter: blur(80px);
   transform: translate(-50%, -50%);
 }
@@ -43,13 +43,13 @@
   width: min(100%, 42rem);
   flex-direction: column;
   align-items: center;
-  border: 1px solid rgb(103 232 249 / 0.2);
+  border: 1px solid var(--ui-ring-strong);
   border-radius: clamp(1rem, 2.5vw, 1.5rem);
   padding: clamp(1.25rem, 3.5vw, 2.25rem);
-  background: linear-gradient(150deg, rgb(6 19 32 / 0.88), rgb(2 9 20 / 0.75));
+  background: var(--ui-panel-strong);
   box-shadow:
     0 24px 70px rgb(0 0 0 / 0.42),
-    0 0 80px rgb(34 211 238 / 0.08),
+    0 0 80px var(--ui-accent-trace),
     inset 0 1px 0 rgb(255 255 255 / 0.04);
   text-align: center;
   backdrop-filter: blur(20px);
@@ -60,7 +60,7 @@
   position: absolute;
   width: 3.25rem;
   height: 3.25rem;
-  border-color: rgb(34 211 238 / 0.58);
+  border-color: var(--ui-ring-strong);
   content: "";
   pointer-events: none;
 }
@@ -82,14 +82,12 @@
 }
 
 .not-found-card__logo-shell {
-  overflow: hidden;
+  overflow: visible;
   width: clamp(10.5rem, 28vw, 15rem);
-  border: 1px solid rgb(34 211 238 / 0.2);
-  border-radius: 1.15rem;
-  background: rgb(2 8 17 / 0.58);
-  box-shadow:
-    0 0 48px rgb(0 174 239 / 0.16),
-    inset 0 0 32px rgb(34 211 238 / 0.04);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .not-found-card__logo {
@@ -103,11 +101,11 @@
   align-items: center;
   gap: 0.5rem;
   margin-top: 1.25rem;
-  border: 1px solid rgb(34 211 238 / 0.2);
+  border: 1px solid var(--ui-ring-strong);
   border-radius: 999px;
   padding: 0.4rem 0.75rem;
-  background: rgb(15 118 110 / 0.12);
-  color: #a5f3fc;
+  background: var(--ui-base-wash);
+  color: var(--ui-accent);
   font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.14em;
@@ -119,7 +117,7 @@
   height: 0.42rem;
   border-radius: 50%;
   background: var(--ui-accent);
-  box-shadow: 0 0 12px rgb(34 211 238 / 0.75);
+  box-shadow: 0 0 12px var(--ui-accent-soft);
 }
 
 .not-found-card__code {
@@ -129,7 +127,7 @@
   font-weight: 950;
   line-height: 1;
   letter-spacing: -0.055em;
-  text-shadow: 0 0 36px rgb(34 211 238 / 0.22);
+  text-shadow: 0 0 36px var(--ui-accent-soft);
 }
 
 .not-found-card h1 {
@@ -165,7 +163,7 @@
   font-weight: 850;
   letter-spacing: 0.025em;
   text-decoration: none;
-  box-shadow: 0 10px 30px rgb(15 118 110 / 0.22);
+  box-shadow: var(--ui-shadow-soft);
   transition:
     background-color 160ms ease,
     color 160ms ease,
@@ -189,7 +187,7 @@
   border-color: var(--ui-accent);
   background: var(--ui-action-hover-bg);
   color: var(--ui-action-hover-ink);
-  box-shadow: 0 12px 34px rgb(34 211 238 / 0.2);
+  box-shadow: 0 12px 34px var(--ui-accent-wash);
   transform: translateY(-2px);
 }
 
@@ -200,6 +198,35 @@
 .not-found-card__action:focus-visible {
   outline: 3px solid var(--ui-accent-wash);
   outline-offset: 3px;
+}
+
+:root[data-theme="light"] .not-found-screen__glow {
+  background: var(--ui-accent-trace);
+}
+
+:root[data-theme="light"] .not-found-card {
+  border-color: var(--ui-ring-strong);
+  background: var(--ui-panel-strong);
+  box-shadow: var(--ui-shadow-soft);
+}
+
+:root[data-theme="light"] .not-found-card__logo-shell {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+:root[data-theme="light"] .not-found-card__logo {
+  filter: drop-shadow(0 3px 12px rgb(3 105 161 / 0.22));
+}
+
+:root[data-theme="light"] .not-found-card__status {
+  border-color: var(--ui-ring-strong);
+  background: var(--ui-accent-wash);
+  color: var(--ui-base);
+}
+
+:root[data-theme="light"] .not-found-card__action {
+  box-shadow: var(--ui-shadow-soft);
 }
 
 @media (max-height: 700px) and (min-width: 600px) {

@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import { IrEmittersProvider } from "./contexts/IrEmittersContext";
 import App from './App.tsx'
 import { WebSocketProvider } from './contexts/WebSocketContext.tsx';
 import { UserProvider } from './contexts/UserContext.tsx';
@@ -10,7 +11,6 @@ import { CarModeProvider } from "./contexts/CarModeContext.tsx";
 import { SavedOledScreensProvider } from "./contexts/SavedOledScreensContext.tsx";
 import { WifiCredentialsProvider } from "./contexts/WifiCredentialsContext.tsx";
 import { EspWifiStatusProvider } from "./contexts/EspWifiStatusContext.tsx";
-import { AssetQualityProvider } from "./contexts/AssetQualityContext.tsx";
 import { resolveWebSocketUrl } from "./protocol/wsApi.ts";
 
 const wsUrl =
@@ -20,10 +20,10 @@ const wsUrl =
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <AssetQualityProvider>
       <WebSocketProvider url={wsUrl}>
         <EspWifiStatusProvider>
           <UserProvider>
+            <IrEmittersProvider>
             <WifiCredentialsProvider>
               <CarModeProvider>
                 <ScreenProvider>
@@ -35,9 +35,9 @@ createRoot(document.getElementById("root")!).render(
                 </ScreenProvider>
               </CarModeProvider>
             </WifiCredentialsProvider>
+          </IrEmittersProvider>
           </UserProvider>
         </EspWifiStatusProvider>
       </WebSocketProvider>
-    </AssetQualityProvider>
   </StrictMode>,
 );

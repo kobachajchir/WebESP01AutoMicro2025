@@ -3,14 +3,15 @@ import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import PageHeader from "../components/PageHeader";
 import Modal from "../components/modal";
 import MpuIrScene3D from "../components/MpuIrScene3D";
-import RealtimeEulerPanel from "../components/RealTimeEulerPanel";
+import { LOCAL_AUTO_MICRO_MODEL_URL } from "../utils/localModel";
+import RealtimeEulerPanel from "../components/RealtimeEulerPanel";
 import MockEulerGenerator from "../components/MockEulerGenerator";
 import OrientationControls from "../components/OrientationControls";
+import IrEmittersControls from "../components/IrEmittersControls";
 import SectionStatusStrip from "../components/SectionStatusStrip";
 import ThemeModeToggleCard from "../components/ThemeModeToggleCard";
-import HdAssetsSettingsCard from "../components/HdAssetsSettingsCard";
-import { usePreferredModelUrl } from "../contexts/AssetQualityContext";
-import IrCalibrationWorkbench from "../features/ir/IrCalibrationWorkbench";
+import CalibrationWorkspace from "../features/calibration/CalibrationWorkspace";
+import { IR_MAX_RANGE_CM } from "../features/ir/irEmitterGeometry";
 import type {
   EulerDeg,
   MpuIrScene3DHandle,
@@ -77,8 +78,8 @@ const DEFAULT_IR_PERIOD_MS = 50;
 const IR_STREAM_LIMITS = { ...F4_STREAM_LIMITS, PAYLOAD_BYTES: 56 } as const;
 const IR_NORM_MAX = 4095;
 const SENSOR_SENSITIVITY_MIN_CM = 0;
-const SENSOR_SENSITIVITY_MAX_CM = 15;
-const DEFAULT_SENSOR_SENSITIVITY_CM = 15;
+const SENSOR_SENSITIVITY_MAX_CM = IR_MAX_RANGE_CM;
+const DEFAULT_SENSOR_SENSITIVITY_CM = IR_MAX_RANGE_CM;
 const IR_CALIBRATION_STORAGE_KEY = "uner.ir-object-calibration.v1";
 
 const OBJECT_CHANNELS: Array<{
@@ -111,8 +112,7 @@ export default function EstadoSection() {
     setSensorRefreshInterval,
   } = useWebSocket();
 
-  const base = import.meta.env.BASE_URL || "/";
-  const modelUrl = usePreferredModelUrl(`${base}models/auto_micro.glb`);
+  const modelUrl = LOCAL_AUTO_MICRO_MODEL_URL;
   const sceneRef = useRef<MpuIrScene3DHandle>(null);
   const irEmuSequenceRef = useRef(0);
 
@@ -526,7 +526,6 @@ export default function EstadoSection() {
         <PageHeader
           className="app-page-header sensor-dashboard-header home-page-header"
           titleOverride="Panel MPU + IR"
-          leadingSlot={<SensorBrandGlyph />}
           setOpenSettingsModal={setOpenSettingsModal}
           setOpenInfoModal={setOpenInfoModal}
         />
@@ -546,6 +545,8 @@ export default function EstadoSection() {
           renderLink={renderLink}
           onOpenCalibration={() => setOpenIrCalibrationModal(true)}
         />
+
+        <IrEmittersControls />
 
         <SensorBottomConsole
           connected={connected}
@@ -667,7 +668,7 @@ export default function EstadoSection() {
           closeOnOverlayClick={false}
           containerClassnames="ir-calibration-modal-content"
         >
-          <IrCalibrationWorkbench
+          <CalibrationWorkspace
             profile={irCalibrationProfile}
             snapshot={irSnapshot}
             captureAvailable={connected && irStatus.active && !irEmu}
@@ -707,7 +708,6 @@ export default function EstadoSection() {
           containerClassnames="home-settings-dialog flex flex-col"
         >
           <ThemeModeToggleCard />
-          <HdAssetsSettingsCard />
           <div className="sensor-modal-copy">
             <div className="home-kicker">Config</div>
             <h2>Frecuencias de streaming</h2>
@@ -745,18 +745,6 @@ export default function EstadoSection() {
         </Modal>
       ) : null}
     </section>
-  );
-}
-
-function SensorBrandGlyph() {
-  return (
-    <span className="home-brand-glyph" aria-hidden="true">
-      <svg viewBox="0 0 24 24">
-        <path d="m12 2 8 4.5v9L12 20l-8-4.5v-9L12 2Z" />
-        <path d="M4 6.5 12 11l8-4.5" />
-        <path d="M12 11v9" />
-      </svg>
-    </span>
   );
 }
 
@@ -1839,7 +1827,7 @@ function loadStoredIrCalibrationProfile(): IrCalibrationProfile {
     if (stored) {
       const parsed = parseIrCalibrationProfile(stored);
       if (parsed.ok && parsed.profile) {
-        return parsed.profile;
+        return { ...parsed.profile, polarity: "higher-is-closer", material: parsed.profile.material === "Blanco de prueba" ? "Blanco" : parsed.profile.material };
       }
     }
   } catch {

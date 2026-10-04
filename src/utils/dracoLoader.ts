@@ -1,4 +1,5 @@
-import { DRACOLoader, GLTFLoader, type GLTF } from "three/examples/jsm/Addons.js";
+import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
+import { GLTFLoader, type GLTF } from "three/addons/loaders/GLTFLoader.js";
 
 type DecoderResponseType = "arraybuffer" | "text";
 type DecoderAsset = ArrayBuffer | string;
@@ -11,7 +12,7 @@ type DracoLoaderInternals = DRACOLoader & {
 };
 
 const decoderAssets = new Map<string, Promise<DecoderAsset>>();
-const sharedLoaders = new Map<string, DRACOLoader>();
+let sharedLoader: DRACOLoader | null = null;
 const ASSET_RETRY_DELAYS_MS = [0, 450, 1_200, 2_500] as const;
 
 function wait(delayMs: number) {
@@ -40,8 +41,8 @@ async function fetchAssetWithRetry(
       }
 
       return responseType === "arraybuffer"
-        ? response.arrayBuffer()
-        : response.text();
+        ? await response.arrayBuffer()
+        : await response.text();
     } catch (error) {
       lastError = error;
     }
@@ -65,50 +66,41 @@ function fetchDecoderAsset(url: string, responseType: DecoderResponseType) {
   return pending;
 }
 
-function resolveDecoderPath(baseUrl: string) {
-  const normalizedBase = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
-  return new URL(`${normalizedBase}draco/`, window.location.href).toString();
-}
-
 /**
- * Comparte una única instancia de Draco y serializa sus dos assets WASM.
- *
- * DRACOLoader solicita el wrapper JS y el binario WASM en paralelo. El
- * ESP8266 puede servir cualquiera de los dos por separado, pero bajo esas dos
- * descargas simultáneas deja una respuesta a medio enviar. El hook interno
- * conserva el contrato de Three.js, cargando primero el WASM y luego el
- * wrapper, y reutiliza ambos resultados para todos los visores 3D.
+ * Comparte Draco entre los canvas usando los archivos locales de public/draco.
+ * Carga el WASM antes del wrapper para evitar dos descargas simultaneas desde
+ * el ESP. Los fallos de lectura del cuerpo tambien participan en el reintento.
  */
-export function getSharedDracoLoader(baseUrl: string) {
-  const decoderPath = resolveDecoderPath(baseUrl);
-  const cached = sharedLoaders.get(decoderPath);
-  if (cached) return cached;
+export function getSharedDracoLoader() {
+  if (sharedLoader) return sharedLoader;
 
   const loader = new DRACOLoader();
+  const base = import.meta.env.BASE_URL || "/";
+  const normalizedBase = base.endsWith("/") ? base : `${base}/`;
+  const decoderPath = new URL(`${normalizedBase}draco/`, window.location.href).toString();
   loader.setDecoderPath(decoderPath);
   loader.setDecoderConfig({ type: "wasm" });
 
   const internals = loader as DracoLoaderInternals;
-  const wasmUrl = new URL("draco_decoder.wasm", decoderPath).toString();
-  const wrapperUrl = new URL("draco_wasm_wrapper.js", decoderPath).toString();
-  const loadWasm = () => fetchDecoderAsset(wasmUrl, "arraybuffer");
 
+  const loadWasm = () => fetchDecoderAsset(
+    new URL("draco_decoder.wasm", decoderPath).toString(), "arraybuffer",
+  );
   internals._loadLibrary = (fileName, responseType) => {
     if (fileName === "draco_decoder.wasm") {
       return loadWasm();
     }
 
     if (fileName === "draco_wasm_wrapper.js") {
-      return loadWasm().then(() => fetchDecoderAsset(wrapperUrl, "text"));
+      return loadWasm().then(() => fetchDecoderAsset(
+        new URL(fileName, decoderPath).toString(), "text",
+      ));
     }
 
-    return fetchDecoderAsset(
-      new URL(fileName, decoderPath).toString(),
-      responseType,
-    );
+    return fetchDecoderAsset(new URL(fileName, decoderPath).toString(), responseType);
   };
 
-  sharedLoaders.set(decoderPath, loader);
+  sharedLoader = loader;
   return loader;
 }
 
@@ -128,7 +120,12 @@ export class ResilientGLTFLoader extends GLTFLoader {
   ): void {
     const requestUrl = this.manager.resolveURL(`${this.path || ""}${url}`);
     const absoluteUrl = new URL(requestUrl, window.location.href).toString();
-    const resourcePath = this.resourcePath || new URL(".", absoluteUrl).toString();
+    // Una URL data/blob no tiene un directorio relativo. El GLB local incluye
+    // sus buffers e imagenes; los modelos HTTP conservan su directorio normal.
+    const resourceBaseUrl = /^(data|blob):/.test(absoluteUrl)
+      ? window.location.href
+      : absoluteUrl;
+    const resourcePath = this.resourcePath || new URL(".", resourceBaseUrl).toString();
 
     this.manager.itemStart(absoluteUrl);
     void fetchAssetWithRetry(absoluteUrl, "arraybuffer", {

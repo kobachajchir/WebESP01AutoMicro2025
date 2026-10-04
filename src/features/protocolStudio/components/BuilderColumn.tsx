@@ -48,7 +48,7 @@ export function BuilderColumn(props: BuilderColumnProps) {
         <div className="grid gap-4">
           <section className="protocol-builder-subpanel">
             <div className="protocol-subpanel-heading">
-              <span>Routing</span>
+              <span>Ruta del paquete</span>
               <small>Origen y destino</small>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
@@ -59,7 +59,7 @@ export function BuilderColumn(props: BuilderColumnProps) {
                     <option key={`src-${option.value}`} value={option.value}>{option.label}</option>
                   ))}
                 </select>
-                <small className="mt-1 block text-[var(--ui-subtle)]">En raw real el ESP ignora este valor y usa el nodo 0x5..0xC asignado por la sesión.</small>
+                <small className="mt-1 block text-[var(--ui-subtle)]">Al enviar por el ESP se usa el nodo 0x5..0xC asignado a tu sesión.</small>
               </div>
               <div>
                 <label htmlFor="protocol-dst" className={SMALL_LABEL_CLASS}>Destino (dst)</label>
@@ -75,7 +75,7 @@ export function BuilderColumn(props: BuilderColumnProps) {
           <section className="protocol-builder-subpanel">
             <div className="protocol-subpanel-heading">
               <span>Comando</span>
-              <small>{currentCommand?.fields.length ? "Con payload" : "Sin payload"}</small>
+              <small>{currentCommand?.minPayload === 0 && currentCommand?.maxPayload === 0 ? "Request vacío" : "Payload definido"}</small>
             </div>
             <div className="space-y-4">
               <div>
@@ -110,17 +110,17 @@ export function BuilderColumn(props: BuilderColumnProps) {
             <div className="space-y-3">
               <div>
                 <label htmlFor="manual-payload" className={SMALL_LABEL_CLASS}>Bytes hex separados por espacio</label>
-                <input
+                <textarea
                   id="manual-payload"
-                  type="text"
-                  className={INPUT_CLASS}
-                  placeholder="Ej: 01 4D 0A"
+                  rows={3}
+                  className={`${INPUT_CLASS} studio-hex-input`}
+                  placeholder="Ejemplo: 01 4D 0A"
                   value={manualPayload}
                   onChange={(event) => onManualPayloadChange(event.target.value)}
                 />
               </div>
               <div className={NOTE_CLASS}>
-                Si completas este campo, sobreescribe el payload construido a partir de los parametros del comando seleccionado.
+                Si completas este campo, sobreescribe los parámetros. Para construir una respuesta, invierte origen/destino y escribe aquí su payload. Los formularios representan solicitudes o eventos.
               </div>
             </div>
           </section>
@@ -158,7 +158,8 @@ export function BuilderColumn(props: BuilderColumnProps) {
                   <input
                     id={`field-${field.id}`}
                     className={INPUT_CLASS}
-                    type="text"
+                    type={field.type === "digits" || field.id === "password" ? "password" : "text"}
+                    autoComplete="off"
                     placeholder={field.placeholder}
                     value={fieldValues[field.id] ?? ""}
                     onChange={(event) => onFieldValueChange(field.id, event.target.value)}

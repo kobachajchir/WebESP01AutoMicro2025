@@ -1,7 +1,8 @@
 // src/components/PinScreen.tsx
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PinAuthResult, PinSubmitResult } from "../types/PinAuthTypes";
+import BrandMark from "./BrandMark";
 
 type PinScreenStatus = "idle" | "loading" | "error";
 
@@ -34,6 +35,7 @@ export default function PinScreen({
  errorMessage = "No se pudo validar el PIN.",
  loadingMessage = "Validando...",
 }: PinScreenProps) {
+ const reduceMotion = useReducedMotion();
  const pinRef = useRef<HTMLInputElement>(null);
  const [pin, setPin] = useState("");
  const [status, setStatus] = useState<PinScreenStatus>("idle");
@@ -138,20 +140,7 @@ export default function PinScreen({
  <div className="app-panel flex w-full max-w-md flex-col items-center p-6 sm:p-8">
  <div className="app-kicker mb-5">{kicker}</div>
 
- <svg
- xmlns="http://www.w3.org/2000/svg"
- viewBox="0 0 24 24"
- className="mb-4 size-20 drop-shadow-sm"
- aria-hidden="true"
- >
- <path
- fill="currentColor"
- className="text-cyan-300"
- fillRule="evenodd"
- d="M12 1.5a5.25 5.25 0 0 0-5.25 5.25v3a3 3 0 0 0-3 3v6.75a3 3 0 0 0 3 3h10.5a3 3 0 0 0 3-3v-6.75a3 3 0 0 0-3-3v-3A5.25 5.25 0 0 0 12 1.5Zm3.75 8.25v-3a3.75 3.75 0 1 0-7.5 0v3h7.5Z"
- clipRule="evenodd"
- />
- </svg>
+ <BrandMark className="pin-brand-mark" />
 
  <h1 className="app-title text-center text-3xl">{title}</h1>
  <p className="mt-3 max-w-sm text-center text-sm text-[var(--ui-muted)]">
@@ -159,21 +148,20 @@ export default function PinScreen({
  </p>
 
  <motion.form
- layout
  className="mt-8 flex w-full flex-col items-center gap-5"
  onSubmit={(event) => {
  event.preventDefault();
  sendAttempt();
  }}
  >
- <AnimatePresence mode="wait">
+ <AnimatePresence initial={false} mode="popLayout">
  {failure ? (
  <motion.div
  key="error-view"
- initial={{ opacity: 0, scale: 0.95, y: 10 }}
- animate={{ opacity: 1, scale: 1, y: 0, x: [-10, 10, -8, 8, -5, 5, 0] }}
- exit={{ opacity: 0, scale: 0.95, y: -10 }}
- transition={{ duration: 0.4 }}
+ initial={{ opacity: 0, transform: reduceMotion ? "none" : "translateY(8px) scale(0.97)" }}
+ animate={{ opacity: 1, transform: "translateY(0) scale(1)" }}
+ exit={{ opacity: 0, transform: reduceMotion ? "none" : "translateY(8px) scale(0.97)" }}
+ transition={{ duration: reduceMotion ? 0.12 : 0.2, ease: [0.23, 1, 0.32, 1] }}
  className="flex w-full flex-col items-center gap-5"
  >
  <div
@@ -183,16 +171,16 @@ export default function PinScreen({
  >
  <div className="flex items-start gap-3">
  <span
- className="flex size-9 shrink-0 items-center justify-center rounded-full border border-rose-200/30 bg-rose-300/10 text-lg font-black text-rose-100"
+ className="flex size-9 shrink-0 items-center justify-center rounded-full border border-rose-200/30 bg-rose-300/10 text-lg font-black text-[var(--ui-rose)]"
  aria-hidden="true"
  >
  !
  </span>
  <div className="min-w-0 text-left">
- <p className="text-lg font-black text-rose-100">
+ <p className="text-lg font-black text-[var(--ui-rose)]">
  {failureTitle}
  </p>
- <p className="mt-1 text-sm text-rose-100/90">
+ <p className="mt-1 text-sm text-[var(--ui-rose)]">
  {failure.message ?? errorMessage}
  </p>
  </div>
@@ -210,7 +198,7 @@ export default function PinScreen({
  <div className="mt-4 rounded-md border border-[var(--ui-ring)] bg-[var(--ui-panel-strong)] p-3">
  <div className="flex items-center justify-between gap-3 text-sm">
  <span className="text-[var(--ui-muted)]">Intentos restantes</span>
- <strong className={failure.attemptsLeft <= 1 ? "text-amber-200" : "text-[var(--ui-text)]"}>
+ <strong className={failure.attemptsLeft <= 1 ? "text-[var(--ui-amber)]" : "text-[var(--ui-text)]"}>
  {failure.attemptsLeft} de 3
  </strong>
  </div>
@@ -218,7 +206,7 @@ export default function PinScreen({
  {Array.from({ length: 3 }).map((_, index) => (
  <span
  key={index}
- className={`h-1.5 rounded-full ${index < (failure.attemptsLeft ?? 0) ? "bg-amber-300" : "bg-[var(--ui-bg-2)]"}`}
+ className={`h-1.5 rounded-full ${index < (failure.attemptsLeft ?? 0) ? "bg-[var(--ui-amber)]" : "bg-[var(--ui-bg-2)]"}`}
  />
  ))}
  </div>
@@ -226,7 +214,7 @@ export default function PinScreen({
  )}
 
  {failure.blocked && (
- <p className="mt-4 rounded-md border border-amber-300/30 bg-amber-400/10 p-3 text-center text-sm font-semibold text-amber-100">
+ <p className="mt-4 rounded-md border border-amber-300/30 bg-amber-400/10 p-3 text-center text-sm font-semibold text-[var(--ui-amber)]">
  {retrySeconds > 0
  ? `Esperá ${retrySeconds} s antes de volver a intentar.`
  : "El tiempo de espera terminó; ya podés volver a intentar."}
@@ -248,10 +236,10 @@ export default function PinScreen({
  ) : (
  <motion.div
  key="input-view"
- initial={{ opacity: 0, scale: 0.95, y: 10 }}
- animate={{ opacity: 1, scale: 1, y: 0 }}
- exit={{ opacity: 0, scale: 0.95, y: -10 }}
- transition={{ duration: 0.3 }}
+ initial={{ opacity: 0, transform: reduceMotion ? "none" : "translateY(8px) scale(0.97)" }}
+ animate={{ opacity: 1, transform: "translateY(0) scale(1)" }}
+ exit={{ opacity: 0, transform: reduceMotion ? "none" : "translateY(8px) scale(0.97)" }}
+ transition={{ duration: reduceMotion ? 0.12 : 0.2, ease: [0.23, 1, 0.32, 1] }}
  className="flex w-full flex-col items-center gap-5"
  >
  <label htmlFor="pin" className="sr-only">
@@ -285,16 +273,16 @@ export default function PinScreen({
  <span
  key={index}
  className={`app-panel-strong flex aspect-square items-center justify-center text-3xl font-black ${
- pin[index] ? "text-cyan-200" : "text-[var(--ui-subtle)]"
+ pin[index] ? "text-[var(--ui-accent)]" : "text-[var(--ui-subtle)]"
  }`}
  >
- <AnimatePresence mode="popLayout">
+ <AnimatePresence initial={false} mode="popLayout">
  <motion.span
  key={pin[index] ? "filled" : "empty"}
- initial={{ scale: 0.5, opacity: 0 }}
- animate={{ scale: 1, opacity: 1 }}
- exit={{ scale: 0.5, opacity: 0 }}
- transition={{ type: "spring", bounce: 0.5, duration: 0.3 }}
+ initial={{ opacity: 0, transform: reduceMotion ? "none" : "scale(0.95)" }}
+ animate={{ opacity: 1, transform: "scale(1)" }}
+ exit={{ opacity: 0, transform: reduceMotion ? "none" : "scale(0.95)" }}
+ transition={{ duration: reduceMotion ? 0.1 : 0.14, ease: [0.23, 1, 0.32, 1] }}
  >
  {pin[index] ? "*" : index + 1}
  </motion.span>
@@ -314,10 +302,10 @@ export default function PinScreen({
  >
  <div className="flex items-center gap-2">
  <span
- className={`size-2 rounded-full ${status === "loading" ? "animate-pulse bg-cyan-300" : "bg-emerald-300"}`}
+ className={`size-2 rounded-full ${status === "loading" ? "animate-pulse bg-[var(--ui-accent)]" : "bg-[var(--ui-success-text)]"}`}
  aria-hidden="true"
  />
- <strong className={status === "loading" ? "text-cyan-100" : "text-[var(--ui-text)]"}>
+ <strong className={status === "loading" ? "text-[var(--ui-accent)]" : "text-[var(--ui-text)]"}>
  {status === "loading" ? loadingMessage : "Listo para validar"}
  </strong>
  </div>
@@ -403,7 +391,7 @@ function FeedbackStep({
  return (
  <div className="rounded-md border border-[var(--ui-ring)] bg-[var(--ui-panel-strong)] p-2">
  <span className="block text-[var(--ui-muted)]">{label}</span>
- <strong className={tone === "ok" ? "mt-1 block text-emerald-200" : "mt-1 block text-rose-200"}>
+ <strong className={tone === "ok" ? "mt-1 block text-[var(--ui-success-text)]" : "mt-1 block text-[var(--ui-rose)]"}>
  {value}
  </strong>
  </div>

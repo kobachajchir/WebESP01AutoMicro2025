@@ -1,355 +1,57 @@
-import type { ReactNode } from "react";
-import {
- COMMAND_GROUPS,
- NODE_NAMES,
-} from "../catalog";
-import { bytesToHex, h2, hx } from "../utils";
+import { NODE_NAMES } from "../catalog";
+import { bytesToHex, hx } from "../utils";
 import { Panel } from "../ui";
 import type { BuilderData, CommandDefinition } from "../types";
 
-type SegmentTone = "cyan" | "emerald" | "amber" | "violet" | "rose" | "sky" | "slate";
-
 interface FrameVisualizationShowcaseProps {
- builderData: BuilderData | null;
- builderError: string;
- commandKey: string;
- currentCommand?: CommandDefinition;
+  builderData: BuilderData | null;
+  builderError: string;
+  commandKey: string;
+  currentCommand?: CommandDefinition;
 }
 
-export function FrameVisualizationShowcase({
- builderData,
- builderError,
- commandKey,
- currentCommand,
-}: FrameVisualizationShowcaseProps) {
- const commandGroupLabel =
- COMMAND_GROUPS.find((group) => group.commands.includes(commandKey))?.label ??
- "Sin grupo";
-
- if (!builderData) {
- return (
- <Panel title="Frame - visualizacion">
- <div className="protocol-frame-card protocol-frame-card--empty">
- <div className="app-kicker mb-3">UNER v2</div>
- <h3 className="text-lg font-black uppercase tracking-tight text-[var(--ui-text)] md:text-xl">
- Packet format
- </h3>
-
- {builderError ? (
- <div className="mt-5 rounded-2xl border border-rose-400/25 bg-rose-500/10 p-4 text-sm text-rose-200">
- {builderError}
- </div>
- ) : null}
- </div>
- </Panel>
- );
- }
-
- const source = (builderData.route >> 4) & 0x0f;
- const destination = builderData.route & 0x0f;
- const payloadHex = builderData.payload.length
- ? bytesToHex(builderData.payload)
- : "sin payload";
-
- return (
- <Panel title="Frame - visualizacion">
- <div className="protocol-frame-card">
- <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),transparent_34%,transparent_70%,rgba(255,255,255,0.04))]" />
- <div className="pointer-events-none absolute -left-24 top-8 h-48 w-48 rounded-full bg-cyan-400/10 blur-3xl" />
- <div className="pointer-events-none absolute -right-20 bottom-6 h-44 w-44 rounded-full bg-sky-400/10 blur-3xl" />
-
- <div className="relative flex flex-col gap-4">
- <div className="space-y-3">
- <div>
- <h3 className="text-lg font-black uppercase tracking-tight text-[var(--ui-text)] md:text-xl">
- Packet format
- </h3>
- </div>
-
- <div className="flex flex-wrap gap-2">
- <StatChip
- label="cmd"
- value={`${hx(builderData.cmd)} ${currentCommand?.name ?? ""}`.trim()}
- />
- <StatChip label="grupo" value={commandGroupLabel} />
- <StatChip label="src" value={`${hx(source)} ${nodeLabel(source)}`} />
- <StatChip
- label="dst"
- value={`${hx(destination)} ${nodeLabel(destination)}`}
- />
- <StatChip label="route" value={hx(builderData.route)} />
- <StatChip label="total" value={`${builderData.frame.length} bytes`} />
- <StatChip label="chk" value={hx(builderData.chk)} />
- </div>
- </div>
-
- <div className="rounded-[18px] border border-[var(--ui-ring)] bg-[var(--ui-panel-strong)] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
- <div className="overflow-x-auto pb-2">
- <div className="flex min-w-max items-end gap-2">
- <FrameSegment
- label="Header"
- tone="cyan"
- tooltipTitle="HEADER"
- tooltipBody='Firma fija "UNER". Siempre ocupa 4 bytes y marca el inicio del paquete.'
- >
- <SegmentBlock tone="cyan" className="min-w-[9.5rem]">
- <div className="font-mono text-[1.05rem] font-semibold tracking-[0.08em] text-cyan-50 md:text-[1.15rem]">
- 55 4E 45 52
- </div>
- <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-cyan-100/80">
- 4 bytes fijos
- </div>
- </SegmentBlock>
- </FrameSegment>
-
- <FrameSegment
- label="Len"
- tone="emerald"
- tooltipTitle="LEN"
- tooltipBody={`Longitud del payload en bytes. Para este frame vale ${builderData.len}.`}
- >
- <SegmentBlock tone="emerald" className="min-w-[4.4rem]">
- <div className="font-mono text-[1.05rem] font-semibold tracking-[0.08em] text-emerald-50 md:text-[1.15rem]">
- {h2(builderData.len)}
- </div>
- <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-emerald-100/80">
- {builderData.len} {builderData.len === 1 ? "byte" : "bytes"}
- </div>
- </SegmentBlock>
- </FrameSegment>
-
- <FrameSegment
- label="Token / Ver"
- tone="amber"
- tooltipTitle="TOKEN / VERSION"
- tooltipBody="UNER v2 usa el token fijo 0x3A y la version fija 0x02."
- >
- <div className="flex gap-2">
- <SegmentBlock tone="amber" className="min-w-[4.4rem]">
- <div className="font-mono text-[1.05rem] font-semibold tracking-[0.08em] text-amber-50 md:text-[1.15rem]">
- 3A
- </div>
- <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-amber-100/80">
- token
- </div>
- </SegmentBlock>
- <SegmentBlock tone="amber" className="min-w-[4.4rem]">
- <div className="font-mono text-[1.05rem] font-semibold tracking-[0.08em] text-amber-50 md:text-[1.15rem]">
- 02
- </div>
- <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-amber-100/80">
- version
- </div>
- </SegmentBlock>
- </div>
- </FrameSegment>
-
- <FrameSegment
- label="Route"
- tone="violet"
- tooltipTitle="ROUTE"
- tooltipBody={`Nibble alto = ${nodeLabel(source)}. Nibble bajo = ${nodeLabel(destination)}.`}
- >
- <SegmentBlock tone="violet" className="min-w-[6.2rem]">
- <div className="font-mono text-[1.05rem] font-semibold tracking-[0.08em] text-violet-50 md:text-[1.15rem]">
- {h2(builderData.route)}
- </div>
- <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-violet-100/80">
- {nodeLabel(source)} -&gt; {nodeLabel(destination)}
- </div>
- </SegmentBlock>
- </FrameSegment>
-
- <FrameSegment
- label="Cmd"
- tone="rose"
- tooltipTitle="CMD"
- tooltipBody={currentCommand?.desc ?? "Operacion concreta del protocolo para este frame."}
- >
- <SegmentBlock tone="rose" className="min-w-[6.2rem]">
- <div className="font-mono text-[1.05rem] font-semibold tracking-[0.08em] text-rose-50 md:text-[1.15rem]">
- {h2(builderData.cmd)}
- </div>
- <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-rose-100/80">
- {currentCommand?.name ?? "comando"}
- </div>
- </SegmentBlock>
- </FrameSegment>
-
- <FrameSegment
- label="Payload"
- tone="sky"
- tooltipTitle="PAYLOAD"
- tooltipBody={
- builderData.payload.length
- ? `Payload actual (${builderData.payload.length} bytes): ${payloadHex}.`
- : "El CMD actual no necesita payload adicional."
- }
- >
- <SegmentBlock tone="sky" className="min-w-[10rem] max-w-[20rem]">
- <div className="font-mono text-[0.95rem] font-semibold tracking-[0.08em] text-sky-50 md:text-[1.05rem]">
- {payloadHex}
- </div>
- <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-sky-100/80">
- {builderData.payload.length
- ? `${builderData.payload.length} bytes de datos`
- : "sin payload"}
- </div>
- </SegmentBlock>
- </FrameSegment>
-
- <FrameSegment
- label="Chk"
- tone="slate"
- tooltipTitle="CHECKSUM"
- tooltipBody={`XOR final calculado sobre todo el frame previo. Valor actual: ${hx(builderData.chk)}.`}
- >
- <SegmentBlock tone="slate" className="min-w-[4.4rem]">
- <div className="font-mono text-[1.05rem] font-semibold tracking-[0.08em] text-[var(--ui-text)] md:text-[1.15rem]">
- {h2(builderData.chk)}
- </div>
- <div className="mt-1 text-[10px] uppercase tracking-[0.12em] text-[var(--ui-text)]/80">
- xor
- </div>
- </SegmentBlock>
- </FrameSegment>
- </div>
- </div>
- </div>
-
- {builderError ? (
- <div className="rounded-2xl border border-rose-400/25 bg-rose-500/10 p-4 text-sm text-rose-200">
- {builderError}
- </div>
- ) : null}
- </div>
- </div>
- </Panel>
- );
-}
-
-function nodeLabel(node: number) {
- return NODE_NAMES[node] ?? `0x${node.toString(16).toUpperCase()}`;
-}
-
-function toneClasses(tone: SegmentTone) {
- switch (tone) {
- case "emerald":
- return {
- label: "text-emerald-200",
- block:
- "border-emerald-300/40 bg-emerald-500/16 shadow-[0_0_0_1px_rgba(74,222,128,0.14),0_18px_50px_rgba(34,197,94,0.14)]",
- pill: "border-emerald-300/35 bg-emerald-500/12 text-emerald-100",
- };
- case "amber":
- return {
- label: "text-amber-200",
- block:
- "border-amber-300/45 bg-amber-500/14 shadow-[0_0_0_1px_rgba(251,191,36,0.16),0_18px_50px_rgba(245,158,11,0.14)]",
- pill: "border-amber-300/35 bg-amber-500/12 text-amber-100",
- };
- case "violet":
- return {
- label: "text-violet-200",
- block:
- "border-violet-300/45 bg-violet-500/16 shadow-[0_0_0_1px_rgba(196,181,253,0.16),0_18px_50px_rgba(168,85,247,0.16)]",
- pill: "border-violet-300/35 bg-violet-500/12 text-violet-100",
- };
- case "rose":
- return {
- label: "text-rose-200",
- block:
- "border-rose-300/45 bg-rose-500/16 shadow-[0_0_0_1px_rgba(253,164,175,0.16),0_18px_50px_rgba(244,63,94,0.15)]",
- pill: "border-rose-300/35 bg-rose-500/12 text-rose-100",
- };
- case "sky":
- return {
- label: "text-sky-200",
- block:
- "border-sky-300/45 bg-sky-500/16 shadow-[0_0_0_1px_rgba(125,211,252,0.16),0_18px_50px_rgba(14,165,233,0.15)]",
- pill: "border-sky-300/35 bg-sky-500/12 text-sky-100",
- };
- case "slate":
- return {
- label: "text-[var(--ui-text)]",
- block:
- "border-[var(--ui-ring)] bg-[var(--ui-panel-strong)] shadow-[0_0_0_1px_rgba(148,163,184,0.14),0_18px_50px_rgba(100,116,139,0.12)]",
- pill: "border-[var(--ui-ring)] bg-[var(--ui-panel)] text-[var(--ui-text)]",
- };
- case "cyan":
- default:
- return {
- label: "text-cyan-200",
- block:
- "border-cyan-300/45 bg-cyan-500/16 shadow-[0_0_0_1px_rgba(103,232,249,0.16),0_18px_50px_rgba(34,211,238,0.15)]",
- pill: "border-cyan-300/35 bg-cyan-500/12 text-cyan-100",
- };
- }
-}
-
-function StatChip({ label, value }: { label: string; value: string }) {
- return (
- <div className="inline-flex items-center gap-2 rounded-full border border-[var(--ui-ring)] bg-[var(--ui-bg-0)]/45 px-2.5 py-1.5 text-[11px] text-[var(--ui-muted)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
- <span className="font-semibold uppercase tracking-[0.12em] text-[var(--ui-muted)]">
- {label}
- </span>
- <span className="font-mono text-[var(--ui-text)]">{value}</span>
- </div>
- );
-}
-
-function FrameSegment({
- label,
- tone,
- tooltipTitle,
- tooltipBody,
- children,
-}: {
- label: string;
- tone: SegmentTone;
- tooltipTitle: string;
- tooltipBody: string;
- children: ReactNode;
-}) {
- const toneClass = toneClasses(tone);
-
- return (
- <button
- type="button"
- className="group relative flex shrink-0 cursor-help flex-col items-center gap-2 rounded-[18px] bg-transparent p-0 text-left"
- >
- <div className={`text-[10px] font-black uppercase tracking-[0.12em] ${toneClass.label}`}>
- {label}
- </div>
- <div className="pointer-events-none absolute left-1/2 top-0 z-20 hidden w-72 -translate-x-1/2 -translate-y-full pb-3 text-left group-hover:block group-focus:block">
- <div className="rounded-2xl border border-[var(--ui-ring)] bg-[var(--ui-bg-0)]/92 p-3 shadow-[0_20px_60px_rgba(2,6,23,0.46)] backdrop-blur">
- <div className={`text-xs font-bold uppercase tracking-[0.2em] ${toneClass.label}`}>
- {tooltipTitle}
- </div>
- <p className="mt-2 text-sm leading-6 text-[var(--ui-text)]">{tooltipBody}</p>
- </div>
- </div>
- {children}
- </button>
- );
-}
-
-function SegmentBlock({
- tone,
- className = "",
- children,
-}: {
- tone: SegmentTone;
- className?: string;
- children: ReactNode;
-}) {
- const toneClass = toneClasses(tone);
-
- return (
- <div
- className={`rounded-[14px] border px-3 py-2.5 text-center transition-transform duration-300 group-hover:-translate-y-0.5 ${toneClass.block} ${className}`}
- >
- {children}
- </div>
- );
+export function FrameVisualizationShowcase({ builderData, builderError, commandKey, currentCommand }: FrameVisualizationShowcaseProps) {
+  if (!builderData) return (
+    <Panel title="Estructura del paquete">
+      <div className="studio-empty-state">
+        <span className="studio-eyebrow">UNER v2</span>
+        <h3>Prepara el paquete</h3>
+        <p>{builderError || "Elige un comando y completa sus parámetros para ver cada campo del protocolo."}</p>
+      </div>
+    </Panel>
+  );
+  const source = builderData.route >> 4;
+  const destination = builderData.route & 15;
+  const payloadEnd = 9 + builderData.payload.length;
+  const segments = [
+    { role: "header", label: "Cabecera", offset: "00–03", bytes: [0x55, 0x4e, 0x45, 0x52], note: "Firma UNER", detail: "Estos cuatro bytes identifican el inicio del paquete: U, N, E, R." },
+    { role: "meta", label: "Longitud", offset: "04", bytes: [builderData.len], note: `${builderData.len} bytes de datos`, detail: "Indica el tamaño del payload, sin contar la cabecera ni el checksum." },
+    { role: "meta", label: "Token · versión", offset: "05–06", bytes: [0x3a, 0x02], note: "UNER v2", detail: "Token fijo 3A seguido de la versión 02 del protocolo." },
+    { role: "route", label: "Ruta", offset: "07", bytes: [builderData.route], note: `${hx(source)} → ${hx(destination)}`, detail: `Origen: ${NODE_NAMES[source] ?? hx(source)}. Destino: ${NODE_NAMES[destination] ?? hx(destination)}. El nibble alto es el origen y el bajo, el destino.` },
+    { role: "command", label: "Comando", offset: "08", bytes: [builderData.cmd], note: currentCommand?.name ?? commandKey, detail: currentCommand?.desc ?? "Identifica la operación que representa este paquete." },
+    { role: "payload", label: "Datos", offset: builderData.payload.length ? `09–${String(payloadEnd - 1).padStart(2,"0")}` : "Sin bytes", bytes: builderData.payload, note: `${builderData.payload.length} bytes`, detail: "Contenido de la solicitud, respuesta o evento. Su formato depende del comando y de la dirección de la comunicación." },
+    { role: "checksum", label: "Checksum", offset: String(payloadEnd).padStart(2,"0"), bytes: [builderData.chk], note: "XOR", detail: "XOR de todos los bytes anteriores. Permite detectar errores en el paquete." },
+  ];
+  return (
+    <Panel title="Estructura del paquete" headerRight={<span className="studio-badge">{builderData.frame.length} bytes</span>}>
+      <div className="studio-packet-heading">
+        <div><span className="studio-eyebrow">UNER v2 · {commandKey}</span><h3>{currentCommand?.name ?? "Paquete"}</h3></div>
+        <p>Lee de izquierda a derecha. Abre un campo para ver su significado.</p>
+      </div>
+      <div className="studio-packet-grid">
+        {segments.map(segment => (
+          <details key={segment.role + segment.label} className={`studio-packet-field studio-packet-field--${segment.role}`}>
+            <summary>
+              <span className="studio-packet-field-heading"><span>{segment.label}</span><span className="studio-byte-offset">{segment.offset}</span></span>
+              <span className="studio-packet-value">{segment.bytes.length ? bytesToHex(segment.bytes) : "Vacío"}</span>
+              <span className="studio-packet-note">{segment.note}</span>
+              <span className="studio-packet-disclosure">Detalles <span aria-hidden="true">⌄</span></span>
+            </summary>
+            <p className="studio-packet-description">{segment.detail}</p>
+          </details>
+        ))}
+      </div>
+      <p className="studio-caption">Los números de cada campo indican su posición en bytes, empezando en 0. Los colores agrupan campos; las etiquetas explican su función.</p>
+    </Panel>
+  );
 }

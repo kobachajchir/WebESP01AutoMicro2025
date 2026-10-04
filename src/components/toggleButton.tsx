@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 
 type Size = "sm" | "md" | "lg";
 
@@ -53,6 +53,7 @@ export default function ToggleButton({
  const isControlled = checked !== undefined;
  const [internal, setInternal] = useState(defaultChecked);
  const isOn = isControlled ? !!checked : internal;
+ const reduceMotion = useReducedMotion();
 
  const setIsOn = useCallback(
  (next: boolean) => {
@@ -67,17 +68,6 @@ export default function ToggleButton({
  if (disabled) return;
  setIsOn(!isOn);
  }, [disabled, isOn, setIsOn]);
-
- const onKeyDown = useCallback(
- (e: React.KeyboardEvent<HTMLButtonElement>) => {
- if (disabled) return;
- if (e.key === "Enter" || e.key === " ") {
- e.preventDefault();
- toggle();
- }
- },
- [disabled, toggle]
- );
 
  // Dimensiones por tamaño
  const cfg = useMemo(() => {
@@ -112,7 +102,7 @@ export default function ToggleButton({
  {labels && (
  <span
  className={`text-sm font-medium ${
- !isOn ? "text-cyan-400" : "text-[var(--ui-muted)]"
+ !isOn ? "text-[var(--ui-accent)]" : "text-[var(--ui-muted)]"
  } ${labelClassName}`}
  >
  {labelOff}
@@ -127,15 +117,8 @@ export default function ToggleButton({
  aria-disabled={disabled || undefined}
  disabled={disabled}
  onClick={toggle}
- onKeyDown={onKeyDown}
- whileTap={disabled ? {} : { scale: 0.93 }}
- initial={false}
- animate={{
- backgroundColor: isOn ? "rgba(8, 145, 178, 0.9)" : "rgba(51, 65, 85, 0.7)",
- }}
- transition={{ type: "spring", bounce: 0, duration: 0.4 }}
  className={[
- "inline-flex items-center rounded-full p-0.5 relative",
+ "app-toggle inline-flex items-center rounded-full p-0.5 relative",
  "ring-1 ring-[var(--ui-ring)]",
  cfg.track,
  disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
@@ -147,13 +130,10 @@ export default function ToggleButton({
  >
  <motion.span
  initial={false}
- animate={{
- x: isOn ? cfg.thumbOn : cfg.thumbOff,
- backgroundColor: isOn ? "#ffffff" : "#e2e8f0",
- }}
- transition={{ type: "spring", bounce: 0, duration: 0.4 }}
+ animate={{ transform: `translateX(${isOn ? cfg.thumbOn : cfg.thumbOff}px)` }}
+ transition={reduceMotion ? { duration: 0 } : { type: "spring", bounce: 0, duration: 0.24 }}
  className={[
- "rounded-full shadow-md",
+ "app-toggle__thumb rounded-full shadow-md",
  cfg.thumb
  ].join(" ")}
  />
@@ -166,7 +146,7 @@ export default function ToggleButton({
  {labels && (
  <span
  className={`text-sm font-medium ${
- isOn ? "text-cyan-400" : "text-[var(--ui-muted)]"
+ isOn ? "text-[var(--ui-accent)]" : "text-[var(--ui-muted)]"
  } ${labelClassName}`}
  >
  {labelOn}

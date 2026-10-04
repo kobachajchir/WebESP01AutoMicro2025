@@ -1,8 +1,9 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Canvas, useLoader, useThree } from "@react-three/fiber";
+import { useLoader, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { type GLTF } from "three/addons/loaders/GLTFLoader.js";
 import * as THREE from "three";
+import MotionControlPanel from "../features/motion/MotionControlPanel";
 import MotorBlock, { type BlockKind } from "../components/MotorBlock";
 import PageHeader from "../components/PageHeader";
 import SectionStatusStrip from "../components/SectionStatusStrip";
@@ -13,12 +14,11 @@ import type { Block, Dir, TrackKey } from "../types/MotorTypes";
 import Modal from "../components/modal";
 import SystemResetActions from "../components/SystemResetActions";
 import ThemeModeToggleCard from "../components/ThemeModeToggleCard";
-import HdAssetsSettingsCard from "../components/HdAssetsSettingsCard";
-import HdModelQualityButton from "../components/HdModelQualityButton";
-import { usePreferredModelUrl } from "../contexts/AssetQualityContext";
 import { getSharedDracoLoader, ResilientGLTFLoader } from "../utils/dracoLoader";
 import ModelLoadingScreen from "../components/ModelLoadingScreen";
-import { useModelLoadingState } from "../hooks/useModelLoadingState";
+import ModelLoadBoundary from "../components/ModelLoadBoundary";
+import WebGLCanvas from "../components/WebGLCanvas";
+import { LOCAL_AUTO_MICRO_MODEL_URL } from "../utils/localModel";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { useCarMode } from "../contexts/CarModeContext";
 import {
@@ -743,7 +743,7 @@ export default function ControlSection() {
  : !isTestMode
  ? "Requiere modo TEST"
  : !PHYSICAL_EXECUTION_CAPABILITY
- ? "Comando/capability de motores no implementado"
+ ? "Carga y ejecución de secuencias completas pendiente; control directo disponible arriba"
  : "Listo";
  const safetyArmed =
  connected && isTestMode && PHYSICAL_EXECUTION_CAPABILITY;
@@ -1084,11 +1084,11 @@ export default function ControlSection() {
  <PageHeader
  className="app-page-header home-page-header control-page-header"
  titleOverride="Control de Motores"
- leadingSlot={<ControlBrandGlyph />}
  setOpenSettingsModal={setOpenSettingsModal}
  setOpenInfoModal={setOpenInfoModal}
  />
 
+ <MotionControlPanel />
  <ControlHeaderStatus
  connected={connected}
  carMode={connected ? carMode : "--"}
@@ -2284,7 +2284,6 @@ export default function ControlSection() {
  >
  <div className="flex flex-col gap-4">
  <ThemeModeToggleCard />
- <HdAssetsSettingsCard />
  <div>
  <div className="app-kicker mb-3">Config</div>
  <h2 className="text-2xl font-black text-[var(--ui-text)]">Configuración</h2>
@@ -2391,17 +2390,6 @@ function StatusPill({
  🔒
  </span>
  ) : null}
- </span>
- );
-}
-
-function ControlBrandGlyph() {
- return (
- <span className="home-brand-glyph control-brand-glyph" aria-hidden="true">
- <svg viewBox="0 0 24 24">
- <path d="M7 9h10c2.1 0 3.5 1.5 4 4.2l.45 2.4c.22 1.25-.86 2.3-2.05 1.88l-2.1-.74a4.2 4.2 0 0 0-1.4-.24H8.1c-.48 0-.95.08-1.4.24l-2.1.74c-1.2.42-2.27-.63-2.05-1.88L3 13.2C3.5 10.5 4.9 9 7 9Z" />
- <path d="M7 12v3M5.5 13.5h3M16 12.5h.01M18.5 14.5h.01" />
- </svg>
  </span>
  );
 }
@@ -2518,7 +2506,7 @@ function PaletteToolButton({
  disabled={disabled}
  onClick={disabled ? undefined : onClick}
  title={disabled && kind === "pivot" ? "Pivote no disponible en modo dual" : labelES[kind]}
- className={`group relative flex min-h-[58px] items-center gap-3 overflow-hidden rounded-md border px-3 py-2 text-left transition-all duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 ${tone} ${
+ className={`group relative flex min-h-[58px] items-center gap-3 overflow-hidden rounded-md border px-3 py-2 text-left transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-45 ${tone} ${
  pairSelected ? "shadow-[0_0_0_1px_rgba(255,255,255,0.2),0_0_0_4px_rgba(56,189,248,0.10)]" : ""
  }`}
  >
@@ -2722,7 +2710,7 @@ function BlockPropertiesPanel({
  </div>
  ) : null}
 
- <div className="grid grid-cols-3 gap-2 pt-2">
+ <div className="grid grid-cols-2 gap-2 pt-2 sm:grid-cols-3">
  <button
  type="button"
  onClick={onSave}
@@ -2745,7 +2733,7 @@ function BlockPropertiesPanel({
  type="button"
  onClick={onDelete}
  disabled={!selection}
- className={panelActionClass("rose")}
+ className={`${panelActionClass("rose")} col-span-2 sm:col-span-1`}
  >
  <PanelActionIcon name="trash" />
  Eliminar
@@ -2898,8 +2886,7 @@ function MotionSimulationPanel({
  variant?: "compact" | "large";
 }) {
  const isLarge = variant === "large";
- const base = import.meta.env.BASE_URL || "/";
- const modelUrl = usePreferredModelUrl(`${base}models/auto_micro.glb`);
+ const modelUrl = LOCAL_AUTO_MICRO_MODEL_URL;
  const pathPoints = pose.path
  .map((p) => `${clamp(p.x, -118, 118).toFixed(1)},${clamp(p.y, -78, 78).toFixed(1)}`)
  .join(" ");
@@ -2915,7 +2902,6 @@ function MotionSimulationPanel({
  />
  <div className="pointer-events-none absolute inset-0">
  <div className="absolute left-3 top-3 z-10 flex items-center gap-2 pointer-events-auto">
- <HdModelQualityButton />
  <div className="rounded-md border border-amber-300/40 bg-[var(--ui-bg-0)]/85 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide text-amber-200 shadow-[0_0_18px_rgba(245,158,11,0.16)] backdrop-blur-sm">
  Frente físico: lado TCRT
  </div>
@@ -2978,15 +2964,10 @@ function MotorTopView3D({
  pose: SimulationPose;
  isSimulating: boolean;
 }) {
- const { isModelLoading, markModelLoaded } = useModelLoadingState(modelUrl);
-
  return (
  <>
- <ModelLoadingScreen visible={isModelLoading} />
- <Canvas
+ <WebGLCanvas
  camera={{ position: [0, 5.2, 0.01], fov: 42, near: 0.1, far: 80 }}
- dpr={[1, 2]}
- gl={{ alpha: true, antialias: true }}
  onCreated={({ camera, gl }) => {
  camera.lookAt(0, 0, 0);
  camera.updateProjectionMatrix();
@@ -3003,14 +2984,15 @@ function MotorTopView3D({
  <TopCameraController />
  <TechnicalTopGrid />
  <SimulationPath3D path={pose.path} />
- <Suspense fallback={<TopFallbackVehicle pose={pose} />}>
+ <ModelLoadBoundary modelUrl={modelUrl}>
+ <Suspense fallback={<><TopFallbackVehicle pose={pose} /><ModelLoadingScreen visible /></>}>
  <TopVehicleModel
  modelUrl={modelUrl}
  pose={pose}
  isSimulating={isSimulating}
- onLoaded={markModelLoaded}
  />
  </Suspense>
+ </ModelLoadBoundary>
  <OrbitControls
  enableDamping
  dampingFactor={0.08}
@@ -3021,7 +3003,7 @@ function MotorTopView3D({
  maxDistance={7.2}
  target={[0, 0, 0]}
  />
- </Canvas>
+ </WebGLCanvas>
  </>
  );
 }
@@ -3087,21 +3069,14 @@ function TopVehicleModel({
  modelUrl,
  pose,
  isSimulating,
- onLoaded,
 }: {
  modelUrl: string;
  pose: SimulationPose;
  isSimulating: boolean;
- onLoaded: () => void;
 }) {
  const { scene } = useLoader(ResilientGLTFLoader, modelUrl, (loader) => {
- const base = import.meta.env.BASE_URL || "/";
- loader.setDRACOLoader(getSharedDracoLoader(base));
+ loader.setDRACOLoader(getSharedDracoLoader());
  }) as GLTF;
-
- useEffect(() => {
- onLoaded();
- }, [onLoaded, scene]);
 
  const normalizedModel = useMemo(() => {
  // Se mide una copia todavía desacoplada de la pose móvil. Así el centro del
@@ -3666,14 +3641,14 @@ function sectionSegmentedButtonStyle(
 
  return tone === "emerald"
  ? {
- background: "#10b981",
- color: "#ffffff",
- boxShadow: "0 12px 28px rgba(16,185,129,0.28)",
+ background: "var(--ui-base)",
+ color: "var(--ui-action-ink)",
+ boxShadow: "0 12px 28px var(--ui-base-soft)",
  }
  : {
  background: "var(--ui-accent)",
- color: "#061016",
- boxShadow: "0 12px 28px rgba(34,211,238,0.28)",
+ color: "var(--ui-action-hover-ink)",
+ boxShadow: "0 12px 28px var(--ui-accent-wash)",
  };
 }
 

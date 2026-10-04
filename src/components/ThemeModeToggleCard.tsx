@@ -6,7 +6,7 @@ import {
   saveThemeMode,
   type ThemeMode,
 } from "../utils/theme";
-import ToggleButton from "./toggleButton";
+import ToggleButton from "./ToggleButton";
 
 export default function ThemeModeToggleCard({
   className = "",

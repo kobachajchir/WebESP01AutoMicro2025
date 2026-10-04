@@ -12,7 +12,7 @@ type NavigateVTProps = {
 export default function NavigateVT({ to, replace = false, state }: NavigateVTProps) {
   const navigate = useNavigate();
   useEffect(() => {
-    navigate(to, { replace, state, viewTransition: true });
+    navigate(to, { replace, state });
   }, [navigate, to, replace, state]);
   return null;
 }

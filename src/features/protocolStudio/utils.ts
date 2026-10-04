@@ -1,3 +1,4 @@
+import { encodeCommandFields, strictHexBytes, decodeStudioPayload } from "./payloadCodec";
 import { FRAME_COMMANDS, IDLE_SUMMARY, NODE_NAMES } from "./catalog";
 import type {
   BlockGap,
@@ -152,42 +153,8 @@ export function createDefaultFieldValues(command: CommandDefinition | undefined)
   return values;
 }
 
-function parseRequiredNumber(rawValue: string, radix: number, label: string) {
-  const normalized = rawValue.trim();
-  const parsed = Number.parseInt(normalized, radix);
-
-  if (!normalized || Number.isNaN(parsed)) {
-    throw new Error(`Valor invalido para ${label}.`);
-  }
-
-  return parsed & 0xff;
-}
-
 export function buildFormPayload(command: CommandDefinition | undefined, values: Record<string, string>) {
-  if (!command) {
-    return [];
-  }
-
-  const bytes: number[] = [];
-
-  for (const field of command.fields) {
-    const rawValue = values[field.id] ?? "";
-
-    if (field.type === "str") {
-      const encoded = strToBytes(rawValue);
-      bytes.push(encoded.length & 0xff, ...encoded);
-      continue;
-    }
-
-    if (field.type === "select" || field.type === "u8") {
-      bytes.push(parseRequiredNumber(rawValue, 10, field.label));
-      continue;
-    }
-
-    bytes.push(parseRequiredNumber(rawValue.replace(/^0x/i, ""), 16, field.label));
-  }
-
-  return bytes;
+  return command ? encodeCommandFields(command, values) : [];
 }
 
 export function buildFrameData(
@@ -200,17 +167,30 @@ export function buildFrameData(
   const cmd = Number.parseInt(commandKey, 16);
   const src = Number.parseInt(source, 10);
   const dst = Number.parseInt(destination, 10);
-  const route = ((src & 0x0f) << 4) | (dst & 0x0f);
+  if (!/^0x[0-9a-f]{2}$/i.test(commandKey) || !FRAME_COMMANDS[commandKey]) throw new Error("Comando desconocido.");
+  if (!/^\d+$/.test(source) || !/^\d+$/.test(destination) || src > 15 || dst > 15) throw new Error("Los nodos deben estar entre 0 y 15.");
+  const route = (src << 4) | dst;
 
   let payload: number[];
 
   if (manualPayload.trim()) {
-    payload = parseHexString(manualPayload);
+    payload = strictHexBytes(manualPayload);
     if (payload.some(Number.isNaN)) {
       throw new Error("Payload manual invalido: revisa los bytes hexadecimales.");
     }
   } else {
     payload = buildFormPayload(FRAME_COMMANDS[commandKey], fieldValues);
+  }
+
+  const definition = FRAME_COMMANDS[commandKey];
+  if (definition?.implemented === false) throw new Error("Comando histórico o no operativo; disponible solo para lectura.");
+  if (payload.length > 255) throw new Error("UNER admite un máximo de 255 bytes de payload.");
+  const response = definition?.kind !== "event" && definition?.kind !== "ack" &&
+    (definition?.owner === "F4" && src === 1 || definition?.owner === "ESP" && src === 3 && commandKey !== "0x5C" || definition?.owner === "DUAL" && (src === 3 || src === 1 && dst !== 3));
+  const min = response ? definition?.responseMin : definition?.minPayload;
+  const max = response ? definition?.responseMax : definition?.maxPayload;
+  if (min !== undefined && max !== undefined && (payload.length < min || payload.length > max)) {
+    throw new Error(`Payload de ${response ? "respuesta" : "solicitud/evento"}: se esperan ${min}..${max} bytes, llegaron ${payload.length}.`);
   }
 
   const frameWithoutChecksum = [0x55, 0x4e, 0x45, 0x52, payload.length, 0x3a, 0x02, route, cmd, ...payload];
@@ -574,31 +554,17 @@ export function analyzeFrame(frame: number[], sourceLabel: string): TranslationR
     );
   }
 
+  const isResponse = definition?.owner === "F4" && src === 1 ||
+    definition?.owner === "ESP" && src === 3 && key !== "0x5C" || definition?.owner === "DUAL" && (src === 3 || src === 1 && dst !== 3);
+  let frameRole = definition?.kind === "event" ? "Evento" : definition?.kind === "ack" ? "ACK/NACK" : isResponse ? "Respuesta / mixto" : "Request";
+  if (["0x15", "0x48", "0x4B"].includes(key) && isResponse && payload[0] === 0xfe) frameRole = "Push / notificacion";
   let payloadRuleOk: boolean | null = null;
   if (definition && lenOk) {
-    if (payload.length < definition.minPayload || payload.length > definition.maxPayload) {
-      payloadRuleOk = false;
-      validations.push(
-        warnLine(
-          `Payload fuera del rango esperado para ${definition.name}: esperado entre ${definition.minPayload} y ${definition.maxPayload} bytes, llegaron ${payload.length}.`
-        )
-      );
-    } else {
-      payloadRuleOk = true;
-      validations.push(okLine(`Payload dentro del rango esperado para ${definition.name}.`));
-    }
-  }
-
-  let frameRole = "Frame";
-  if (definition?.kind === "event") {
-    frameRole = "Evento";
-  } else if (definition?.kind === "ack") {
-    frameRole = "ACK/NACK";
-  } else if (definition?.kind === "mixed") {
-    frameRole =
-      payload.length > 0 && payload[0] === 0xfe ? "Push / notificacion" : payload.length > 0 ? "Respuesta / mixto" : "Request";
-  } else if (definition?.kind === "request") {
-    frameRole = payload.length === 0 ? "Request" : "Posible response";
+    const min = isResponse && definition.kind !== "event" && definition.kind !== "ack" ? definition.responseMin ?? definition.minPayload : definition.minPayload;
+    const max = isResponse && definition.kind !== "event" && definition.kind !== "ack" ? definition.responseMax ?? definition.maxPayload : definition.maxPayload;
+    payloadRuleOk = payload.length >= min && payload.length <= max;
+    validations.push(payloadRuleOk ? okLine(`Payload de ${frameRole}: ${min}..${max} bytes.`) : warnLine(`Payload de ${frameRole} fuera de rango ${min}..${max}: llegaron ${payload.length}.`));
+    if (definition.implemented === false) { payloadRuleOk = false; validations.push(warnLine("ID histórico o solo declarado; no se considera comando operativo.")); }
   }
 
   const payloadHex = payload.length > 0 ? bytesToHex(payload) : "(vacio)";
@@ -634,7 +600,7 @@ export function analyzeFrame(frame: number[], sourceLabel: string): TranslationR
     payloadText = `${payloadHex} | ${rebootMode}`;
     validations.push(okLine(`Pedido de reinicio ESP con bootMode=${rebootMode}.`));
   }
-  if (definition?.name === "WIFI_GET_DETAIL" && payload.length >= 4) {
+  if (definition?.name === "WIFI_GET_DETAIL" && isResponse && payload.length >= 4) {
     const ssidLen = payload[0] ?? 0;
     if (payload.length >= ssidLen + 4) {
       const ssidBytes = payload.slice(1, 1 + ssidLen);
@@ -681,6 +647,14 @@ export function analyzeFrame(frame: number[], sourceLabel: string): TranslationR
     validations.push(okLine("Evento de pantalla/menu reconocido para sincronizar el OLED web."));
   }
 
+  try {
+    const decoded = decodeStudioPayload(key, payload, isResponse);
+    if (decoded) { payloadText = `${payloadHex} | ${decoded}`; validations.push(okLine("Payload decodificado según el contrato vigente.")); }
+  } catch (error) {
+    payloadRuleOk = false;
+    validations.push(warnLine(error instanceof Error ? error.message : "Payload semántico inválido."));
+  }
+
   const baseValid = headerOk && lenOk && checksumOk && token === 0x3a && version === 0x02;
   let overall: OverallState = "ok";
   if (!baseValid) {
@@ -719,6 +693,7 @@ function carModeLabel(value: number) {
   if (value === 0x00) return "IDLE_MODE";
   if (value === 0x01) return "FOLLOW_MODE";
   if (value === 0x02) return "TEST_MODE";
+  if (value === 0x03) return "GOTO sin objetivo";
   return `valor fuera de CAR_MODE_MAX: ${value}`;
 }
 

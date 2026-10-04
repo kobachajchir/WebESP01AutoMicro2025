@@ -509,11 +509,11 @@ function validateSubmit(
   }
 
   if (password.length < 8) {
-    return "La clave WiFi debe tener al menos 8 caracteres.";
+    return "El Password WiFi debe tener al menos 8 caracteres.";
   }
 
   if (password.length > 63) {
-    return "La clave WiFi no puede superar 63 caracteres.";
+    return "El Password WiFi no puede superar 63 caracteres.";
   }
 
   return null;
@@ -659,7 +659,7 @@ function resultStatusToMessage(
   }
   if (status === "failed") {
     return reason === "auth_failed"
-      ? "La autenticacion WiFi fallo. Revisa la clave."
+      ? "La autenticación WiFi falló. Revisá el Password."
       : "No se pudieron guardar o usar las credenciales.";
   }
   if (status === "timeout") {

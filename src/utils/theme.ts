@@ -10,12 +10,11 @@ export const DEFAULT_THEME_COLORS: ThemeColors = {
   accent: "#22d3ee",
 };
 
-const LIGHT_DEFAULT_THEME_COLORS: ThemeColors = {
+export const LIGHT_THEME_COLORS: ThemeColors = {
   base: "#047857",
   accent: "#0369a1",
 };
 
-const THEME_STORAGE_KEY = "app-theme-colors";
 const THEME_MODE_STORAGE_KEY = "app-theme-mode";
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 
@@ -43,28 +42,6 @@ export function hexToRgbCss(hex: string, alpha = 1) {
   return `rgb(${r} ${g} ${b} / ${alpha})`;
 }
 
-export function loadThemeColors(): ThemeColors {
-  try {
-    const raw = localStorage.getItem(THEME_STORAGE_KEY);
-    if (!raw) return DEFAULT_THEME_COLORS;
-
-    const parsed = JSON.parse(raw) as Partial<ThemeColors> & {
-      primary?: string;
-      secondary?: string;
-    };
-    return {
-      base: normalizeHexColor(parsed.base ?? parsed.primary ?? "", DEFAULT_THEME_COLORS.base),
-      accent: normalizeHexColor(parsed.accent ?? parsed.secondary ?? "", DEFAULT_THEME_COLORS.accent),
-    };
-  } catch {
-    return DEFAULT_THEME_COLORS;
-  }
-}
-
-export function saveThemeColors(colors: ThemeColors) {
-  localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(colors));
-}
-
 export function loadThemeMode(): ThemeMode {
   try {
     const raw = localStorage.getItem(THEME_MODE_STORAGE_KEY);
@@ -86,34 +63,27 @@ export function applyThemeMode(mode: ThemeMode) {
   const root = document.documentElement;
   root.dataset.theme = mode;
   root.style.colorScheme = mode;
-  applyThemeColors(loadThemeColors(), mode);
+  applyThemeColors(mode);
 }
 
-export function applyThemeColors(colors: ThemeColors, modeOverride?: ThemeMode) {
-  const mode = modeOverride ?? loadThemeMode();
-  const requestedBase = normalizeHexColor(colors.base, DEFAULT_THEME_COLORS.base);
-  const requestedAccent = normalizeHexColor(colors.accent, DEFAULT_THEME_COLORS.accent);
-  const base =
-    mode === "light" && requestedBase === DEFAULT_THEME_COLORS.base
-      ? LIGHT_DEFAULT_THEME_COLORS.base
-      : requestedBase;
-  const accent =
-    mode === "light" && requestedAccent === DEFAULT_THEME_COLORS.accent
-      ? LIGHT_DEFAULT_THEME_COLORS.accent
-      : requestedAccent;
+export function applyThemeColors(mode: ThemeMode = loadThemeMode()) {
+  const { base, accent } = mode === "light" ? LIGHT_THEME_COLORS : DEFAULT_THEME_COLORS;
+  const softOpacity = mode === "light" ? 0.14 : 0.34;
+  const washOpacity = mode === "light" ? 0.07 : 0.18;
+  const traceOpacity = mode === "light" ? 0.04 : 0.08;
   const root = document.documentElement;
 
   root.style.setProperty("--ui-base", base);
   root.style.setProperty("--ui-accent", accent);
   root.style.setProperty("--ui-cyan", accent);
   root.style.setProperty("--ui-emerald", base);
-  root.style.setProperty("--ui-base-soft", hexToRgbCss(base, 0.34));
-  root.style.setProperty("--ui-base-wash", hexToRgbCss(base, 0.18));
-  root.style.setProperty("--ui-base-trace", hexToRgbCss(base, 0.08));
-  root.style.setProperty("--ui-accent-soft", hexToRgbCss(accent, 0.34));
-  root.style.setProperty("--ui-accent-wash", hexToRgbCss(accent, 0.18));
-  root.style.setProperty("--ui-accent-trace", hexToRgbCss(accent, 0.08));
-  root.style.setProperty("--ui-ring-strong", hexToRgbCss(accent, 0.34));
+  root.style.setProperty("--ui-base-soft", hexToRgbCss(base, softOpacity));
+  root.style.setProperty("--ui-base-wash", hexToRgbCss(base, washOpacity));
+  root.style.setProperty("--ui-base-trace", hexToRgbCss(base, traceOpacity));
+  root.style.setProperty("--ui-accent-soft", hexToRgbCss(accent, softOpacity));
+  root.style.setProperty("--ui-accent-wash", hexToRgbCss(accent, washOpacity));
+  root.style.setProperty("--ui-accent-trace", hexToRgbCss(accent, traceOpacity));
+  root.style.setProperty("--ui-ring-strong", hexToRgbCss(accent, 0.56));
   root.style.setProperty("--ui-title-color", accent);
   root.style.setProperty("--ui-action-bg", base);
   root.style.setProperty("--ui-action-hover-bg", accent);

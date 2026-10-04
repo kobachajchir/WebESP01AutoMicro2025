@@ -1,6 +1,8 @@
-import React, { useEffect } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import React, { useEffect, useLayoutEffect, useRef } from "react";
+import { createPortal } from "react-dom";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useMediaQuery } from "../hooks/useMediaQuery";
+import { useModalScrollLock } from "../hooks/useModalScrollLock";
 
 interface ModalProps {
   isOpen: boolean;
@@ -8,6 +10,9 @@ interface ModalProps {
   children: React.ReactNode;
   /** opcional: cerrar con click en overlay (default true) */
   closeOnOverlayClick?: boolean;
+  /** Desactiva el foco inicial en controles y su navegación por teclado. */
+  keyboardNavigationEnabled?: boolean;
+  keyboardScopeRef?: React.RefObject<HTMLDivElement | null>;
   containerClassnames?: string;
 }
 
@@ -16,30 +21,117 @@ const Modal: React.FC<ModalProps> = ({
   onClose,
   children,
   closeOnOverlayClick = true,
+  keyboardNavigationEnabled = true,
+  keyboardScopeRef,
   containerClassnames = ""
 }) => {
   const isMobile = useMediaQuery("(max-width: 640px)");
+  const reduceMotion = useReducedMotion();
+  const internalDialogRef = useRef<HTMLDivElement>(null);
+  const dialogRef = keyboardScopeRef ?? internalDialogRef;
+  const onCloseRef = useRef(onClose);
+  const closedPanel = {
+    opacity: 0,
+    transform: reduceMotion ? "translateY(0) scale(1)" : isMobile ? "translateY(100%)" : "translateY(12px) scale(0.97)",
+  };
+  useModalScrollLock(isOpen);
 
-  // ESC para cerrar
   useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  // El foco permanece dentro del diálogo y vuelve al disparador al cerrarlo.
+  useLayoutEffect(() => {
     if (!isOpen) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = dialogRef.current;
+    if (!keyboardNavigationEnabled && dialog) {
+      const previousTabIndexes = new Map<HTMLElement, string | null>();
+      const removeControlFocus = () => {
+        dialog.querySelectorAll<HTMLElement>(
+          'a[href], button, input, select, textarea, [tabindex], [contenteditable], summary, audio[controls], video[controls]',
+        ).forEach((element) => {
+          if (!previousTabIndexes.has(element)) {
+            previousTabIndexes.set(element, element.getAttribute("tabindex"));
+          }
+          element.setAttribute("tabindex", "-1");
+        });
+      };
+      const keepDialogFocus = () => dialog.focus({ preventScroll: true });
+      const onFocusIn = (event: FocusEvent) => {
+        if (event.target !== dialog) keepDialogFocus();
+      };
+      const onPointerDown = (event: PointerEvent) => {
+        event.preventDefault();
+        keepDialogFocus();
+      };
+      removeControlFocus();
+      document.getSelection()?.removeAllRanges();
+      keepDialogFocus();
+      const observer = new MutationObserver(removeControlFocus);
+      observer.observe(dialog, { childList: true, subtree: true });
+      dialog.addEventListener("focusin", onFocusIn);
+      dialog.addEventListener("pointerdown", onPointerDown, true);
+      return () => {
+        observer.disconnect();
+        dialog.removeEventListener("focusin", onFocusIn);
+        dialog.removeEventListener("pointerdown", onPointerDown, true);
+        previousTabIndexes.forEach((value, element) => {
+          if (value === null) element.removeAttribute("tabindex");
+          else element.setAttribute("tabindex", value);
+        });
+        previousFocus?.focus({ preventScroll: true });
+      };
+    }
+    const getFocusables = () => Array.from(dialog?.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ) ?? []).filter((element) => element.getClientRects().length > 0);
+    (getFocusables()[0] ?? dialog)?.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onCloseRef.current();
+      if (e.key !== "Tab") return;
+      const focusables = getFocusables();
+      if (!focusables.length) {
+        e.preventDefault();
+        dialog?.focus();
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (dialog && !dialog.contains(document.activeElement)) {
+        e.preventDefault();
+        first.focus();
+        return;
+      }
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [isOpen, onClose]);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      previousFocus?.focus();
+    };
+  }, [isOpen, keyboardNavigationEnabled, dialogRef]);
 
-  return (
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
-        <div className="app-modal-root fixed inset-0 z-50 flex items-center justify-center sm:items-center">
+        <motion.div
+          key="dialog-layer"
+          className="app-shell app-modal-root fixed inset-0 z-50 flex items-center justify-center sm:items-center"
+          variants={{ closed: { opacity: 0 }, open: { opacity: 1 } }}
+          initial="closed"
+          animate="open"
+          exit="closed"
+          transition={{ duration: reduceMotion ? 0.12 : 0.24, ease: [0.23, 1, 0.32, 1] }}
+        >
           {/* Overlay (fade in/out) */}
-          <motion.button
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
+          <button
             aria-hidden="true"
             tabIndex={-1}
             type="button"
@@ -49,31 +141,19 @@ const Modal: React.FC<ModalProps> = ({
 
           {/* Panel (Drawer en mobile, Dialog en desktop) */}
           <motion.div
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
-            initial={
-              isMobile
-                ? { opacity: 0, y: "100%", scale: 1, filter: "blur(0px)" }
-                : { opacity: 0, scale: 0.96, y: 12, filter: "blur(8px)" }
-            }
-            animate={{ opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
-            exit={
-              isMobile
-                ? { opacity: 0, y: "100%", scale: 1, filter: "blur(0px)" }
-                : { opacity: 0, scale: 0.96, y: 12, filter: "blur(8px)" }
-            }
-            transition={{ type: "spring", bounce: 0, duration: 0.4 }}
+            tabIndex={-1}
+            variants={{ closed: closedPanel, open: { opacity: 1, transform: "translateY(0) scale(1)" } }}
+            transition={{ duration: reduceMotion ? 0.12 : 0.24, ease: [0.23, 1, 0.32, 1] }}
             className={`app-dialog relative z-10 overflow-hidden flex flex-col ${containerClassnames}`}
           >
-            {/* Pill visual de arrastre (solo en mobile, estético) */}
-            <div className="flex h-6 w-full items-center justify-center sm:hidden shrink-0" aria-hidden="true">
-              <div className="h-1.5 w-10 rounded-full bg-[var(--ui-panel-hover)] dark:bg-[var(--ui-panel-strong)]" />
-            </div>
-
             {/* Botón cerrar */}
             <button
               type="button"
               onClick={onClose}
+              tabIndex={keyboardNavigationEnabled ? undefined : -1}
               className="app-dialog__close z-30 absolute top-3 right-3 flex h-11 w-11 items-center justify-center rounded-xl transition-transform duration-100 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40"
               aria-label="Cerrar"
             >
@@ -96,9 +176,10 @@ const Modal: React.FC<ModalProps> = ({
               {children}
             </div>
           </motion.div>
-        </div>
+        </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 };
 

@@ -1,8 +1,9 @@
 import type { IrSensorKey } from "../../api/UnerFrameV2";
+import { IR_CENTRAL_EMITTER_M, IR_EMITTER_GEOMETRY, IR_EMITTER_HALF_ANGLE_DEG } from "./irEmitterGeometry";
 
 export const IR_OBJECT_ADC_MAX = 4095;
 export const IR_OBJECT_DETECTION_THRESHOLD = 130;
-export const IR_OBJECT_CONE_APERTURE_DEG = 30;
+export const IR_OBJECT_CONE_APERTURE_DEG = IR_EMITTER_HALF_ANGLE_DEG * 2;
 export const IR_OBJECT_CONE_HALF_ANGLE_DEG = IR_OBJECT_CONE_APERTURE_DEG / 2;
 
 export const IR_OBJECT_SENSOR_KEYS = [
@@ -25,6 +26,8 @@ export interface IrObjectSensorGeometry {
   key: IrObjectSensorKey;
   label: string;
   offsetCm: number;
+  forwardOffsetCm?: number;
+  verticalOffsetCm?: number;
   bearingDeg: number;
 }
 
@@ -77,32 +80,37 @@ export const IR_OBJECT_SENSOR_LAYOUT: readonly IrObjectSensorGeometry[] = [
   {
     key: "objectLeft45",
     label: "DIAGONAL IZQUIERDA",
-    offsetCm: -8,
-    bearingDeg: -45,
+    offsetCm: (IR_EMITTER_GEOMETRY[0].positionM[0] - IR_CENTRAL_EMITTER_M[0]) * 100,
+    forwardOffsetCm: (IR_CENTRAL_EMITTER_M[2] - IR_EMITTER_GEOMETRY[0].positionM[2]) * 100,
+    bearingDeg: -IR_EMITTER_GEOMETRY[0].opticalYawDeg,
   },
   {
     key: "objectLeftCenter",
     label: "FRENTE IZQUIERDO",
-    offsetCm: -3.5,
-    bearingDeg: 0,
+    offsetCm: (IR_EMITTER_GEOMETRY[1].positionM[0] - IR_CENTRAL_EMITTER_M[0]) * 100,
+    forwardOffsetCm: (IR_CENTRAL_EMITTER_M[2] - IR_EMITTER_GEOMETRY[1].positionM[2]) * 100,
+    verticalOffsetCm: (IR_EMITTER_GEOMETRY[1].positionM[1] - IR_CENTRAL_EMITTER_M[1]) * 100,
+    bearingDeg: -IR_EMITTER_GEOMETRY[1].opticalYawDeg,
   },
   {
     key: "objectCenter",
     label: "FRENTE CENTRAL",
     offsetCm: 0,
-    bearingDeg: 0,
+    bearingDeg: -IR_EMITTER_GEOMETRY[2].opticalYawDeg,
   },
   {
     key: "objectRightCenter",
     label: "FRENTE DERECHO",
-    offsetCm: 3.5,
-    bearingDeg: 0,
+    offsetCm: (IR_EMITTER_GEOMETRY[3].positionM[0] - IR_CENTRAL_EMITTER_M[0]) * 100,
+    forwardOffsetCm: (IR_CENTRAL_EMITTER_M[2] - IR_EMITTER_GEOMETRY[3].positionM[2]) * 100,
+    bearingDeg: -IR_EMITTER_GEOMETRY[3].opticalYawDeg,
   },
   {
     key: "objectRight45",
     label: "DIAGONAL DERECHA",
-    offsetCm: 8,
-    bearingDeg: 45,
+    offsetCm: (IR_EMITTER_GEOMETRY[4].positionM[0] - IR_CENTRAL_EMITTER_M[0]) * 100,
+    forwardOffsetCm: (IR_CENTRAL_EMITTER_M[2] - IR_EMITTER_GEOMETRY[4].positionM[2]) * 100,
+    bearingDeg: -IR_EMITTER_GEOMETRY[4].opticalYawDeg,
   },
 ];
 
@@ -481,8 +489,8 @@ function sensorResponseAtPoint(
   const directionX = Math.sin(bearingRad);
   const directionForward = Math.cos(bearingRad);
   const deltaX = point.lateralCm - sensor.offsetCm;
-  const deltaForward = point.forwardCm;
-  const deltaVertical = point.verticalCm ?? 0;
+  const deltaForward = point.forwardCm - (sensor.forwardOffsetCm ?? 0);
+  const deltaVertical = (point.verticalCm ?? 0) - (sensor.verticalOffsetCm ?? 0);
   const distance = Math.hypot(deltaX, deltaForward, deltaVertical);
 
   if (distance > rangeCm + EPSILON) {

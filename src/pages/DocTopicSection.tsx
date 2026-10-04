@@ -78,9 +78,7 @@ export default function DocTopicSection() {
  <button
  type="button"
  onClick={() =>
- navigate(`/docs${docsTargetSearch(activeTarget)}`, {
- viewTransition: true,
- })
+ navigate(`/docs${docsTargetSearch(activeTarget)}`)
  }
  className="app-button px-4 py-2 text-sm font-semibold"
  >
@@ -89,7 +87,7 @@ export default function DocTopicSection() {
  <button
  type="button"
  onClick={() =>
- navigate("/protocol", { viewTransition: true })
+ navigate("/protocol")
  }
  className="app-button--ghost px-4 py-2 text-sm font-semibold"
  >
@@ -118,9 +116,7 @@ export default function DocTopicSection() {
  key={related.slug}
  type="button"
  onClick={() =>
- navigate(docsTopicHref(related.slug, activeTarget), {
- viewTransition: true,
- })
+ navigate(docsTopicHref(related.slug, activeTarget))
  }
  className="docs-related-button px-4 py-3 text-left"
  >
@@ -209,7 +205,7 @@ export default function DocTopicSection() {
  <MediaCard
  key={`${item.kind}-${item.title}`}
  item={item}
- onOpen={(href) => navigate(href, { viewTransition: true })}
+ onOpen={(href) => navigate(href)}
  />
  ))}
  </div>

@@ -1,15 +1,14 @@
 // src/pages/Home.tsx
 import React, { useCallback, useEffect, useState, useRef } from "react";
-import { useNavigate, useViewTransitionState } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useWebSocket } from "../hooks/useWebSocket";
 import PageHeader from "../components/PageHeader";
 import useUser from "../contexts/UserContext";
 import Modal from "../components/modal";
 import SystemResetActions from "../components/SystemResetActions";
 import ThemeModeToggleCard from "../components/ThemeModeToggleCard";
-import HdAssetsSettingsCard from "../components/HdAssetsSettingsCard";
 import AboutProjectPanel from "../components/AboutProjectPanel";
-import ToggleButton from "../components/toggleButton";
+import ToggleButton from "../components/ToggleButton";
 import { useScreenStreamModal } from "../contexts/ScreenStreamModalContext";
 import { useScreen } from "../contexts/ScreenContext";
 import { useCarMode, type SelectableCarMode } from "../contexts/CarModeContext";
@@ -24,10 +23,10 @@ import {
  SCREEN_CODE_CONNECTIVITY_USB_CONNECTED,
  SCREEN_CODE_CONNECTIVITY_USB_DISCONNECTED,
 } from "../screens/screenCodes";
-import logoControl from "../assets/LogoControl.webp";
-import logoMpuIr from "../assets/LogoMPUIR.webp";
-import logoSeguidor from "../assets/LogoSeguidor.webp";
-import logoWifiAp from "../assets/LogoWifiAP.webp";
+import logoControl from "../assets/LogoControlV2.webp";
+import logoMpuIr from "../assets/LogoMPUIRV2.webp";
+import logoSeguidor from "../assets/LogoSeguidorV2.webp";
+import logoWifiAp from "../assets/LogoWifiAPV2.webp";
 
 type RequestStatus = {
  tone: "idle" | "loading" | "success" | "error";
@@ -360,12 +359,6 @@ const Home: React.FC = () => {
  }, [connected, remotePinAuthenticated, request, setHeartbeatInterval]);
 
  // Suscribirse a heartbeats recibidos
- const toControl = useViewTransitionState("/control");
-
- useEffect(() => {
- if (toControl) console.log("VT → /control activa");
- }, [toControl]);
-
  // Efecto para el parpadeo del LED
  useEffect(() => {
  if (blinkIntervalRef.current) {
@@ -583,8 +576,7 @@ const Home: React.FC = () => {
  <div className="home-dashboard-frame">
  <PageHeader
  className="app-page-header home-page-header"
- titleOverride="Auto Microcontroladores 2025"
- leadingSlot={<BrandGlyph />}
+ titleOverride="AutoMicro"
  setOpenSettingsModal={setOpenSettingsModal}
  setOpenInfoModal={setOpenInfoModal}
  />
@@ -751,7 +743,7 @@ const Home: React.FC = () => {
  metaRight={realLinkActive ? "Real" : "Offline"}
  icon="chip"
  primary
- onClick={() => navigate("/statics", { viewTransition: true })}
+ onClick={() => navigate("/statics")}
  />
  <NavigationModuleCard
  title="Control"
@@ -762,7 +754,7 @@ const Home: React.FC = () => {
  metaLeft="Modo manual"
  metaRight={realLinkActive ? "Listo" : "Offline"}
  icon="gamepad"
- onClick={() => navigate("/control", { viewTransition: true })}
+ onClick={() => navigate("/control")}
  />
  <NavigationModuleCard
  title="Seguidor"
@@ -773,7 +765,7 @@ const Home: React.FC = () => {
  metaLeft="IR/TCRT"
  metaRight="Replay"
  icon="track"
- onClick={() => navigate("/seguidor-pista", { viewTransition: true })}
+ onClick={() => navigate("/seguidor-pista")}
  />
  <NavigationModuleCard
  title="WiFi"
@@ -784,7 +776,7 @@ const Home: React.FC = () => {
  metaLeft={`Red: ${wifiNetworkLabel}`}
  metaRight={`RSSI: ${wifiRssiLabel}`}
  icon="wifi"
- onClick={() => navigate("/wifi", { viewTransition: true })}
+ onClick={() => navigate("/wifi")}
  />
  </div>
 
@@ -1078,7 +1070,7 @@ const Home: React.FC = () => {
  <p>
  {settingsTab === "settings"
  ? "Ajustes locales de interfaz, accesos de seguridad y herramientas auxiliares. El modo visual se aplica a toda la app."
- : "Identidad, compilaciones confirmadas por la placa y repositorios que forman Auto Microcontroladores."}
+ : "Identidad, compilaciones confirmadas por la placa y repositorios que forman AutoMicro."}
  </p>
  </div>
 
@@ -1090,7 +1082,6 @@ const Home: React.FC = () => {
  >
  <div className="settings-dashboard-grid">
  <ThemeModeToggleCard className="settings-appearance-card--wide" />
- <HdAssetsSettingsCard className="settings-assets-card--wide" />
  </div>
  <section className="settings-dashboard-card mt-4">
  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -1308,14 +1299,6 @@ type HomeIconName =
  | "track"
  | "wifi";
 
-function BrandGlyph() {
- return (
- <span className="home-brand-glyph" aria-hidden="true">
- <HomeIcon name="cube" />
- </span>
- );
-}
-
 function normalizeWebAlivePeriodMs(value: number): number {
  if (!Number.isFinite(value)) return 1_000;
  return Math.min(
@@ -1527,12 +1510,12 @@ function NavigationModuleCard({
  metaRight.toLowerCase().includes("offline") ||
  metaRight.toLowerCase().includes("desconectad") ||
  metaRight.toLowerCase().includes("no conectad")
- ? "text-[#fb7185] font-bold"
+ ? "home-module-card__meta-value home-module-card__meta-value--error"
  : metaRight.toLowerCase().includes("real") ||
  metaRight.toLowerCase().includes("listo") ||
  metaRight.toLowerCase().includes("online") ||
  metaRight.toLowerCase().includes("conectad")
- ? "text-[#4ade80] font-bold"
+ ? "home-module-card__meta-value home-module-card__meta-value--success"
  : ""
  }
  >

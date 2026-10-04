@@ -11,7 +11,6 @@ export default function ApProvisioningGate() {
     if (location.pathname === "/provision") {
       navigate(user ? "/wifi" : "/login", {
         replace: true,
-        viewTransition: true,
       });
     }
   }, [location.pathname, navigate, user]);

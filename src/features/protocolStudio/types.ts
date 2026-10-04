@@ -1,5 +1,5 @@
 export type CommandKind = "request" | "mixed" | "event" | "ack";
-export type FieldType = "select" | "str" | "u8" | "hex1" | "hex4";
+export type FieldType = "select" | "str" | "u8" | "hex1" | "hex4" | "u16" | "optionalU8" | "optionalU16" | "f32" | "bytes" | "digits";
 export type ValidationTone = "ok" | "warn" | "bad";
 export type OverallState = "ok" | "warn" | "bad";
 export type TranslatorViewMode = "idle" | "singleFrame" | "singleCommand" | "block" | "error";
@@ -19,6 +19,11 @@ export interface CommandDefinition {
   minPayload: number;
   maxPayload: number;
   kind: CommandKind;
+  owner?: string;
+  implemented?: boolean;
+  responseMin?: number;
+  responseMax?: number;
+  completion?: string;
 }
 
 export interface CommandGroup {

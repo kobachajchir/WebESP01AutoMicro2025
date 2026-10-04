@@ -9,16 +9,16 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Canvas, useLoader, useThree } from "@react-three/fiber";
+import { useLoader, useThree } from "@react-three/fiber";
 import type { ThreeEvent } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { type GLTF } from "three/addons/loaders/GLTFLoader.js";
 import * as THREE from "three";
 import type { IrSensorKey } from "../api/UnerFrameV2";
 import { getSharedDracoLoader, ResilientGLTFLoader } from "../utils/dracoLoader";
-import { useModelLoadingState } from "../hooks/useModelLoadingState";
 import ModelLoadingScreen from "./ModelLoadingScreen";
-import HdModelQualityButton from "./HdModelQualityButton";
+import ModelLoadBoundary from "./ModelLoadBoundary";
+import WebGLCanvas from "./WebGLCanvas";
 import {
   IR_OBJECT_ADC_MAX,
   IR_OBJECT_CONE_HALF_ANGLE_DEG,
@@ -37,6 +37,13 @@ import type {
   IrSensorFrameProjection,
   IrSensorRigEulerDeg,
 } from "../features/ir/irSensorFrame";
+import {
+  IR_CENTRAL_EMITTER_M,
+  IR_EMITTER_GEOMETRY,
+  IR_MODEL_CENTER_M,
+  IR_MODEL_MAX_DIM_M,
+  IR_MAX_RANGE_CM,
+} from "../features/ir/irEmitterGeometry";
 
 export type SensorCameraPreset = "iso" | "top" | "front";
 export type EulerDeg = IrSensorRigEulerDeg;
@@ -65,30 +72,25 @@ interface MpuIrScene3DProps {
 
 const CAR_LENGTH_UNITS = 2.49;
 const CAR_WIDTH_UNITS = 0.66;
-const CAR_LENGTH_CM = 24.9;
-const CAR_SENSOR_WALL_Z = -CAR_WIDTH_UNITS / 2;
+const CAR_LENGTH_CM = IR_MODEL_MAX_DIM_M * 100;
 const SCENE_UNITS_PER_CM = CAR_LENGTH_UNITS / CAR_LENGTH_CM;
-const VEHICLE_VERTICAL_LIFT_UNITS = 1.5 * SCENE_UNITS_PER_CM;
-const SENSOR_RELATIVE_LIFT_UNITS = 0.25 * SCENE_UNITS_PER_CM;
-const SENSOR_MAX_RANGE_CM = 15;
+const VEHICLE_VERTICAL_LIFT_UNITS = 0.15;
+const SENSOR_MAX_RANGE_CM = IR_MAX_RANGE_CM;
 const SENSOR_MIN_DISPLAY_RANGE_CM = 0.4;
-const SENSOR_BEAM_VISUAL_SCALE = 1.25;
-const SENSOR_ORIGIN_Y =
-  0.32 + VEHICLE_VERTICAL_LIFT_UNITS + SENSOR_RELATIVE_LIFT_UNITS;
+const SENSOR_BEAM_VISUAL_SCALE = 1;
 const VEHICLE_MODEL_Y_OFFSET = 0.24 + VEHICLE_VERTICAL_LIFT_UNITS;
 const FALLBACK_VEHICLE_Y = 0.28 + VEHICLE_VERTICAL_LIFT_UNITS;
-const SENSOR_EDGE_OFFSET_UNITS = 0;
 const SENSOR_CONE_HALF_ANGLE_RAD = THREE.MathUtils.degToRad(
   IR_OBJECT_CONE_HALF_ANGLE_DEG,
 );
-const SENSOR_CONE_IDLE_OPACITY = 0.1;
+const SENSOR_CONE_IDLE_OPACITY = 0.02;
 const SENSOR_CONE_ACTIVE_OPACITY = 1;
 const SENSOR_CONE_OPACITY_HOLD_MS = 500;
 const SENSOR_CONE_OPACITY_FADE_MS = 500;
 const SENSOR_ORIGIN: [number, number, number] = [
-  0,
-  SENSOR_ORIGIN_Y,
-  CAR_SENSOR_WALL_Z - SENSOR_EDGE_OFFSET_UNITS,
+  (IR_CENTRAL_EMITTER_M[0] - IR_MODEL_CENTER_M[0]) * SCENE_UNITS_PER_CM * 100,
+  (IR_CENTRAL_EMITTER_M[1] - IR_MODEL_CENTER_M[1]) * SCENE_UNITS_PER_CM * 100 + VEHICLE_MODEL_Y_OFFSET,
+  (IR_CENTRAL_EMITTER_M[2] - IR_MODEL_CENTER_M[2]) * SCENE_UNITS_PER_CM * 100,
 ];
 const VEHICLE_RIG_PIVOT: IrScenePoint = [0, VEHICLE_MODEL_Y_OFFSET, 0];
 const SENSOR_FRAME_PROJECTION: IrSensorFrameProjection = {
@@ -142,7 +144,6 @@ const MpuIrScene3D = forwardRef<MpuIrScene3DHandle, MpuIrScene3DProps>(
     ref,
   ) {
     const cameraControllerRef = useRef<SceneCameraControllerHandle>(null);
-    const { isModelLoading, markModelLoaded } = useModelLoadingState(modelUrl);
     const [worldTarget, setWorldTarget] = useState<IrScenePoint | null>(null);
     const sensorConeOpacity = useTransientSensorConeOpacity(
       sensorSensitivityCm,
@@ -214,14 +215,8 @@ const MpuIrScene3D = forwardRef<MpuIrScene3DHandle, MpuIrScene3DProps>(
 
     return (
       <div className="sensor-scene-shell">
-        <ModelLoadingScreen visible={isModelLoading} />
-        <div className="sensor-scene-overlay-top-left">
-          <HdModelQualityButton />
-        </div>
-        <Canvas
+        <WebGLCanvas
           camera={{ position: [2.7, 2.0, 3.05], fov: 40, near: 0.1, far: 80 }}
-          dpr={[1, 2]}
-          gl={{ alpha: true, antialias: true }}
           onCreated={({ gl }) => {
             gl.outputColorSpace = THREE.SRGBColorSpace;
             gl.toneMapping = THREE.ACESFilmicToneMapping;
@@ -245,36 +240,38 @@ const MpuIrScene3D = forwardRef<MpuIrScene3DHandle, MpuIrScene3DProps>(
           ) : null}
           <VehicleSensorRig eulerDeg={eulerDeg}>
             <group position={[0, -VEHICLE_MODEL_Y_OFFSET, 0]}>
-              {showBubble ? (
-                <SensorCones
-                  irNorm={irNorm}
-                  renderLink={renderLink}
-                  freezePose={freezePose}
-                  sensitivityCm={sensorSensitivityCm}
-                  opacity={sensorConeOpacity}
-                />
-              ) : null}
               {showOrigin ? <AxisGuides /> : null}
               <FloorSensorPlates irNorm={irNorm} />
-              <ObstacleRays
-                irNorm={irNorm}
-                sensitivityCm={sensorSensitivityCm}
-              />
               {irEmu && worldTarget && estimatedTarget?.detected ? (
                 <IrEstimatedTargetMarker estimate={estimatedTarget} />
               ) : null}
             </group>
-            <Suspense fallback={<FallbackVehicle />}>
+            <ModelLoadBoundary modelUrl={modelUrl}>
+            <Suspense fallback={<><FallbackVehicle /><ModelLoadingScreen visible /></>}>
               <VehicleModel
                 modelUrl={modelUrl}
-                onLoaded={markModelLoaded}
-              />
+              >
+                {showBubble ? (
+                  <SensorCones
+                    irNorm={irNorm}
+                    renderLink={renderLink}
+                    freezePose={freezePose}
+                    sensitivityCm={sensorSensitivityCm}
+                    opacity={sensorConeOpacity}
+                  />
+                ) : null}
+                <ObstacleRays
+                  irNorm={irNorm}
+                  sensitivityCm={sensorSensitivityCm}
+                />
+              </VehicleModel>
             </Suspense>
+            </ModelLoadBoundary>
           </VehicleSensorRig>
           {irEmu && worldTarget ? (
             <IrWorldTargetMarker worldPosition={worldTarget} />
           ) : null}
-        </Canvas>
+        </WebGLCanvas>
         <div className="sensor-scene-reticle" aria-hidden="true" />
       </div>
     );
@@ -367,19 +364,14 @@ function VehicleSensorRig({
 
 function VehicleModel({
   modelUrl,
-  onLoaded,
+  children,
 }: {
   modelUrl: string;
-  onLoaded: () => void;
+  children: ReactNode;
 }) {
   const { scene } = useLoader(ResilientGLTFLoader, modelUrl, (loader) => {
-    const base = import.meta.env.BASE_URL || "/";
-    loader.setDRACOLoader(getSharedDracoLoader(base));
+    loader.setDRACOLoader(getSharedDracoLoader());
   }) as GLTF;
-
-  useEffect(() => {
-    onLoaded();
-  }, [onLoaded, scene]);
 
   const normalizedModel = useMemo(() => {
     const clonedScene = scene.clone(true);
@@ -391,14 +383,22 @@ function VehicleModel({
     box.getCenter(center);
     const maxDim = Math.max(size.x, size.y, size.z) || 1;
     const scale = CAR_LENGTH_UNITS / maxDim;
-    const normalizedRoot = new THREE.Group();
-    clonedScene.position.sub(center);
-    normalizedRoot.add(clonedScene);
-    normalizedRoot.scale.setScalar(scale);
-    return normalizedRoot;
+    return { scene: clonedScene, center, scale };
   }, [scene]);
 
-  return <primitive object={normalizedModel} />;
+  // Model and emitter anchors share the same exact normalization and MPU pose.
+  return (
+    <group scale={normalizedModel.scale}>
+      <group position={[
+        -normalizedModel.center.x,
+        -normalizedModel.center.y,
+        -normalizedModel.center.z,
+      ]}>
+        <primitive object={normalizedModel.scene} />
+        {children}
+      </group>
+    </group>
+  );
 }
 
 function FallbackVehicle() {
@@ -435,7 +435,7 @@ function SensorCones({
   sensitivityCm: number;
   opacity: number;
 }) {
-  const rangeUnits = sensorCmToSceneUnits(sensitivityCm);
+  const rangeUnits = sensorCmToModelMeters(sensitivityCm);
   const coneRadiusUnits = rangeUnits * Math.tan(SENSOR_CONE_HALF_ANGLE_RAD);
   const coneOpacity = clamp01(opacity);
   const floorClippingPlane = useMemo(
@@ -445,7 +445,7 @@ function SensorCones({
 
   return (
     <group>
-      {IR_OBJECT_SENSOR_LAYOUT.map((sensor) => {
+      {IR_EMITTER_GEOMETRY.map((sensor) => {
         const intensity = clamp01(irNorm[sensor.key] / IR_OBJECT_ADC_MAX);
         const active = intensity >= 0.03;
         const color = freezePose
@@ -459,12 +459,8 @@ function SensorCones({
         return (
           <group
             key={sensor.key}
-            position={[
-              sensor.offsetCm * SCENE_UNITS_PER_CM,
-              SENSOR_ORIGIN[1],
-              SENSOR_ORIGIN[2],
-            ]}
-            rotation={[0, -THREE.MathUtils.degToRad(sensor.bearingDeg), 0]}
+            position={[...sensor.positionM]}
+            rotation={[0, THREE.MathUtils.degToRad(sensor.opticalYawDeg), 0]}
           >
             <mesh
               position={[0, 0, -rangeUnits / 2]}
@@ -489,7 +485,7 @@ function SensorCones({
               <coneGeometry args={[coneRadiusUnits, rangeUnits, 40, 1, true]} />
               <meshBasicMaterial
                 color={color}
-                opacity={coneOpacity}
+                opacity={coneOpacity * 0.5}
                 transparent
                 wireframe
                 depthWrite={false}
@@ -499,8 +495,8 @@ function SensorCones({
               />
             </mesh>
             <mesh>
-              <sphereGeometry args={[0.022, 14, 10]} />
-              <meshBasicMaterial color={color} toneMapped={false} />
+              <sphereGeometry args={[0.0003, 14, 10]} />
+              <meshBasicMaterial color={color} transparent opacity={coneOpacity} depthWrite={false} toneMapped={false} />
             </mesh>
           </group>
         );
@@ -677,7 +673,7 @@ function ObstacleRays({
 }) {
   return (
     <group>
-      {IR_OBJECT_SENSOR_LAYOUT.map((ray) => (
+      {IR_EMITTER_GEOMETRY.map((ray) => (
         <ObstacleRay
           key={ray.key}
           config={ray}
@@ -694,28 +690,26 @@ function ObstacleRay({
   norm,
   sensitivityCm,
 }: {
-  config: (typeof IR_OBJECT_SENSOR_LAYOUT)[number];
+  config: (typeof IR_EMITTER_GEOMETRY)[number];
   norm: number;
   sensitivityCm: number;
 }) {
   const intensity = clamp01(norm / IR_OBJECT_ADC_MAX);
   const active = intensity > 0.08;
-  const angle = THREE.MathUtils.degToRad(config.bearingDeg);
-  const beamLength = sensorCmToSceneUnits(sensitivityCm);
+  const angle = THREE.MathUtils.degToRad(config.opticalYawDeg);
+  const beamLength = sensorCmToModelMeters(sensitivityCm);
   const visualDistance = beamLength * (0.22 + (1 - intensity) * 0.78);
-  const originX = config.offsetCm * SCENE_UNITS_PER_CM;
-  const originZ = SENSOR_ORIGIN[2];
 
   return (
     <group
-      position={[originX, SENSOR_ORIGIN[1], originZ]}
-      rotation={[0, -angle, 0]}
+      position={[...config.positionM]}
+      rotation={[0, angle, 0]}
     >
       <mesh position={[0, 0, -beamLength / 2]}>
-        <boxGeometry args={[active ? 0.14 : 0.08, 0.025, beamLength]} />
+        <boxGeometry args={[active ? 0.0012 : 0.0007, 0.0002, beamLength]} />
         <meshBasicMaterial
           color={active ? "#fb7185" : "#334155"}
-          opacity={active ? 0.28 + intensity * 0.32 : 0.1}
+          opacity={active ? 0.28 + intensity * 0.32 : SENSOR_CONE_IDLE_OPACITY}
           transparent
           depthWrite={false}
         />
@@ -728,7 +722,7 @@ function ObstacleRay({
             -visualDistance,
           ]}
         >
-          <sphereGeometry args={[0.026 + intensity * 0.03, 20, 14]} />
+          <sphereGeometry args={[0.0023 + intensity * 0.0027, 20, 14]} />
           <meshStandardMaterial
             color="#fb7185"
             emissive="#fb7185"
@@ -829,11 +823,15 @@ function clamp01(value: number) {
 }
 
 function sensorCmToSceneUnits(valueCm: number) {
+  return sensorCmToModelMeters(valueCm) * SCENE_UNITS_PER_CM * 100;
+}
+
+function sensorCmToModelMeters(valueCm: number) {
   const clampedCm = Number.isFinite(valueCm)
     ? Math.min(SENSOR_MAX_RANGE_CM, Math.max(0, valueCm))
     : SENSOR_MAX_RANGE_CM;
   const visibleCm = Math.max(SENSOR_MIN_DISPLAY_RANGE_CM, clampedCm);
-  return visibleCm * SCENE_UNITS_PER_CM * SENSOR_BEAM_VISUAL_SCALE;
+  return visibleCm / 100;
 }
 
 function scenePositionForObjectPoint(

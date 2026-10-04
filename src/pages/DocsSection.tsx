@@ -58,7 +58,7 @@ export default function DocsSection() {
         </div>
 
         <div className="docs-topic-grid">
-          {DOC_TOPICS.map((topic, index) => {
+          {DOC_TOPICS.map((topic) => {
             const variant = topic.variants[activeTarget];
 
             return (
@@ -66,11 +66,8 @@ export default function DocsSection() {
                 key={topic.slug}
                 type="button"
                 className="docs-topic-card group"
-                style={{ animationDelay: `${index * 50}ms` }}
                 onClick={() =>
-                  navigate(docsTopicHref(topic.slug, activeTarget), {
-                    viewTransition: true,
-                  })
+                  navigate(docsTopicHref(topic.slug, activeTarget))
                 }
                 aria-label={`Abrir documentación ${profile.label} de ${topic.title}`}
               >

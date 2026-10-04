@@ -6,6 +6,7 @@ import type {
   IrObjectForwardCalibration,
   IrObjectSensorKey,
 } from "./irObjectModel.ts";
+import { IR_MAX_RANGE_CM } from "./irEmitterGeometry.ts";
 
 export const IR_CALIBRATION_SCHEMA_VERSION = 2 as const;
 const IR_CALIBRATION_LEGACY_SCHEMA_VERSION = 1;
@@ -22,9 +23,7 @@ export const IR_CALIBRATION_DISTANCES_CM = [
   2,
   3,
   4,
-  6.4,
-  10,
-  15,
+  IR_MAX_RANGE_CM,
 ] as const;
 
 export type IrCalibrationPolarity = "higher-is-closer" | "lower-is-closer";
@@ -99,7 +98,7 @@ export function createEmptyIrCalibrationProfile(
     createdAt: new Date().toISOString(),
     source: overrides.source ?? "real-car",
     polarity: overrides.polarity ?? "higher-is-closer",
-    material: overrides.material ?? "Blanco de prueba",
+    material: overrides.material ?? "Blanco",
     notes: overrides.notes ?? "",
     samplesPerPoint: IR_CALIBRATION_SAMPLES_PER_POINT,
     settleSamples: IR_CALIBRATION_SETTLE_SAMPLES,
@@ -130,8 +129,8 @@ export function createIrCalibrationPoint(
   distanceCm: number,
   samples: readonly IrCalibrationSample[],
 ): IrCalibrationPoint {
-  if (!Number.isFinite(distanceCm) || distanceCm <= 0) {
-    throw new Error("La distancia de calibración debe ser mayor que cero.");
+  if (!Number.isFinite(distanceCm) || distanceCm <= 0 || distanceCm > IR_MAX_RANGE_CM) {
+    throw new Error(`La distancia de calibración debe ser mayor que 0 y hasta ${IR_MAX_RANGE_CM} cm.`);
   }
 
   return {
@@ -145,8 +144,8 @@ export function createIrCalibrationSensorPoint(
   sensorKey: IrObjectSensorKey,
   samples: readonly IrCalibrationSample[],
 ): IrCalibrationPoint {
-  if (!Number.isFinite(distanceCm) || distanceCm <= 0) {
-    throw new Error("La distancia de calibración debe ser mayor que cero.");
+  if (!Number.isFinite(distanceCm) || distanceCm <= 0 || distanceCm > IR_MAX_RANGE_CM) {
+    throw new Error(`La distancia de calibración debe ser mayor que 0 y hasta ${IR_MAX_RANGE_CM} cm.`);
   }
 
   return {
@@ -312,6 +311,7 @@ export function buildIrForwardCalibration(
   const curves = IR_OBJECT_SENSOR_KEYS.reduce(
     (record, key) => {
       record[key] = profile.points.flatMap((point) => {
+        if (point.distanceCm > IR_MAX_RANGE_CM) return [];
         const stats = point.sensors[key];
         return stats
           ? [{ distanceCm: point.distanceCm, adc: stats.median }]
@@ -334,7 +334,9 @@ export function getIrCalibrationCoverage(
 ): IrCalibrationCoverage {
   const sensorPointCounts = IR_OBJECT_SENSOR_KEYS.reduce(
     (record, key) => {
-      record[key] = profile.points.filter((point) => point.sensors[key]).length;
+      record[key] = profile.points.filter(
+        (point) => point.distanceCm <= IR_MAX_RANGE_CM && point.sensors[key],
+      ).length;
       return record;
     },
     {} as Record<IrObjectSensorKey, number>,
@@ -439,8 +441,9 @@ function validatePoint(
   }
 
   const distanceCm = Number(value.distanceCm);
+  // Preserve older profiles; points outside the current range remain historical.
   if (!Number.isFinite(distanceCm) || distanceCm <= 0 || distanceCm > 100) {
-    errors.push(`points[${index}].distanceCm está fuera de rango.`);
+    errors.push(`points[${index}].distanceCm debe ser mayor que 0 y hasta 100 cm.`);
     return null;
   }
 

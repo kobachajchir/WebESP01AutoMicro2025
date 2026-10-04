@@ -1,8 +1,9 @@
 // src/components/PageHeader.tsx
 import { useLocation, useNavigate } from "react-router-dom";
-import { useState, useEffect, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { useUser } from "../contexts/UserContext";
 import { useScreenStreamModal } from "../contexts/ScreenStreamModalContext";
+import BrandMark from "./BrandMark";
 
 interface PageHeaderProps {
  setOpenSettingsModal?: (open: boolean) => void;
@@ -13,20 +14,19 @@ interface PageHeaderProps {
  showHome?: boolean;
  className?: string;
  titleOverride?: string;
- leadingSlot?: ReactNode;
  statusSlot?: ReactNode;
 }
 
 const PAGE_TITLES: Record<string, string> = {
  "/control": "Control de Motores",
- "/wifi": "Wifi",
+ "/wifi": "WiFi",
  "/statics": "MPU + IR",
  "/seguidor-pista": "Seguidor de pista",
  "/protocol": "UNER Studio",
  "/docs": "Docs",
  "/oled-editor": "Editor OLED",
  "/bluetooth": "Bluetooth",
- "/home": "Dashboard",
+ "/home": "AutoMicro",
  "/settings": "Configuración",
 };
 
@@ -39,7 +39,6 @@ export default function PageHeader({
  showHome = true,
  className = "app-page-header",
  titleOverride = "",
- leadingSlot,
  statusSlot,
 }: PageHeaderProps) {
  const location = useLocation();
@@ -51,33 +50,7 @@ export default function PageHeader({
  const docsHref = inDocs ? `/docs${location.search}` : "/docs";
 
  const toolbarButtonClass =
- "toolbar-btn group flex items-center justify-center gap-2 py-2 px-3 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40";
-
- const [hoveredHeaderBtn, setHoveredHeaderBtn] = useState<string | null>(null);
- const [accentBorder30, setAccentBorder30] = useState<string>(
- "rgba(34,211,238,0.3)",
- );
-
- useEffect(() => {
- try {
- const raw =
- getComputedStyle(document.documentElement).getPropertyValue(
- "--ui-accent",
- ) || "#22d3ee";
- const hex = raw.trim();
- const m = hex.match(/^#?([0-9a-fA-F]{6})$/);
-
- if (m) {
- const hh = m[1];
- const r = parseInt(hh.slice(0, 2), 16);
- const g = parseInt(hh.slice(2, 4), 16);
- const b = parseInt(hh.slice(4, 6), 16);
- setAccentBorder30(`rgba(${r}, ${g}, ${b}, 0.3)`);
- }
- } catch {
- // ignore
- }
- }, []);
+ "toolbar-btn group flex items-center justify-center gap-2 py-2 px-3";
 
  const getPageTitle = () => {
  const path = location.pathname;
@@ -90,24 +63,10 @@ export default function PageHeader({
  return PAGE_TITLES[path] || "Aplicación";
  };
 
- const getToolbarButtonStyle = (key: string): React.CSSProperties =>
- hoveredHeaderBtn === key
- ? {
- borderColor: "var(--ui-ring-strong)",
- color: "var(--ui-text)",
- borderStyle: "solid",
- borderWidth: "1px",
- }
- : {
- borderColor: accentBorder30,
- borderStyle: "solid",
- borderWidth: "1px",
- };
-
  return (
  <div className={className}>
  <div className="app-page-header__identity">
- {leadingSlot}
+ <BrandMark />
  <h1 className="app-title text-3xl md:text-5xl">{getPageTitle()}</h1>
  </div>
 
@@ -120,16 +79,13 @@ export default function PageHeader({
  <button
  aria-label="Ir a Home"
  className={toolbarButtonClass}
- onMouseEnter={() => setHoveredHeaderBtn("home")}
- onMouseLeave={() => setHoveredHeaderBtn(null)}
- onClick={() => navigate("/home", { viewTransition: true })}
- style={getToolbarButtonStyle("home")}
+ onClick={() => navigate("/home")}
  >
  <svg
  xmlns="http://www.w3.org/2000/svg"
  fill="currentColor"
  viewBox="0 0 24 24"
- className="size-6 transition-transform duration-300 group-hover:scale-110"
+ className="size-6"
  >
  <path d="M11.47 3.841a.75.75 0 0 1 1.06 0l8.69 8.69a.75.75 0 1 0 1.06-1.061l-8.689-8.69a2.25 2.25 0 0 0-3.182 0l-8.69 8.69a.75.75 0 1 0 1.061 1.06l8.69-8.689Z" />
  <path d="m12 5.432 8.159 8.159c.03.03.06.058.091.086v6.198c0 1.035-.84 1.875-1.875 1.875H15a.75.75 0 0 1-.75-.75v-4.5a.75.75 0 0 0-.75-.75h-3a.75.75 0 0 0-.75.75V21a.75.75 0 0 1-.75.75H5.625a1.875 1.875 0 0 1-1.875-1.875v-6.198a2.29 2.29 0 0 0 .091-.086L12 5.432Z" />
@@ -140,10 +96,7 @@ export default function PageHeader({
  <button
  aria-label="Abrir stream de pantalla"
  className={toolbarButtonClass}
- onMouseEnter={() => setHoveredHeaderBtn("screen-stream")}
- onMouseLeave={() => setHoveredHeaderBtn(null)}
  onClick={openScreenStreamModal}
- style={getToolbarButtonStyle("screen-stream")}
  title="Abrir stream de pantalla"
  >
  <svg
@@ -164,10 +117,7 @@ export default function PageHeader({
  <button
  aria-label="Ir a Docs"
  className={toolbarButtonClass}
- onMouseEnter={() => setHoveredHeaderBtn("docs")}
- onMouseLeave={() => setHoveredHeaderBtn(null)}
- onClick={() => navigate(docsHref, { viewTransition: true })}
- style={getToolbarButtonStyle("docs")}
+ onClick={() => navigate(docsHref)}
  >
  <svg
  xmlns="http://www.w3.org/2000/svg"
@@ -188,10 +138,7 @@ export default function PageHeader({
  <button
  aria-label="Ir a UNER Studio"
  className={toolbarButtonClass}
- onMouseEnter={() => setHoveredHeaderBtn("protocol")}
- onMouseLeave={() => setHoveredHeaderBtn(null)}
- onClick={() => navigate("/protocol", { viewTransition: true })}
- style={getToolbarButtonStyle("protocol")}
+ onClick={() => navigate("/protocol")}
  >
  <svg
  xmlns="http://www.w3.org/2000/svg"
@@ -212,10 +159,7 @@ export default function PageHeader({
  <button
  aria-label="Configuración"
  className={toolbarButtonClass}
- onMouseEnter={() => setHoveredHeaderBtn("settings")}
- onMouseLeave={() => setHoveredHeaderBtn(null)}
  onClick={() => setOpenSettingsModal(true)}
- style={getToolbarButtonStyle("settings")}
  >
  <svg
  xmlns="http://www.w3.org/2000/svg"
@@ -236,10 +180,7 @@ export default function PageHeader({
  <button
  aria-label="Información"
  className={toolbarButtonClass}
- onMouseEnter={() => setHoveredHeaderBtn("info")}
- onMouseLeave={() => setHoveredHeaderBtn(null)}
  onClick={() => setOpenInfoModal(true)}
- style={getToolbarButtonStyle("info")}
  >
  <svg
  xmlns="http://www.w3.org/2000/svg"

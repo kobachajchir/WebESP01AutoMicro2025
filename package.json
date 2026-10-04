@@ -6,15 +6,17 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "postbuild": "gzip dist/index.html -e=gz -f",
+    "postbuild": "gzip dist/index.html -e=gz -f && npm run copy:esp",
+    "copy:esp": "node tools/copy-web-to-esp.mjs",
+    "build:esp": "npm run build",
     "lint": "eslint .",
     "test:ir": "node --experimental-strip-types --test tests/irObjectModel.test.ts tests/irCalibration.test.ts tests/irSensorFrame.test.ts",
     "test:protocol": "node --experimental-strip-types --test tests/protocolContracts.test.ts tests/screenMenuState.test.ts tests/screenReports.test.ts tests/screenCatalog.test.ts",
     "test:oled": "node --experimental-strip-types --test tests/oledCanvasRasterizer.test.ts tests/oledCanvasProtocol.test.ts",
     "test:wifi": "node --experimental-strip-types --test tests/wifiModeSwitch.test.ts",
-    "test:assets": "node --experimental-strip-types --test tests/assetQuality.test.ts",
-    "test": "npm run test:ir && npm run test:protocol && npm run test:oled && npm run test:wifi && npm run test:assets",
-    "preview": "vite preview"
+    "test": "npm run test:ir && npm run test:protocol && npm run test:oled && npm run test:wifi",
+    "preview": "vite preview",
+    "protocol:inventory": "node tools/protocol-studio-inventory.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

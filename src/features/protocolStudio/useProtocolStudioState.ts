@@ -37,6 +37,7 @@ export function useProtocolStudioState() {
 
   useEffect(() => {
     setFieldValues(createDefaultFieldValues(currentCommand));
+    setManualPayload("");
   }, [currentCommand]);
 
   useEffect(() => {

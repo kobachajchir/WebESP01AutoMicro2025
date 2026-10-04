@@ -1,3 +1,4 @@
+import manifest from "./commandManifest.json";
 import type { CommandDefinition, CommandGroup } from "./types";
 
 export const IDLE_SUMMARY = "Todavia no se analizo ninguna entrada.";
@@ -5,6 +6,7 @@ export const IDLE_SUMMARY = "Todavia no se analizo ninguna entrada.";
 export const NODE_OPTIONS = [
   { value: "1", label: "0x1 - MCU" },
   { value: "2", label: "0x2 - PC / Qt" },
+  { value: "3", label: "0x3 - ESP broker" },
   { value: "5", label: "0x5 - Web diagnóstico (ESP sustituye el nodo)" },
   { value: "4", label: "0x4 - NRF remoto" },
   { value: "15", label: "0xF - Broadcast" },
@@ -44,7 +46,7 @@ const NETWORK_IP_FIELDS: CommandDefinition["fields"] = [
   { id: "ip3", label: "IP byte 3", type: "u8", placeholder: "10" },
 ];
 
-export const COMMAND_GROUPS: CommandGroup[] = [
+const HISTORICAL_GROUPS: CommandGroup[] = [
   {
     label: "WiFi - modo",
     commands: ["0x10", "0x11", "0x12", "0x13", "0x4A", "0x4E"],
@@ -106,7 +108,7 @@ export const COMMAND_GROUPS: CommandGroup[] = [
   },
 ];
 
-export const FRAME_COMMANDS: Record<string, CommandDefinition> = {
+const HISTORICAL_COMMANDS: Record<string, CommandDefinition> = {
   "0x10": {
     name: "SET_MODE_AP",
     desc: "Cambia WiFi a modo AP y levanta SoftAP con credenciales guardadas.",
@@ -137,7 +139,7 @@ export const FRAME_COMMANDS: Record<string, CommandDefinition> = {
         ],
       },
       { id: "ssid", label: "SSID", type: "str", placeholder: "MiWifi" },
-      { id: "pass", label: "Password", type: "str", placeholder: "Clave1234" },
+      { id: "pass", label: "Password", type: "str", placeholder: "Password1234" },
     ],
     minPayload: 3,
     maxPayload: 255,
@@ -733,6 +735,34 @@ export const FRAME_COMMANDS: Record<string, CommandDefinition> = {
     kind: "ack",
   },
 };
+
+// The selector and translator consume the same explicit, reviewable manifest.
+export const FRAME_COMMANDS: Record<string, CommandDefinition> = { ...HISTORICAL_COMMANDS };
+for (const entry of manifest.commands) {
+  const old = HISTORICAL_COMMANDS[entry.id];
+  FRAME_COMMANDS[entry.id] = {
+    name: entry.name,
+    desc: `${entry.schema}\nDestino: ${entry.owner}. Finalización: ${entry.completion}. Timeout de registro: ${entry.timeoutMs} ms. Permiso: ${entry.privilege}.\n${entry.implemented ? "Implementación observada en fuente" : "Solo declarado / no operativo en el registro"}${entry.sensitive ? ". Contiene datos sensibles: usar valores ficticios en documentación." : "."}`,
+    fields: entry.fields as CommandDefinition["fields"],
+    minPayload: entry.completion === "EVENT" ? entry.response[0] : entry.request[0],
+    maxPayload: entry.completion === "EVENT" ? entry.response[1] : entry.request[1],
+    responseMin: entry.response[0], responseMax: entry.response[1],
+    kind: entry.completion === "EVENT" ? "event" : entry.id === "0xE0" || entry.id === "0xE1" ? "ack" : old?.kind === "mixed" ? "mixed" : "request",
+    owner: entry.owner, implemented: entry.implemented, completion: entry.completion,
+  };
+}
+export const COMMAND_GROUPS: CommandGroup[] = ["F4", "ESP / compartidos", "Eventos", "ACK / NACK"].map(label => ({
+  label, commands: manifest.commands.filter(entry => entry.implemented && entry.group === label).map(entry => entry.id),
+}));
+COMMAND_GROUPS.push({ label: "Declarados / rechazados (solo lectura)", commands: manifest.commands.filter(entry => !entry.implemented).map(entry => entry.id) });
+for (const group of HISTORICAL_GROUPS) {
+  for (const id of group.commands) {
+    if (!manifest.commands.some(entry => entry.id === id) && FRAME_COMMANDS[id]) {
+      FRAME_COMMANDS[id] = { ...FRAME_COMMANDS[id], implemented: false,
+        desc: `Histórico/reservado, fuera del catálogo operativo actual. ${FRAME_COMMANDS[id].desc}` };
+    }
+  }
+}
 
 export const PANEL_CLASS =
   "app-panel p-4";

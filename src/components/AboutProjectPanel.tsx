@@ -1,6 +1,6 @@
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useCallback, useEffect, useState } from "react";
-import logoDashboard from "../assets/LogoDashboard.webp";
+import logoDashboard from "../assets/LogoDashboardV2.webp";
 import { useEspWifiStatus } from "../contexts/EspWifiStatusContext";
 import useUser from "../contexts/UserContext";
 import { useWebSocket } from "../hooks/useWebSocket";
@@ -70,6 +70,7 @@ const REPOSITORIES = [
 const QR_PATH = buildQrPath();
 
 export default function AboutProjectPanel() {
+  const reduceMotion = useReducedMotion();
   const { connected, hello, request, subscribeEvent } = useWebSocket();
   const { refresh: refreshEspStatus } = useEspWifiStatus();
   const { remotePinAuthenticated } = useUser();
@@ -209,11 +210,11 @@ export default function AboutProjectPanel() {
         onClick={() => setExpanded((current) => !current)}
       >
         <span className="about-project-card__logo-shell">
-          <img src={logoDashboard} alt="Auto Microcontroladores" />
+          <img src={logoDashboard} alt="AutoMicro" />
         </span>
         <span className="about-project-card__heading">
           <span className="app-kicker">Proyecto integrado</span>
-          <strong>Auto Microcontroladores</strong>
+          <strong>AutoMicro</strong>
           <small>Web, ESP8266 y STM32F411CEU6</small>
         </span>
         <span className={`about-project-card__status about-project-card__status--${connected ? "online" : "offline"}`}>
@@ -230,7 +231,7 @@ export default function AboutProjectPanel() {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3, ease: "easeInOut" }}
+            transition={{ duration: reduceMotion ? 0.12 : 0.22, ease: [0.23, 1, 0.32, 1] }}
           >
           <div className={`about-project-feedback about-project-feedback--${loadState}`}>
             <span>{message}</span>

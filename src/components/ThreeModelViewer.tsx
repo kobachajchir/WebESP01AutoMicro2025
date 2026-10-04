@@ -1,12 +1,12 @@
 import { Suspense, useRef, useEffect } from "react";
-import { Canvas, useLoader, useThree } from "@react-three/fiber";
+import { useLoader, useThree } from "@react-three/fiber";
 import { type GLTF } from "three/addons/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import * as THREE from "three";
 import { getSharedDracoLoader, ResilientGLTFLoader } from "../utils/dracoLoader";
-import { useModelLoadingState } from "../hooks/useModelLoadingState";
 import ModelLoadingScreen from "./ModelLoadingScreen";
-import HdModelQualityButton from "./HdModelQualityButton";
+import ModelLoadBoundary from "./ModelLoadBoundary";
+import WebGLCanvas from "./WebGLCanvas";
 
 // Extender JSX para incluir OrbitControls usando la nueva sintaxis v9
 declare module "@react-three/fiber" {
@@ -42,7 +42,6 @@ export interface ThreeModelViewerProps {
 
 interface ModelProps {
   url: string;
-  onLoaded: () => void;
   eulerDeg: {
     yaw: number;
     pitch: number;
@@ -50,17 +49,12 @@ interface ModelProps {
   };
 }
 
-function Model({ url, eulerDeg, onLoaded }: ModelProps) {
+function Model({ url, eulerDeg }: ModelProps) {
   // useLoader v9 acepta instancias de loader para mejor control y pooling
   const { scene } = useLoader(ResilientGLTFLoader, url, (loader) => {
-    const base = import.meta.env.BASE_URL || "/";
-    loader.setDRACOLoader(getSharedDracoLoader(base));
+    loader.setDRACOLoader(getSharedDracoLoader());
   }) as GLTF;
   const groupRef = useRef<THREE.Group>(null);
-
-  useEffect(() => {
-    onLoaded();
-  }, [onLoaded, scene]);
 
   useEffect(() => {
     if (!groupRef.current || !scene) return;
@@ -172,8 +166,6 @@ export default function ThreeModelViewer({
   className = "",
   childrenInsideCanvas = null,
 }: ThreeModelViewerProps) {
-  const { isModelLoading, markModelLoaded } = useModelLoadingState(modelUrl);
-
   return (
     <div
       className={[
@@ -182,24 +174,13 @@ export default function ThreeModelViewer({
         className,
       ].join(" ")}
     >
-      <ModelLoadingScreen visible={isModelLoading} />
-      <div className="sensor-scene-overlay-top-left">
-        <HdModelQualityButton />
-      </div>
-      <Canvas
-        gl={(props) => {
-          const renderer = new THREE.WebGLRenderer({
-            ...props,
-            antialias: true,
-            alpha: true, // transparente
-          });
-          renderer.outputColorSpace = THREE.SRGBColorSpace;
-          renderer.toneMapping = THREE.ACESFilmicToneMapping;
-          renderer.toneMappingExposure = exposure;
-          return renderer;
+      <WebGLCanvas
+        onCreated={({ gl }) => {
+          gl.outputColorSpace = THREE.SRGBColorSpace;
+          gl.toneMapping = THREE.ACESFilmicToneMapping;
+          gl.toneMappingExposure = exposure;
         }}
         scene={{ background: null }} // fondo transparente (usa el del contenedor)
-        dpr={Math.min(window.devicePixelRatio, 2)}
       >
         {/* Cámara más cerca y con FOV más amplio para mejor visualización */}
         <perspectiveCamera
@@ -226,17 +207,20 @@ export default function ThreeModelViewer({
         />
 
         {/* Modelo con Suspense */}
-        <Suspense fallback={<FallbackModel eulerDeg={eulerDeg} />}>
-          <Model
-            url={modelUrl}
-            eulerDeg={eulerDeg}
-            onLoaded={markModelLoaded}
-          />
-        </Suspense>
+        <ModelLoadBoundary modelUrl={modelUrl}>
+          <Suspense fallback={
+            <>
+              <FallbackModel eulerDeg={eulerDeg} />
+              <ModelLoadingScreen visible />
+            </>
+          }>
+            <Model url={modelUrl} eulerDeg={eulerDeg} />
+          </Suspense>
+        </ModelLoadBoundary>
 
         {/* Extra dentro del Canvas (p.ej. <CameraRig ref=... />) */}
         {childrenInsideCanvas}
-      </Canvas>
+      </WebGLCanvas>
     </div>
   );
 }

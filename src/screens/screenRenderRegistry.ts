@@ -1,3 +1,4 @@
+import { resolveRemediatedScreen } from "./remediatedScreens";
 import {
   buildScreen010001StartupCommands,
   buildScreen010101DashboardCommands,
@@ -335,6 +336,8 @@ export interface ResolvedOledScreen {
 }
 
 export function resolveOledScreen(input: ScreenRenderInput): ResolvedOledScreen | null {
+  const remediated = resolveRemediatedScreen(input);
+  if (remediated) return remediated;
   const data = input.rawData ?? {};
   const totalMs = readNumber(data.totalMs);
   const remainingMs = readNumber(data.remainingMs);
@@ -392,7 +395,7 @@ export function resolveOledScreen(input: ScreenRenderInput): ResolvedOledScreen 
         "WiFi credentials entered locally over AT",
         "connectivity screen",
         "buildScreen02020dWifiCredentialsAtCommands",
-        "Ingreso local de la clave WiFi con encoder cuando el backend activo es AT.",
+        "Ingreso local del Password WiFi con encoder cuando el backend activo es AT.",
         buildScreen02020dWifiCredentialsAtCommands({
           ssid: readCredentialsSsid(data),
           passwordLength: readNumber(data.passwordLength) ?? readNumber(data.password_length) ?? 0,

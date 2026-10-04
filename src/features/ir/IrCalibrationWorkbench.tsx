@@ -18,12 +18,15 @@ import type {
 } from "./irCalibration";
 import { IR_OBJECT_SENSOR_KEYS } from "./irObjectModel";
 import type { IrObjectSensorKey } from "./irObjectModel";
+import { IR_MAX_RANGE_CM } from "./irEmitterGeometry";
+import MaterialPicker from "../calibration/MaterialPicker";
 
 interface IrCalibrationWorkbenchProps {
   profile: IrCalibrationProfile;
   snapshot: IrSnapshot;
   captureAvailable: boolean;
   onProfileChange: (profile: IrCalibrationProfile) => void;
+  onBusyChange?: (busy: boolean) => void;
 }
 
 interface CaptureState {
@@ -47,6 +50,7 @@ export default function IrCalibrationWorkbench({
   snapshot,
   captureAvailable,
   onProfileChange,
+  onBusyChange,
 }: IrCalibrationWorkbenchProps) {
   const [selectedDistanceCm, setSelectedDistanceCm] = useState<number>(
     IR_CALIBRATION_DISTANCES_CM[0],
@@ -59,6 +63,11 @@ export default function IrCalibrationWorkbench({
   );
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const lastSampleTokenRef = useRef("");
+  const [step, setStep] = useState<"prepare" | "capture" | "results">("prepare");
+  useEffect(() => { onBusyChange?.(capture !== null); return () => onBusyChange?.(false); }, [capture, onBusyChange]);
+  useEffect(() => {
+    if (capture && !captureAvailable) { setCapture(null); setFeedback("Captura interrumpida: la lectura real dejó de estar disponible."); }
+  }, [capture, captureAvailable]);
 
   useEffect(() => {
     if (!capture || !captureAvailable || snapshot.tickMs <= 0) {
@@ -116,6 +125,7 @@ export default function IrCalibrationWorkbench({
   const hasUsableCurve = coverage.usable;
 
   function startCapture(kind: CaptureState["kind"]) {
+    if (!profile.material.trim()) { setFeedback("Poné un nombre a la superficie personalizada antes de capturar."); return; }
     if (!captureAvailable) {
       setFeedback(
         "Para medir necesitás conexión real, stream IR activo y emulador IR apagado.",
@@ -159,6 +169,7 @@ export default function IrCalibrationWorkbench({
     setImportErrors([]);
     onProfileChange({
       ...parsed.profile,
+      polarity: "higher-is-closer",
       source: "imported",
       createdAt: new Date().toISOString(),
     });
@@ -189,11 +200,10 @@ export default function IrCalibrationWorkbench({
     <section className="ir-calibration-workbench" aria-label="Calibración de sensores IR">
       <header className="ir-calibration-header">
         <div>
-          <span className="home-kicker">Calibración desde el auto</span>
-          <h2>Curva distancia → ADC</h2>
+          <span className="home-kicker">IR · Objetos</span>
+          <h2>{step === "prepare" ? "Prepará la medición" : step === "capture" ? "Registrá la respuesta" : "Compará los resultados"}</h2>
           <p>
-            Cada punto descarta {profile.settleSamples} muestras y resume las
-            siguientes {profile.samplesPerPoint} con mediana y dispersión.
+            {step === "prepare" ? "Definí el perfil y mantené las mismas condiciones durante el ensayo." : step === "capture" ? "Elegí un sensor y una distancia. Mantené el blanco fijo durante la captura." : "Revisá la curva por sensor y conservá el perfil de la sesión."}
           </p>
         </div>
         <div
@@ -203,10 +213,10 @@ export default function IrCalibrationWorkbench({
         >
           <strong>
             {hasUsableCurve
-              ? "CURVA APLICADA"
+              ? "Perfil en uso"
               : coverage.baselineReady
-                ? "CALIBRANDO"
-                : "FALTA BASELINE"}
+                ? "Referencia lista"
+                : "Sin referencia"}
           </strong>
           <span>
             {coverage.measurementCount}/{coverage.requiredMeasurementCount} puntos · {coverage.readySensorCount}/5 sensores
@@ -217,38 +227,43 @@ export default function IrCalibrationWorkbench({
         </div>
       </header>
 
+      <nav className="calibration-steps" aria-label="Pasos de calibración IR">
+        {(["prepare", "capture", "results"] as const).map((value, i) => <button key={value} disabled={isCapturing} aria-current={step === value ? "step" : undefined} onClick={() => setStep(value)}><span>{String(i + 1).padStart(2, "0")}</span>{value === "prepare" ? "Preparar" : value === "capture" ? "Registrar" : "Resultados"}</button>)}
+      </nav>
+      <div className="calibration-stage" hidden={step !== "prepare"}>
+      <div className="calibration-setup-layout">
+      <div className="calibration-form-section">
+        <div className="calibration-section-label"><span className="home-kicker">Configuración</span><h3>Un perfil para cada condición</h3><p>Identificá el blanco y la respuesta del sensor antes de registrar los puntos.</p></div>
       <div className="ir-calibration-meta-grid">
         <label>
           Nombre del perfil
           <input
             value={profile.name}
+            placeholder="Ej. Cartón blanco · luz interior"
             onChange={(event) => updateProfile({ name: event.target.value })}
           />
         </label>
-        <label>
-          Blanco o material
-          <input
-            value={profile.material}
-            onChange={(event) => updateProfile({ material: event.target.value })}
-          />
-        </label>
-        <label>
-          Polaridad de cercanía
-          <select
-            value={profile.polarity}
-            onChange={(event) =>
-              updateProfile({
-                polarity: event.target.value as IrCalibrationProfile["polarity"],
-              })
-            }
-          >
-            <option value="higher-is-closer">ADC mayor = más cerca</option>
-            <option value="lower-is-closer">ADC menor = más cerca</option>
-          </select>
-        </label>
+        <MaterialPicker value={profile.material} onChange={(material) => updateProfile({ material, polarity: "higher-is-closer" })} />
+        <p className="ui-muted">Objetos · cinco canales. La polaridad se toma de la configuración del grupo en la F4.</p>
       </div>
-
+      </div>
+      <aside className="calibration-reference">
+        <span className="home-kicker">Referencia de ensayo</span>
+        <div className="calibration-range"><strong>{IR_MAX_RANGE_CM}</strong><span>cm<small>alcance configurado</small></span></div>
+        <p>Usá el mismo material e iluminación durante toda la sesión. El alcance útil se confirma con las mediciones.</p>
+        <dl><div><dt>Muestras por punto</dt><dd>{profile.samplesPerPoint}</dd></div><div><dt>Descartadas al inicio</dt><dd>{profile.settleSamples}</dd></div><div><dt>Canales de objetos</dt><dd>5</dd></div></dl>
+      </aside>
+      </div>
+      <div className="calibration-stage-footer"><p>Comenzá con una referencia sin objeto.</p><button className="app-button calibration-button--primary" disabled={!profile.material.trim()} onClick={() => { if (profile.polarity !== "higher-is-closer") updateProfile({ polarity: "higher-is-closer" }); setStep("capture"); }}>Comenzar medición <span aria-hidden="true">→</span></button></div>
+      </div>
+      <div className="calibration-stage" hidden={step !== "capture"}>
       <div className="ir-calibration-capture-card">
+        <div className="ir-calibration-capture-heading">
+          <h3>Capturar una medición</h3>
+          <span className={`ir-calibration-availability ${captureAvailable ? "ir-calibration-availability--ready" : ""}`} role="status">
+            {captureAvailable ? "Lectura real disponible" : "Activá IR real para capturar"}
+          </span>
+        </div>
         <div className="ir-calibration-distance-picker">
           <label>
             Sensor ensayado
@@ -283,14 +298,15 @@ export default function IrCalibrationWorkbench({
             </select>
           </label>
           <p>
-            Medí desde el centro del sensor seleccionado hasta la cara del
-            blanco. Alinealo sobre ese cono y perpendicular a su eje; la captura
+            Medí desde el centro frontal de la lente emisora hasta la cara del
+            blanco, siguiendo el eje del cono. Alinealo perpendicular a ese eje; la captura
             conserva sólo ese canal para no contaminar las otras curvas.
           </p>
         </div>
         <div className="ir-calibration-actions">
           <button
             type="button"
+            className="calibration-button--primary"
             disabled={isCapturing || !captureAvailable}
             onClick={() => startCapture("point")}
           >
@@ -302,7 +318,7 @@ export default function IrCalibrationWorkbench({
             disabled={isCapturing || !captureAvailable}
             onClick={() => startCapture("baseline")}
           >
-            Capturar sin objeto
+            Tomar referencia sin objeto
           </button>
           {isCapturing ? (
             <button
@@ -324,9 +340,18 @@ export default function IrCalibrationWorkbench({
           <p>{feedback}</p>
         </div>
       </div>
-
+      <div className="calibration-stage-footer"><p>Cada punto conserva únicamente el canal seleccionado.</p><button className="app-button" disabled={isCapturing} onClick={() => setStep("results")}>Ver resultados <span aria-hidden="true">→</span></button></div>
+      </div>
+      <div className="calibration-stage" hidden={step !== "results"}>
+      <label className="calibration-curve-picker">Curva del sensor
+        <select className="app-input" value={selectedSensorKey} onChange={(event) => setSelectedSensorKey(event.target.value as IrObjectSensorKey)}>
+          {IR_OBJECT_SENSOR_KEYS.map((key) => <option key={key} value={key}>{SENSOR_LABELS[key]}</option>)}
+        </select>
+      </label>
+      <IrCurve profile={profile} sensorKey={selectedSensorKey} />
       <div className="ir-calibration-table-wrap">
         <table className="ir-calibration-table">
+          <caption>Resultados · mediana ADC por sensor</caption>
           <thead>
             <tr>
               <th>Distancia</th>
@@ -343,12 +368,17 @@ export default function IrCalibrationWorkbench({
                 {IR_OBJECT_SENSOR_KEYS.map((key) => (
                   <td key={key}>{Math.round(profile.baseline?.[key].median ?? 0)}</td>
                 ))}
-                <td>Baseline</td>
+                <td>Referencia</td>
               </tr>
             ) : null}
             {profile.points.map((point) => (
               <tr key={point.distanceCm}>
-                <td>{formatDistance(point.distanceCm)} cm</td>
+                <td>
+                  {formatDistance(point.distanceCm)} cm
+                  {point.distanceCm > IR_MAX_RANGE_CM ? (
+                    <span className="ui-muted"> · Histórico, fuera del rango activo</span>
+                  ) : null}
+                </td>
                 {IR_OBJECT_SENSOR_KEYS.map((key) => {
                   const stats = point.sensors[key];
                   return (
@@ -426,8 +456,26 @@ export default function IrCalibrationWorkbench({
           Limpiar perfil
         </button>
       </footer>
+      <p className="ui-muted">El perfil se usa en la web al guardar cada medición. Exportar una tabla C no la instala en la F4. Los valores fuera de 5 cm se conservan como históricos.</p>
+      </div>
     </section>
   );
+}
+
+function IrCurve({ profile, sensorKey }: { profile: IrCalibrationProfile; sensorKey: IrObjectSensorKey }) {
+  const points = profile.points.filter((p) => p.distanceCm <= IR_MAX_RANGE_CM && p.sensors[sensorKey]);
+  if (points.length < 2) return <p>Registrá al menos dos distancias de este sensor para ver su curva.</p>;
+  const values = points.map((p) => ({ distance: p.distanceCm, stats: p.sensors[sensorKey]! }));
+  const max = Math.max(1, ...values.map((p) => p.stats.p90));
+  const x = (distance: number) => 45 + distance / IR_MAX_RANGE_CM * 700;
+  const y = (adc: number) => 200 - adc / max * 175;
+  const sign = profile.polarity === "higher-is-closer" ? -1 : 1;
+  const ambiguous = values.slice(1).some((p, i) => (p.stats.median - values[i].stats.median) * sign < 0);
+  return <figure className="calibration-chart"><svg viewBox="0 0 800 235" role="img" aria-label={`Curva de ${SENSOR_LABELS[sensorKey]} hasta 5 cm. Mediana y dispersión p10–p90 de la lectura normalizada.`}>
+    {values.map((p) => <line key={p.distance} x1={x(p.distance)} x2={x(p.distance)} y1={y(p.stats.p10)} y2={y(p.stats.p90)} className="calibration-series-1" strokeWidth="4" />)}
+    <polyline points={values.map((p) => `${x(p.distance)},${y(p.stats.median)}`).join(" ")} className="calibration-series-0" fill="none" strokeWidth="2" />
+    <text x="45" y="228" fill="currentColor">0 cm</text><text x="700" y="228" fill="currentColor">5 cm</text><text x="45" y="16" fill="currentColor">Lectura normalizada · hasta {max.toFixed(0)}</text>
+  </svg><figcaption>Mediana y dispersión p10–p90. {ambiguous ? "La curva no es monótona: una lectura puede corresponder a más de una distancia." : "La curva describe únicamente los puntos medidos y las condiciones del perfil."}</figcaption></figure>;
 }
 
 function pickObjectSample(snapshot: IrSnapshot): IrCalibrationSample {

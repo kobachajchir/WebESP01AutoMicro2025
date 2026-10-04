@@ -46,7 +46,7 @@ function segmentedButtonStyle(active: boolean) {
     ? {
         background: "var(--ui-accent)",
         color: "var(--ui-action-hover-ink)",
-        boxShadow: "0 12px 28px rgba(34,211,238,0.28)",
+        boxShadow: "0 12px 28px var(--ui-accent-wash)",
       }
     : {
         background: "transparent",

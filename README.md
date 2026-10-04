@@ -1,4 +1,4 @@
-# Web ESP01 Auto Micro 2025
+# AutoMicro
 
 Frontend React/Vite para operar la UI Web del auto, hablar con la ESP por WebSocket y, cuando corresponde, mandar frames UNER v2 hacia la STM.
 
@@ -91,3 +91,7 @@ npm run build
 ```
 
 En desarrollo, si no se define `VITE_WS_URL`, la app usa `ws://<host>/ws/mock`.
+
+## Copiar la web compilada a ESP01
+
+`npm run build` comprime y copia automáticamente solo index.html.gz a data/dist del proyecto ESP hermano, sobrescribiendo la web anterior y eliminando index.html sin comprimir del destino. `npm run copy:esp` repite solo la copia. [Rutas y uso](docs/copy-web-to-esp.md). No flashea el dispositivo.

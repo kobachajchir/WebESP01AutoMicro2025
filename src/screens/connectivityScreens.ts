@@ -221,9 +221,9 @@ export function buildScreen02020dWifiCredentialsAtCommands(args: WifiAtCredentia
     clear(),
     setWhite(),
     ...drawXbm(3, 2, 19, 16, "Icon_Wifi_100_bits"),
-    ...textAt(27, baselineY(13, "Font7x10"), "Clave WiFi", "Font7x10"),
+    ...textAt(27, baselineY(13, "Font7x10"), "Password WiFi", "Font7x10"),
     ...textMaxAt(2, baselineY(27, "Font7x10"), args.ssid ?? "WiFi", 17, "Font7x10"),
-    ...textMaxAt(2, baselineY(39, "Font7x10"), `Clave:${passwordMask}`, 17, "Font7x10"),
+    ...textMaxAt(2, baselineY(39, "Font7x10"), `Password:${passwordMask}`, 17, "Font7x10"),
     ...textMaxAt(2, baselineY(51, "Font7x10"), `Char:${selectedCharacter} Largo:${passwordLength}`, 17, "Font7x10"),
     ...textAt(2, baselineY(63, "Font7x10"), "OK:+ U:- Hold:ir", "Font7x10"),
   ];
