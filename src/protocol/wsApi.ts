@@ -23,6 +23,8 @@ export const ESP_COMMANDS = {
   SET_MOTION: "stm.motion.set",
   STOP_MOTION: "stm.motion.stop",
   SET_MOTOR_TEST: "stm.motor.test",
+  GET_AP_FALLBACK: "stm.wifi.apFallback.get",
+  SET_AP_FALLBACK: "stm.wifi.apFallback.set",
   GET_PREFERENCES: "getPreferences",
   SET_PREFERENCES: "setPreferences",
   GET_CURRENT_SCREEN: "getCurrentScreen",

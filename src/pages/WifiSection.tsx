@@ -8,6 +8,7 @@ import {
 } from "react";
 import Modal from "../components/modal";
 import PageHeader from "../components/PageHeader";
+import ApFallbackControls from "../components/ApFallbackControls";
 import SystemResetActions from "../components/SystemResetActions";
 import ThemeModeToggleCard from "../components/ThemeModeToggleCard";
 import { toast } from "sonner";
@@ -1061,7 +1062,8 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  showHome={!provisioning}
  />
 
- <WifiHeaderStatus
+ <ApFallbackControls />
+    <WifiHeaderStatus
  connected={connected}
  activeView={activeView}
  scanLoading={scanLoading}
