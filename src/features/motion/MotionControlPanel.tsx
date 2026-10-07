@@ -35,8 +35,8 @@ function MotionValueControl({ label, value, min, max, step = 1, unit, hint, disa
   </div>;
 }
 
-export function MotionBalancePanel({ control, showStatus = false }: { control: MotionController; showStatus?: boolean }) {
-  const [expanded, setExpanded] = useState(false);
+export function MotionBalancePanel({ control, showStatus = false, defaultExpanded = false, title = "Balance" }: { control: MotionController; showStatus?: boolean; defaultExpanded?: boolean; title?: string }) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [angle, setAngle] = useState(0);
   const [turn, setTurn] = useState(0);
   const [left, setLeft] = useState(0);
@@ -54,7 +54,7 @@ export function MotionBalancePanel({ control, showStatus = false }: { control: M
     <div className="motion-control-heading">
       <button type="button" className="motion-balance-disclosure" aria-expanded={expanded} aria-controls={panelId}
         onClick={() => setExpanded((value) => !value)}>
-        <MotionControlIcon name="balance" /><span>Balance</span>
+        <MotionControlIcon name="balance" /><span>{title}</span>
         <small>{expanded ? "Ocultar ajustes" : "Mostrar ajustes"}</small>
         <svg className={`home-dropdown-chevron ${expanded ? "home-dropdown-chevron--open" : ""}`}
           viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>

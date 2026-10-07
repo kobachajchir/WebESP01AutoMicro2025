@@ -66,3 +66,7 @@ Las decisiones D-02, D-06, D-09 y D-14 incluyen confirmaciones explícitas del u
 ## D-17 — Requisitos accionables, GOTO y calibración
 
 Fecha: 2026-10-07. Aplicación autorizada del manual 0.3.0: cruz roja/check verde circulares, requisito faltante como botón completo y selector modal de modo. Misma función en Seguidor. Fuentes implementadas; estética y ejecución pendientes. Sin tests, builds ni validaciones. [Cobertura y límites](control-calibration-2026-10-07.md).
+
+## D-18 — Control: navegación interna y flujo de tarea
+
+Fecha: 2026-10-07. Confirmado: selector Studio y reforma visual de Control; observado: patrón segmentado y tokens del manual autorizado. Propuesta aplicada: Libre/GOTO/Calibración, acciones generales arriba, preparación y resultado por grupos, borradores de sesión y detalles plegables. Se elimina la recarga que perdía la sesión al abrir Calibración. Sin tests, builds ni validaciones; revisión visual pendiente. [Cobertura y límites](control-navigation-2026-10-07.md).

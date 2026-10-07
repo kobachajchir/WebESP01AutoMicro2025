@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import ConditionStatus from "../../components/ConditionStatus";
 import CarModeSelectorModal from "../../components/CarModeSelectorModal";
 import Modal from "../../components/modal";
+import MotionControlActions from "../motion/MotionControlActions";
 import { MotionBalancePanel } from "../motion/MotionControlPanel";
 import { useMotionControl, type MotionController } from "../motion/useMotionControl";
 import type { AutoDevice } from "./useAutoMotion";
@@ -17,6 +18,7 @@ export default function MotionReadiness({auto,mode,line,onMotors,onLine,control,
  const ownControl=useMotionControl(!control),motorControl=control??ownControl,s=auto.state,known=!!s;
  const modeReady=!!s&&(s.carMode===(mode==="GOTO"?3:1)||(calibration&&s.carMode===0));
  return <>
+  <section className="motion-readiness"><header className="motion-readiness-heading"><div><span className="home-kicker">Preparación</span><h3>Requisitos del vehículo</h3></div><p>Seleccioná una condición pendiente para resolverla.</p></header>
   <div className="condition-status-grid" aria-label="Requisitos del vehículo">
    <ConditionStatus label="Conexión autorizada" detail="Dispositivo y sesión disponibles" checked={auto.enabled} onResolve={()=>setDialog("connection")}/>
    <ConditionStatus label={calibration?"Modo IDLE / GOTO":`Modo ${mode}`} detail="El modo permite esta operación" checked={modeReady} confirmed={known} onResolve={()=>setDialog("mode")}/>
@@ -27,11 +29,11 @@ export default function MotionReadiness({auto,mode,line,onMotors,onLine,control,
    <ConditionStatus label="Balance estable" detail="Motores armados y vehículo equilibrado" checked={!!s?.balanceActive&&!!s.balanceSettled&&!s.safetyStop} confirmed={known} onResolve={()=>setDialog("balance")}/>
    {mode==="FOLLOW"&&<ConditionStatus label="Auto sobre la línea" detail="Patrón blanco, negro, blanco" checked={!!line?.routeValid&&line.pattern===2} confirmed={!!line} onResolve={()=>setDialog("line")}/>}
    <ConditionStatus label="Sin bloqueos de seguridad" detail="Control disponible" checked={!!s&&!s.safetyStop&&!auto.busy} confirmed={known} onResolve={()=>setDialog("security")}/>
-  </div>
+  </div></section>
   <CarModeSelectorModal open={dialog==="mode"} recommended={mode} onClose={()=>setDialog(null)}/>
-  {dialog&&dialog!=="mode"&&<Modal isOpen onClose={()=>setDialog(null)} containerClassnames="line-device-modal">
-   {dialog==="balance"?<><h2>Balance del vehículo</h2><MotionBalancePanel control={motorControl} showStatus/><p>Esperá a que la F4 confirme estabilidad antes de iniciar.</p></>:
-    dialog==="objects"?<><h2>Preparar IR de objetos</h2><p>Calibrá los cinco sensores y transferí el perfil a la F4 con el balance desactivado. El perfil admite entre 2 y 8 distancias por sensor.</p>
+  {dialog&&dialog!=="mode"&&<Modal isOpen onClose={()=>setDialog(null)} containerClassnames="line-device-modal control-task-dialog">
+   {dialog==="balance"?<><h2>Balance del vehículo</h2><div className="control-toolbar-actions"><MotionControlActions control={motorControl}/></div><MotionBalancePanel control={motorControl} showStatus/><p>Esperá a que la F4 confirme estabilidad antes de iniciar.</p></>:
+    dialog==="objects"?<><h2>Preparar IR de objetos</h2><div className="control-toolbar-actions"><MotionControlActions control={motorControl}/></div><p>Calibrá los cinco sensores y transferí el perfil a la F4 con el balance desactivado. El perfil admite entre 2 y 8 distancias por sensor.</p>
      <button className="app-button" disabled={!emitters.available||emitters.pending||auto.busy} onClick={()=>void emitters.setEnabled("objects",true)}>Activar emisores de objetos</button>
      <button className="app-button" disabled={!auto.enabled||auto.pending||auto.busy||!!s?.balanceActive} onClick={()=>{setIrError("");try{void auto.send("stm.goto.irCalibration.set",{payload:packStoredIr()})}catch(e){setIrError(e instanceof Error?e.message:"Perfil inválido")}}}>Transferir perfil guardado</button>
      <button className="app-button" onClick={()=>navigate("/statics?resolve=objects")}>Abrir calibración de objetos</button>

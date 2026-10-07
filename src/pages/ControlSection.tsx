@@ -1,3 +1,6 @@
+import { useSearchParams } from "react-router-dom";
+import ControlNavigation from "../features/autoMotion/ControlNavigation";
+import ControlToolbar from "../features/autoMotion/ControlToolbar";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLoader, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
@@ -147,7 +150,9 @@ export default function ControlSection() {
  const { connected } = useWebSocket();
  const motionControl = useMotionControl();
  const auto = useAutoMotion();
- const [controlMode,setControlMode] = useState<"free"|"goto">("free");
+ const [controlSearch,setControlSearch] = useSearchParams();
+ const controlMode = controlSearch.get("modo")==="goto" ? "goto" : "free";
+ const setControlMode = (mode:"free"|"goto") => setControlSearch(previous => {const next=new URLSearchParams(previous);next.set("modo",mode);return next;},{replace:true});
  const { mode: carMode, isTestMode, status: carModeStatus } = useCarMode();
 
  // === BLOQUES POR TRACK ===
@@ -1097,22 +1102,17 @@ export default function ControlSection() {
  setOpenInfoModal={setOpenInfoModal}
  />
 
- <nav className="auto-motion-pill" aria-label="Tipo de control">
- <button className="app-button" aria-pressed={controlMode==="free"} onClick={()=>setControlMode("free")}>Libre</button>
- <button className="app-button" aria-pressed={controlMode==="goto"} onClick={()=>{stopLocalSimulation();setControlMode("goto")}}>GOTO XY</button>
- <button className="app-button" onClick={()=>window.location.assign("/control/calibracion")}>⚙ Calibración de motores</button>
- </nav>
- <MotionControlActions control={motionControl} />
+ <ControlNavigation view={controlMode} onModeChange={mode=>{stopLocalSimulation();setControlMode(mode)}}/>
+ <ControlToolbar control={motionControl} recommended={controlMode==="goto"?"GOTO":"IDLE"} isSimulating={isSimulating} onStopSimulation={stopLocalSimulation}/>
  {controlMode==="goto" && <GotoPanel device={auto} control={motionControl}/>}
  <fieldset hidden={controlMode!=="free"} disabled={auto.busy} className="control-free-mode">
- <ControlHeaderStatus
- connected={connected}
- carMode={connected ? carMode : "--"}
- modeLabel="SIM"
- safetyArmed={safetyArmed}
- ackLabel="--"
- />
+ 
 
+
+
+ <MotionBalancePanel control={motionControl} title="Movimiento libre" defaultExpanded />
+
+ <details className="control-simulation-tools"><summary className="control-sequences-summary">Simulación y editor de secuencias<span>Herramientas avanzadas</span></summary>
  <ExecutionStatusPanel
  motionControl={motionControl}
  compact
@@ -1127,10 +1127,7 @@ export default function ControlSection() {
  validationErrorCount={validationErrorCount}
  validationWarningCount={validationWarningCount}
  />
-
- <MotionBalancePanel control={motionControl} />
-
- <details><summary className="control-sequences-summary">Editor de secuencias · simulación</summary>
+ <ControlHeaderStatus connected={connected} carMode={connected ? carMode : "--"} modeLabel="SIM" safetyArmed={safetyArmed} ackLabel="--"/>
  <section className="grid gap-5">
  <div className="flex min-w-0 flex-col gap-3">
  <MotionSimulationPanel
