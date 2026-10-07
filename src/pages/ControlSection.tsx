@@ -2251,8 +2251,8 @@ export default function ControlSection() {
  </div>
  </div>
  </div>
- </div>
  </fieldset>
+ </div>
  <Modal
  isOpen={openInfoModal}
  onClose={() => setOpenInfoModal(false)}
