@@ -53,3 +53,5 @@ El usuario autorizó aplicar el borrador a todas las rutas y adoptar principios 
 2026-10-07: [Control: navegación sin recarga y consistencia con los Studios](control-navigation-2026-10-07.md), D-18. Fuente implementada; ejecución visual y nuevo bundle pendientes.
 
 2026-10-07: [Modales de motores: estructura, preparación y movimiento](motor-dialogs-2026-10-07.md), D-19. Fuente implementada; compilación y revisión visual pendientes.
+
+2026-10-07: [Revisión de modales, botones y referencias de blanco/pista](motor-dialogs-spacing-2026-10-07.md), D-20. Implementación en fuentes; compilación y revisión visual pendientes.

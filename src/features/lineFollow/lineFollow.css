@@ -18,3 +18,26 @@
 .line-follow-panel__mode[data-ready="true"] { color: var(--ui-accent); border-color: var(--ui-accent-soft); background: var(--ui-accent-trace); }
 .line-follow-panel .line-follow-panel__footnote { padding-top: .75rem; border-top: 1px solid var(--ui-ring); font-size: .75rem; }
 @media (max-width: 640px) { .line-device-actions { flex-direction: column; } .line-device-actions .transport-action-button { flex: auto; width: 100%; } }
+
+/* D-20: references are hardware-confirmed conditions, not manual toggles. */
+.line-reference-calibration { padding:1.5rem; gap:1.5rem; }
+.line-reference-calibration > header { display:grid; gap:.7rem; }
+.line-reference-calibration > header h2 { font-size:1.35rem; line-height:1.25; }
+.line-reference-calibration > header p { font-size:.9rem; line-height:1.65; }
+.line-reference-checks { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
+.line-reference-checks .condition-status { padding:1.25rem; min-height:100px; align-items:flex-start; gap:.85rem; }
+.line-reference-checks .condition-status__label { font-size:1rem; }
+.line-reference-checks .condition-status__detail { font-size:.85rem; line-height:1.6; }
+.line-reference-calibration .line-device-instructions { padding:1.25rem; gap:1rem; background:var(--ui-field); }
+.line-reference-calibration .app-button { min-height:48px; padding:.85rem 1.25rem; font-size:.9rem; font-weight:650; justify-self:start; border:1px solid var(--ui-ring); border-radius:var(--ui-radius); }
+.line-reference-calibration .line-device-actions { gap:1rem; }
+.line-reference-calibration .line-device-actions .transport-action-button { min-height:80px; padding:1.1rem; }
+.line-reference-calibration > details { padding:1rem 1.25rem; border:1px solid var(--ui-ring); border-radius:var(--ui-radius); background:var(--ui-field); }
+.line-reference-calibration > details summary { cursor:pointer; min-height:32px; font-weight:650; }
+.line-reference-calibration > details p { margin-top:.7rem; overflow-wrap:anywhere; }
+.motor-dialog .line-reference-calibration { padding:0; border:0; background:transparent; }
+@media(max-width:700px) {
+ .line-reference-checks { grid-template-columns:1fr; }
+ .line-reference-calibration { padding:1.1rem; gap:1.25rem; }
+ .line-reference-calibration .app-button { width:100%; justify-self:stretch; }
+}

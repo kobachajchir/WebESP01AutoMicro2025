@@ -74,3 +74,7 @@ Fecha: 2026-10-07. Confirmado: selector Studio y reforma visual de Control; obse
 ## D-19 — Modales de motores: estructura, preparación y movimiento
 
 Fecha: 2026-10-07. Confirmado por solicitud: mejorar todos los modales de motores con Visual Identity, Apple Design, Emil Design Engineering y animación. Propuesta aplicada: cabecera funcional, instrucciones agrupadas, estado junto a operaciones y pie estable; esquema del metro; entrada/salida de 240 ms y movimiento reducido de 120 ms. Cierre y foco solo en el diálogo al frente. Sin tests, builds ni validaciones; revisión visual pendiente. [Cobertura, Before/After y límites](motor-dialogs-2026-10-07.md).
+
+## D-20 — Modales amplios, botones y referencias de calibración
+
+Fecha: 2026-10-07. Confirmado: ampliar modales, separar contenido, reutilizar selector Dashboard y mostrar blanco/pista como checks. Propuesta aplicada: 52/88 rem, padding y acciones cómodas; selector compartido y tarjetas de requisitos accionables con recalibración explícita. Sin tests, builds ni validaciones. [Before/After, cobertura y límites](motor-dialogs-spacing-2026-10-07.md).

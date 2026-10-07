@@ -7,6 +7,7 @@ import useUser from "../contexts/UserContext";
 import Modal from "../components/modal";
 import SystemResetActions from "../components/SystemResetActions";
 import ThemeModeToggleCard from "../components/ThemeModeToggleCard";
+import CarModeDropdown, { CAR_MODE_LABELS } from "../components/CarModeDropdown";
 import AboutProjectPanel from "../components/AboutProjectPanel";
 import ToggleButton from "../components/ToggleButton";
 import { useScreenStreamModal } from "../contexts/ScreenStreamModalContext";
@@ -612,31 +613,10 @@ const Home: React.FC = () => {
  </div>
  <div className="home-mode-action">
  <div className="home-mode-dropdown" ref={modeMenuRef}>
- <HomeDropdownButton
- label="Cambiar"
- open={isModeMenuOpen}
- ariaLabel="Mostrar modos disponibles"
+ <CarModeDropdown value={carMode} open={isModeMenuOpen} onOpenChange={setIsModeMenuOpen}
  disabled={!connected || !remotePinAuthenticated || carModeStatus === "loading"}
- onClick={() => setIsModeMenuOpen((current) => !current)}
- />
- {isModeMenuOpen ? (
- <div className="home-mode-options" role="menu" aria-label="Modos disponibles">
- {(["IDLE", "FOLLOW", "TEST", "GOTO"] as SelectableCarMode[])
- .filter((candidate) => candidate !== carMode)
- .map((candidate) => (
- <button
- key={candidate}
- type="button"
- role="menuitem"
- className="home-mode-option"
- disabled={!connected || !remotePinAuthenticated || carModeStatus === "loading"}
- onClick={() => void handleCarModeChange(candidate)}
- >
- {formatCarMode(candidate)}
- </button>
- ))}
- </div>
- ) : null}
+ onSelect={(candidate) => void handleCarModeChange(candidate)} excludeCurrent />
+
  </div>
  <span
  className={`home-mode-message home-mode-message--${carModeStatus}`}
@@ -1277,12 +1257,7 @@ function formatDiagnosticCounter(value: number | null) {
 }
 
 function formatCarMode(mode: string): string {
- switch (mode) {
- case "IDLE": return "Espera";
- case "FOLLOW": return "Seguidor";
- case "TEST": return "Testeo";
- default: return "Sin sincronizar";
- }
+ return CAR_MODE_LABELS[mode as SelectableCarMode] ?? "Sin sincronizar";
 }
 
 type HomeTone = "ok" | "error" | "info" | "muted";

@@ -70,7 +70,7 @@ export default function LineFollowPanel() {
     </MotorDialog>
     <MotorDialog isOpen={calibrationModal} onClose={() => setCalibrationModal(false)} closeOnOverlayClick={!device.busy} icon="line" title="Sensores de línea" description="Guardá las referencias de blanco y pista que necesita el vehículo." size="wide"
       footer={<button type="button" className="app-button" onClick={() => setCalibrationModal(false)}>Cerrar</button>}>
-      <LineDeviceCalibration device={device} />
+      <LineDeviceCalibration device={device} embedded />
     </MotorDialog>
   </section>;
 }
