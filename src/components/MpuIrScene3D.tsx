@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type ComponentRef,
 } from "react";
 import { useLoader, useThree } from "@react-three/fiber";
 import type { ThreeEvent } from "@react-three/fiber";
@@ -19,6 +20,10 @@ import { getSharedDracoLoader, ResilientGLTFLoader } from "../utils/dracoLoader"
 import ModelLoadingScreen from "./ModelLoadingScreen";
 import ModelLoadBoundary from "./ModelLoadBoundary";
 import WebGLCanvas from "./WebGLCanvas";
+import UnderbodySensorBeams from "./UnderbodySensorBeams";
+import IrObjectDetectionMarkers from "./IrObjectDetectionMarkers";
+import { useIrEmitters } from "../contexts/IrEmittersContext";
+import type { BeamOpacities } from "../features/ir/beamVisualSettings";
 import {
   IR_OBJECT_ADC_MAX,
   IR_OBJECT_CONE_HALF_ANGLE_DEG,
@@ -27,6 +32,7 @@ import {
 import type {
   IrObjectPoint,
   IrObjectPositionEstimate,
+  IrObjectAxialDetections,
 } from "../features/ir/irObjectModel";
 import {
   irObjectPointToLocalScenePoint,
@@ -43,9 +49,12 @@ import {
   IR_MODEL_CENTER_M,
   IR_MODEL_MAX_DIM_M,
   IR_MAX_RANGE_CM,
+  MODEL_CENTER_HEIGHT_M,
+  MODEL_GROUND_Y_M,
 } from "../features/ir/irEmitterGeometry";
 
-export type SensorCameraPreset = "iso" | "top" | "front";
+import { SENSOR_CAMERA_VIEWS, type SensorCameraPreset } from "../features/ir/sensorCameraViews";
+export type { SensorCameraPreset } from "../features/ir/sensorCameraViews";
 export type EulerDeg = IrSensorRigEulerDeg;
 
 export interface MpuIrScene3DHandle {
@@ -58,35 +67,33 @@ interface MpuIrScene3DProps {
   modelUrl: string;
   eulerDeg: EulerDeg;
   irNorm: Record<IrSensorKey, number>;
+  objectDetections: IrObjectAxialDetections;
   showGrid: boolean;
-  showBubble: boolean;
+  showObjectAxes: boolean;
+  showLineAxes: boolean;
+  beamOpacities: BeamOpacities;
   showOrigin: boolean;
   sensorSensitivityCm: number;
   irSamplePeriodMs: number;
   renderLink: boolean;
-  freezePose: boolean;
   irEmu: boolean;
+  irAutoMotion?: boolean;
   estimatedTarget: IrObjectPositionEstimate | null;
   onEmulatedTarget: (point: IrObjectPoint) => void;
+  onManualCameraChange: () => void;
 }
 
 const CAR_LENGTH_UNITS = 2.49;
 const CAR_WIDTH_UNITS = 0.66;
 const CAR_LENGTH_CM = IR_MODEL_MAX_DIM_M * 100;
 const SCENE_UNITS_PER_CM = CAR_LENGTH_UNITS / CAR_LENGTH_CM;
-const VEHICLE_VERTICAL_LIFT_UNITS = 0.15;
 const SENSOR_MAX_RANGE_CM = IR_MAX_RANGE_CM;
 const SENSOR_MIN_DISPLAY_RANGE_CM = 0.4;
 const SENSOR_BEAM_VISUAL_SCALE = 1;
-const VEHICLE_MODEL_Y_OFFSET = 0.24 + VEHICLE_VERTICAL_LIFT_UNITS;
-const FALLBACK_VEHICLE_Y = 0.28 + VEHICLE_VERTICAL_LIFT_UNITS;
+const VEHICLE_MODEL_Y_OFFSET = MODEL_CENTER_HEIGHT_M * SCENE_UNITS_PER_CM * 100;
 const SENSOR_CONE_HALF_ANGLE_RAD = THREE.MathUtils.degToRad(
   IR_OBJECT_CONE_HALF_ANGLE_DEG,
 );
-const SENSOR_CONE_IDLE_OPACITY = 0.02;
-const SENSOR_CONE_ACTIVE_OPACITY = 1;
-const SENSOR_CONE_OPACITY_HOLD_MS = 500;
-const SENSOR_CONE_OPACITY_FADE_MS = 500;
 const SENSOR_ORIGIN: [number, number, number] = [
   (IR_CENTRAL_EMITTER_M[0] - IR_MODEL_CENTER_M[0]) * SCENE_UNITS_PER_CM * 100,
   (IR_CENTRAL_EMITTER_M[1] - IR_MODEL_CENTER_M[1]) * SCENE_UNITS_PER_CM * 100 + VEHICLE_MODEL_Y_OFFSET,
@@ -99,30 +106,7 @@ const SENSOR_FRAME_PROJECTION: IrSensorFrameProjection = {
   sceneUnitsPerCm: SCENE_UNITS_PER_CM,
   beamVisualScale: SENSOR_BEAM_VISUAL_SCALE,
 };
-const FLOOR_SENSOR_Z = SENSOR_ORIGIN[2];
 const AUTO_ORIGIN: [number, number, number] = [0, 0.28, 0];
-
-const FLOOR_SENSORS: Array<{
-  key: IrSensorKey;
-  label: string;
-  objectSensorKey: (typeof IR_OBJECT_SENSOR_LAYOUT)[number]["key"];
-}> = [
-  {
-    key: "lineLeft",
-    label: "PISO IZQ.",
-    objectSensorKey: "objectLeftCenter",
-  },
-  {
-    key: "lineCenter",
-    label: "PISO CENTRO",
-    objectSensorKey: "objectCenter",
-  },
-  {
-    key: "lineRight",
-    label: "PISO DER.",
-    objectSensorKey: "objectRightCenter",
-  },
-];
 
 const MpuIrScene3D = forwardRef<MpuIrScene3DHandle, MpuIrScene3DProps>(
   function MpuIrScene3D(
@@ -130,24 +114,26 @@ const MpuIrScene3D = forwardRef<MpuIrScene3DHandle, MpuIrScene3DProps>(
       modelUrl,
       eulerDeg,
       irNorm,
+      objectDetections,
       showGrid,
-      showBubble,
+      showObjectAxes,
+      showLineAxes,
+      beamOpacities,
       showOrigin,
       sensorSensitivityCm,
       irSamplePeriodMs,
       renderLink,
-      freezePose,
       irEmu,
+      irAutoMotion = false,
       estimatedTarget,
       onEmulatedTarget,
+      onManualCameraChange,
     },
     ref,
   ) {
     const cameraControllerRef = useRef<SceneCameraControllerHandle>(null);
+    const { state: emitters, available: emittersAvailable } = useIrEmitters();
     const [worldTarget, setWorldTarget] = useState<IrScenePoint | null>(null);
-    const sensorConeOpacity = useTransientSensorConeOpacity(
-      sensorSensitivityCm,
-    );
     const localEmulatedTarget = useMemo(
       () =>
         worldTarget
@@ -177,6 +163,24 @@ const MpuIrScene3D = forwardRef<MpuIrScene3DHandle, MpuIrScene3DProps>(
         setWorldTarget(null);
       }
     }, [irEmu]);
+
+    useEffect(() => {
+      if (!irEmu || !irAutoMotion) return;
+      const startedAt = performance.now();
+      const moveTarget = () => {
+        const phase = ((performance.now() - startedAt) / 7000) * Math.PI * 2;
+        const rangeCm = Math.max(0.4, sensorSensitivityCm);
+        // La trayectoria pertenece al mundo; la pose del auto modifica las lecturas IR.
+        setWorldTarget(irObjectPointToLocalScenePoint({
+          lateralCm: rangeCm * 0.7 * Math.sin(phase),
+          forwardCm: rangeCm * (0.55 + 0.2 * Math.cos(phase)),
+          verticalCm: 0,
+        }, SENSOR_FRAME_PROJECTION));
+      };
+      moveTarget();
+      const intervalId = window.setInterval(moveTarget, 50);
+      return () => window.clearInterval(intervalId);
+    }, [irEmu, irAutoMotion, sensorSensitivityCm]);
 
     useEffect(() => {
       if (!irEmu || !hasWorldTarget) {
@@ -226,13 +230,14 @@ const MpuIrScene3D = forwardRef<MpuIrScene3DHandle, MpuIrScene3DProps>(
         >
           <color attach="background" args={["#03070d"]} />
           <fog attach="fog" args={["#04101c", 4.5, 10]} />
-          <SceneCameraController ref={cameraControllerRef} />
+          <SceneCameraController ref={cameraControllerRef} onManualCameraChange={onManualCameraChange} />
           <ambientLight intensity={0.75} />
           <directionalLight position={[2.5, 4, 3]} intensity={4.5} />
           <directionalLight position={[-4, 2, -2]} intensity={2.2} color="#67e8f9" />
           <pointLight position={[0, 1.4, -2]} intensity={6} color="#22d3ee" />
+          <SceneFloor />
           {showGrid ? <TechnicalGrid /> : null}
-          {irEmu ? (
+          {irEmu && !irAutoMotion ? (
             <IrEmulationSurface
               sensitivityCm={sensorSensitivityCm}
               onTargetChange={setWorldTarget}
@@ -241,7 +246,6 @@ const MpuIrScene3D = forwardRef<MpuIrScene3DHandle, MpuIrScene3DProps>(
           <VehicleSensorRig eulerDeg={eulerDeg}>
             <group position={[0, -VEHICLE_MODEL_Y_OFFSET, 0]}>
               {showOrigin ? <AxisGuides /> : null}
-              <FloorSensorPlates irNorm={irNorm} />
               {irEmu && worldTarget && estimatedTarget?.detected ? (
                 <IrEstimatedTargetMarker estimate={estimatedTarget} />
               ) : null}
@@ -251,19 +255,23 @@ const MpuIrScene3D = forwardRef<MpuIrScene3DHandle, MpuIrScene3DProps>(
               <VehicleModel
                 modelUrl={modelUrl}
               >
-                {showBubble ? (
+                {showObjectAxes && beamOpacities.objects > 0 && (irEmu || emitters?.objects !== false) ? (
                   <SensorCones
                     irNorm={irNorm}
                     renderLink={renderLink}
-                    freezePose={freezePose}
                     sensitivityCm={sensorSensitivityCm}
-                    opacity={sensorConeOpacity}
+                    opacity={beamOpacities.objects}
                   />
                 ) : null}
-                <ObstacleRays
-                  irNorm={irNorm}
+                <UnderbodySensorBeams
+                  lineEnabled={showLineAxes ? emittersAvailable ? emitters?.line ?? null : null : false}
+                  lightsEnabled={emittersAvailable && emitters?.lights === true}
+                  lineOpacity={beamOpacities.line} />
+                {showObjectAxes && (irEmu || emitters?.objects !== false) ? <IrObjectDetectionMarkers
+                  detections={objectDetections}
                   sensitivityCm={sensorSensitivityCm}
-                />
+                  opacity={beamOpacities.objects}
+                /> : null}
               </VehicleModel>
             </Suspense>
             </ModelLoadBoundary>
@@ -285,51 +293,58 @@ interface SceneCameraControllerHandle {
   setCameraPreset: (preset: SensorCameraPreset) => void;
 }
 
-const SceneCameraController = forwardRef<SceneCameraControllerHandle>(
-  function SceneCameraController(_, ref) {
+const SceneCameraController = forwardRef<SceneCameraControllerHandle, { onManualCameraChange: () => void }>(
+  function SceneCameraController({ onManualCameraChange }, ref) {
     const { camera } = useThree();
+    const controlsRef = useRef<ComponentRef<typeof OrbitControls>>(null);
+    const manualControlRef = useRef(false);
 
-    const moveTo = useCallback((position: [number, number, number]) => {
-      camera.position.set(...position);
-      camera.lookAt(0, 0.18, 0);
+    const moveTo = useCallback((preset: SensorCameraPreset) => {
+      manualControlRef.current = false;
+      const view = SENSOR_CAMERA_VIEWS.find((entry) => entry.key === preset) ?? SENSOR_CAMERA_VIEWS[6];
+      const controls = controlsRef.current;
+      if (controls) {
+        const damping = controls.enableDamping;
+        controls.enableDamping = false;
+        controls.update();
+        controls.enableDamping = damping;
+        controls.target.set(0, VEHICLE_MODEL_Y_OFFSET, 0);
+      }
+      camera.position.set(view.position[0], view.position[1] + VEHICLE_MODEL_Y_OFFSET, view.position[2]);
+      camera.up.set(view.up?.[0] ?? 0, view.up?.[1] ?? 1, view.up?.[2] ?? 0);
+      camera.lookAt(0, VEHICLE_MODEL_Y_OFFSET, 0);
       camera.updateProjectionMatrix();
+      controls?.update();
     }, [camera]);
 
     useImperativeHandle(
       ref,
       () => ({
-        resetCamera: () => moveTo([2.7, 2.0, 3.05]),
-        setCameraPreset: (preset) => {
-          if (preset === "top") {
-            moveTo([0, 4.15, 0.05]);
-            return;
-          }
-
-          if (preset === "front") {
-            moveTo([0, 1.1, -4.15]);
-            return;
-          }
-
-          moveTo([2.7, 2.0, 3.05]);
-        },
+        resetCamera: () => moveTo("iso"),
+        setCameraPreset: moveTo,
       }),
       [moveTo],
     );
 
     useEffect(() => {
-      moveTo([2.7, 2.0, 3.05]);
+      moveTo("iso");
     }, [moveTo]);
 
     return (
       <OrbitControls
+        ref={controlsRef}
         enableDamping
         dampingFactor={0.08}
         enablePan
+        screenSpacePanning
+        mouseButtons={{ LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }}
         enableRotate
         enableZoom
         maxDistance={7}
         minDistance={1.7}
-        target={[0, 0.18, 0]}
+        onStart={() => { manualControlRef.current = true; }}
+        onChange={() => { if (manualControlRef.current) onManualCameraChange(); }}
+        onEnd={() => { manualControlRef.current = false; }}
       />
     );
   },
@@ -383,12 +398,12 @@ function VehicleModel({
     box.getCenter(center);
     const maxDim = Math.max(size.x, size.y, size.z) || 1;
     const scale = CAR_LENGTH_UNITS / maxDim;
-    return { scene: clonedScene, center, scale };
+    return { scene: clonedScene, center, scale, groundOffset: (center.y - MODEL_GROUND_Y_M) * scale };
   }, [scene]);
 
   // Model and emitter anchors share the same exact normalization and MPU pose.
   return (
-    <group scale={normalizedModel.scale}>
+    <group position={[0, normalizedModel.groundOffset - VEHICLE_MODEL_Y_OFFSET, 0]} scale={normalizedModel.scale}>
       <group position={[
         -normalizedModel.center.x,
         -normalizedModel.center.y,
@@ -403,11 +418,18 @@ function VehicleModel({
 
 function FallbackVehicle() {
   return (
-    <mesh position={[0, FALLBACK_VEHICLE_Y - VEHICLE_MODEL_Y_OFFSET, 0]}>
+    <mesh position={[0, 0.09 - VEHICLE_MODEL_Y_OFFSET, 0]}>
       <boxGeometry args={[CAR_WIDTH_UNITS, 0.18, CAR_LENGTH_UNITS]} />
       <meshStandardMaterial color="#38bdf8" metalness={0.2} roughness={0.35} />
     </mesh>
   );
+}
+
+function SceneFloor() {
+  return <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.0002, 0]}>
+    <planeGeometry args={[8, 8]} />
+    <meshStandardMaterial color="#07111d" roughness={1} metalness={0} side={THREE.FrontSide} />
+  </mesh>;
 }
 
 function TechnicalGrid() {
@@ -419,19 +441,17 @@ function TechnicalGrid() {
     return helper;
   }, []);
 
-  return <primitive object={grid} position={[0, -0.01, 0]} />;
+  return <primitive object={grid} position={[0, 0, 0]} />;
 }
 
 function SensorCones({
   irNorm,
   renderLink,
-  freezePose,
   sensitivityCm,
   opacity,
 }: {
   irNorm: Record<IrSensorKey, number>;
   renderLink: boolean;
-  freezePose: boolean;
   sensitivityCm: number;
   opacity: number;
 }) {
@@ -448,9 +468,7 @@ function SensorCones({
       {IR_EMITTER_GEOMETRY.map((sensor) => {
         const intensity = clamp01(irNorm[sensor.key] / IR_OBJECT_ADC_MAX);
         const active = intensity >= 0.03;
-        const color = freezePose
-          ? "#fbbf24"
-          : active
+        const color = active
             ? "#fb7185"
             : renderLink
               ? "#22d3ee"
@@ -475,22 +493,6 @@ function SensorCones({
                 side={THREE.DoubleSide}
                 clippingPlanes={[floorClippingPlane]}
                 blending={THREE.AdditiveBlending}
-                toneMapped={false}
-              />
-            </mesh>
-            <mesh
-              position={[0, 0, -rangeUnits / 2]}
-              rotation={[Math.PI / 2, 0, 0]}
-            >
-              <coneGeometry args={[coneRadiusUnits, rangeUnits, 40, 1, true]} />
-              <meshBasicMaterial
-                color={color}
-                opacity={coneOpacity * 0.5}
-                transparent
-                wireframe
-                depthWrite={false}
-                side={THREE.DoubleSide}
-                clippingPlanes={[floorClippingPlane]}
                 toneMapped={false}
               />
             </mesh>
@@ -521,6 +523,7 @@ function IrEmulationSurface({
   const planeSize = (maxSensorOffset + rangeUnits + 0.3) * 2;
 
   function updateTarget(event: ThreeEvent<PointerEvent>) {
+    if (event.ctrlKey || event.metaKey || event.shiftKey) return;
     event.stopPropagation();
     onTargetChange([event.point.x, event.point.y, event.point.z]);
   }
@@ -662,156 +665,6 @@ function AxisArrow({
       </mesh>
     </>
   );
-}
-
-function ObstacleRays({
-  irNorm,
-  sensitivityCm,
-}: {
-  irNorm: Record<IrSensorKey, number>;
-  sensitivityCm: number;
-}) {
-  return (
-    <group>
-      {IR_EMITTER_GEOMETRY.map((ray) => (
-        <ObstacleRay
-          key={ray.key}
-          config={ray}
-          norm={irNorm[ray.key]}
-          sensitivityCm={sensitivityCm}
-        />
-      ))}
-    </group>
-  );
-}
-
-function ObstacleRay({
-  config,
-  norm,
-  sensitivityCm,
-}: {
-  config: (typeof IR_EMITTER_GEOMETRY)[number];
-  norm: number;
-  sensitivityCm: number;
-}) {
-  const intensity = clamp01(norm / IR_OBJECT_ADC_MAX);
-  const active = intensity > 0.08;
-  const angle = THREE.MathUtils.degToRad(config.opticalYawDeg);
-  const beamLength = sensorCmToModelMeters(sensitivityCm);
-  const visualDistance = beamLength * (0.22 + (1 - intensity) * 0.78);
-
-  return (
-    <group
-      position={[...config.positionM]}
-      rotation={[0, angle, 0]}
-    >
-      <mesh position={[0, 0, -beamLength / 2]}>
-        <boxGeometry args={[active ? 0.0012 : 0.0007, 0.0002, beamLength]} />
-        <meshBasicMaterial
-          color={active ? "#fb7185" : "#334155"}
-          opacity={active ? 0.28 + intensity * 0.32 : SENSOR_CONE_IDLE_OPACITY}
-          transparent
-          depthWrite={false}
-        />
-      </mesh>
-      {active ? (
-        <mesh
-          position={[
-            0,
-            0,
-            -visualDistance,
-          ]}
-        >
-          <sphereGeometry args={[0.0023 + intensity * 0.0027, 20, 14]} />
-          <meshStandardMaterial
-            color="#fb7185"
-            emissive="#fb7185"
-            emissiveIntensity={0.55 + intensity * 0.9}
-            opacity={0.46 + intensity * 0.3}
-            transparent
-            roughness={0.35}
-          />
-        </mesh>
-      ) : null}
-    </group>
-  );
-}
-
-function FloorSensorPlates({ irNorm }: { irNorm: Record<IrSensorKey, number> }) {
-  return (
-    <group>
-      {FLOOR_SENSORS.map((sensor) => {
-        const intensity = clamp01(irNorm[sensor.key] / 4095);
-        const sourceSensor = IR_OBJECT_SENSOR_LAYOUT.find(
-          (candidate) => candidate.key === sensor.objectSensorKey,
-        );
-        const sensorX = (sourceSensor?.offsetCm ?? 0) * SCENE_UNITS_PER_CM;
-        return (
-          <mesh
-            key={sensor.key}
-            position={[sensorX, 0.015, FLOOR_SENSOR_Z]}
-            rotation={[-Math.PI / 2, 0, 0]}
-          >
-            <planeGeometry args={[CAR_WIDTH_UNITS * 0.28, 0.24]} />
-            <meshBasicMaterial
-              color={intensity > 0.08 ? "#22d3ee" : "#164e63"}
-              opacity={0.16 + intensity * 0.54}
-              transparent
-              side={THREE.DoubleSide}
-              depthWrite={false}
-            />
-          </mesh>
-        );
-      })}
-    </group>
-  );
-}
-
-function useTransientSensorConeOpacity(sensitivityCm: number) {
-  const [opacity, setOpacity] = useState(SENSOR_CONE_IDLE_OPACITY);
-  const initializedRef = useRef(false);
-
-  useEffect(() => {
-    if (!initializedRef.current) {
-      initializedRef.current = true;
-      return;
-    }
-
-    let fadeFrameId: number | null = null;
-    setOpacity(SENSOR_CONE_ACTIVE_OPACITY);
-
-    const holdTimerId = window.setTimeout(() => {
-      const fadeStartedAt = performance.now();
-
-      const updateOpacity = (now: number) => {
-        const progress = clamp01(
-          (now - fadeStartedAt) / SENSOR_CONE_OPACITY_FADE_MS,
-        );
-        setOpacity(
-          THREE.MathUtils.lerp(
-            SENSOR_CONE_ACTIVE_OPACITY,
-            SENSOR_CONE_IDLE_OPACITY,
-            progress,
-          ),
-        );
-
-        if (progress < 1) {
-          fadeFrameId = window.requestAnimationFrame(updateOpacity);
-        }
-      };
-
-      fadeFrameId = window.requestAnimationFrame(updateOpacity);
-    }, SENSOR_CONE_OPACITY_HOLD_MS);
-
-    return () => {
-      window.clearTimeout(holdTimerId);
-      if (fadeFrameId !== null) {
-        window.cancelAnimationFrame(fadeFrameId);
-      }
-    };
-  }, [sensitivityCm]);
-
-  return opacity;
 }
 
 function clamp01(value: number) {

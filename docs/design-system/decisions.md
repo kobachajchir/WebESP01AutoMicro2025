@@ -35,3 +35,30 @@ Las decisiones D-02, D-06, D-09 y D-14 incluyen confirmaciones explícitas del u
 - Alternativa: mantener bloques con glow, ancho fijo y tooltips recortados conservaría los problemas señalados por el usuario.
 - Estado: aplicación autorizada; aceptación estética pendiente; ejecución visual No verificada. Compilación completada; sin tests ni prueba física.
 - [Cambios, matriz de cobertura y límites](studio-refinement-2026-10-02.md).
+
+## D-16 — Control de motores: acciones únicas y balance plegable
+
+- Fecha: 2026-10-05.
+- Evidencia: interacción y organización Confirmadas por solicitud; superficies y
+  tokens Observados; sliders y disposición Propuesta aplicada.
+- Alcance: Control de motores y primitivas del panel Balance ya compartido con
+  calibración. Fuentes: manual 0.3.0 autorizado y sus alias `--ui-*`.
+- Decisión: integrar activar/desactivar, Detener y Consultar estado en transporte;
+  ajustes Balance cerrados inicialmente; estado de armado confirmado rojo/verde
+  junto al diagnóstico. Detener apaga motores y balance mediante el comando vigente.
+- Estado: implementación solicitada; aceptación estética y ejecución visual
+  pendientes. Sin tests, compilaciones ni validaciones.
+- [Aplicación, cobertura y límites](motor-controls-2026-10-05.md).
+
+## Seguidor y WiFi — herramientas y recuperación integradas
+
+- Fecha: 2026-10-05. Interacciones Confirmadas por solicitud; ubicación lateral
+  de diagnóstico y disposición Propuestas aplicadas sobre el manual autorizado.
+- Seguidor: Herramientas debajo del transporte, Puntos/Ribbon exclusivos y Debug
+  independiente con las burbujas de MPU + IR. Calibración y marcadores compartidos.
+- WiFi: política consultada con la carga inicial, pill AP fallback en la tarjeta
+  de modo físico y consulta posterior de estado/política sin borrar ediciones.
+  Reintento usa la red guardada; cambiar credenciales conserva su envío.
+- Tokens semánticos y transporte común; AP, modos y permisos conservados.
+- Fuente implementada; revisión estética y en ejecución pendientes. Sin tests,
+  builds ni validaciones. [Cobertura y límites](track-wifi-tools-2026-10-05.md).

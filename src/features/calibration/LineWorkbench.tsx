@@ -14,14 +14,17 @@ function load(): LineRecord[] {
       [v.raw, v.normalized].every((a) => Array.isArray(a) && a.length === 3 && a.every((n: unknown) => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 4095))).slice(0, 100);
   } catch { return []; }
 }
+import { LineDeviceCalibrationPanel } from "../lineFollow/LineDeviceCalibration";
+
 export default function LineWorkbench({ snapshot, captureAvailable, onBusyChange }: {
   snapshot: IrSnapshot; captureAvailable: boolean; onBusyChange: (busy: boolean) => void;
 }) {
+  const [deviceBusy, setDeviceBusy] = useState(false);
   const [material, setMaterial] = useState("Blanco"); const [name, setName] = useState("Línea · referencia");
   const [history, setHistory] = useState(load); const [capturing, setCapturing] = useState(false);
   const [count, setCount] = useState(0); const [feedback, setFeedback] = useState("Colocá la superficie bajo los tres sensores y mantené la altura del montaje.");
   const samples = useRef<{ raw: number[]; norm: number[] }[]>([]); const token = useRef(""); const settle = useRef(8);
-  useEffect(() => { onBusyChange(capturing); return () => onBusyChange(false); }, [capturing, onBusyChange]);
+  useEffect(() => { onBusyChange(capturing || deviceBusy); return () => onBusyChange(false); }, [capturing, deviceBusy, onBusyChange]);
   useEffect(() => {
     if (!capturing) return;
     if (!captureAvailable) { setCapturing(false); setFeedback("La lectura real dejó de estar disponible."); return; }
@@ -49,11 +52,12 @@ export default function LineWorkbench({ snapshot, captureAvailable, onBusyChange
     const a = document.createElement("a"); a.href = url; a.download = "ir-line-calibration.json"; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   return <section className="ir-calibration-workbench" aria-label="Calibración de línea">
-    <header className="ir-calibration-header"><div><span className="home-kicker">IR · Línea</span><h2>Medí blanco y negro</h2><p>Calibrá los tres sensores de piso a la altura real del montaje. La F4 ya normaliza su polaridad de grupo.</p></div></header>
+    <LineDeviceCalibrationPanel onBusyChange={setDeviceBusy} />
+    <header className="ir-calibration-header"><div><span className="home-kicker">IR · Línea</span><h2>Registros locales de referencia</h2><p>Estos registros sirven para comparar lecturas y se guardan únicamente en esta Web. Para configurar el seguimiento usá las dos opciones de calibración del vehículo de arriba.</p></div></header>
     <div className="calibration-stage"><div className="calibration-form-section">
-      <div className="ir-calibration-meta-grid"><label>Nombre del registro<input value={name} disabled={capturing} onChange={(e) => setName(e.target.value)} maxLength={160} /></label><MaterialPicker value={material} disabled={capturing} onChange={setMaterial} /></div>
+      <div className="ir-calibration-meta-grid"><label>Nombre del registro<input value={name} disabled={capturing || deviceBusy} onChange={(e) => setName(e.target.value)} maxLength={160} /></label><MaterialPicker value={material} disabled={capturing || deviceBusy} onChange={setMaterial} /></div>
       <p className="ui-muted">Línea usa pull-up; la lectura normalizada invierte el ADC crudo. Blanco y negro son referencias separadas, sin selector manual de polaridad ni distancia de objetos.</p>
-      <div className="calibration-actions"><button className="app-button calibration-button--primary" disabled={capturing || !captureAvailable || !material.trim() || !name.trim()} onClick={() => { samples.current = []; token.current = `${snapshot.sampleSeq}:${snapshot.tickMs}`; settle.current = 8; setCount(0); setCapturing(true); setFeedback("Capturando referencia de línea: 8 muestras de asentamiento y 32 útiles."); }}>Capturar {material || "superficie"}</button>
+      <div className="calibration-actions"><button className="app-button calibration-button--primary" disabled={capturing || deviceBusy || !captureAvailable || !material.trim() || !name.trim()} onClick={() => { samples.current = []; token.current = `${snapshot.sampleSeq}:${snapshot.tickMs}`; settle.current = 8; setCount(0); setCapturing(true); setFeedback("Capturando referencia de línea: 8 muestras de asentamiento y 32 útiles."); }}>Capturar {material || "superficie"}</button>
         {capturing && <button className="app-button" onClick={() => { setCapturing(false); setFeedback("Captura cancelada."); }}>Cancelar</button>}</div>
       <p role="status">{capturing ? `${count}/32 muestras · ${material}` : feedback}</p>
       {!captureAvailable && <p>Activá el stream IR real para capturar.</p>}

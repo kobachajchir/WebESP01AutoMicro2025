@@ -1,0 +1,20 @@
+.line-device-panel { border: 1px solid var(--ui-ring); border-radius: var(--ui-radius, 8px); background: var(--ui-panel); color: var(--ui-text); padding: 1rem; display: grid; gap: .9rem; }
+.line-device-panel h2, .line-device-panel h3, .line-device-panel p { margin: 0; }
+.line-device-panel p { color: var(--ui-subtle); line-height: 1.5; }
+.line-device-actions { display: flex; flex-wrap: wrap; gap: .75rem; }
+.line-device-actions .transport-action-button { flex: 1 1 230px; min-width: 0; }
+.line-device-status { display: flex; flex-wrap: wrap; gap: .65rem 1.25rem; font-size: .875rem; }
+.line-device-status strong { font-variant-numeric: tabular-nums; color: var(--ui-text); }
+.line-device-instructions { display: grid; gap: .75rem; padding: .85rem; border: 1px solid var(--ui-ring); border-radius: var(--ui-radius, 8px); }
+.line-device-instructions progress { width: 100%; accent-color: var(--ui-accent); }
+.line-device-panel .line-device-warning { color: var(--ui-amber); }
+.line-device-modal { width: min(760px, calc(100vw - 2rem)); max-height: 85dvh; overflow-y: auto; padding: 1.25rem; color: var(--ui-text); background: var(--ui-bg-1, var(--ui-panel)); }
+.line-device-modal > .line-device-actions, .line-device-modal > .app-button { margin-top: 1rem; }
+.line-follow-panel { margin-bottom: 1rem; }
+.line-follow-panel__header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+.line-follow-panel__header h2 { margin-top: .3rem; font-size: clamp(1.25rem, 2.5vw, 1.6rem); font-weight: 850; letter-spacing: -.025em; }
+.line-follow-panel .line-follow-panel__intro { margin-top: .45rem; max-width: 44rem; font-size: .85rem; }
+.line-follow-panel__mode { padding: .45rem .7rem; border: 1px solid var(--ui-ring); border-radius: var(--ui-radius); color: var(--ui-muted); background: var(--ui-field); font-size: .75rem; font-weight: 750; }
+.line-follow-panel__mode[data-ready="true"] { color: var(--ui-accent); border-color: var(--ui-accent-soft); background: var(--ui-accent-trace); }
+.line-follow-panel .line-follow-panel__footnote { padding-top: .75rem; border-top: 1px solid var(--ui-ring); font-size: .75rem; }
+@media (max-width: 640px) { .line-device-actions { flex-direction: column; } .line-device-actions .transport-action-button { flex: auto; width: 100%; } }

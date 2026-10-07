@@ -1,5 +1,5 @@
 import type { IrSensorKey } from "../../api/UnerFrameV2";
-import { IR_CENTRAL_EMITTER_M, IR_EMITTER_GEOMETRY, IR_EMITTER_HALF_ANGLE_DEG } from "./irEmitterGeometry";
+import { IR_CENTRAL_EMITTER_M, IR_EMITTER_GEOMETRY, IR_EMITTER_HALF_ANGLE_DEG, IR_MAX_RANGE_CM } from "./irEmitterGeometry";
 
 export const IR_OBJECT_ADC_MAX = 4095;
 export const IR_OBJECT_DETECTION_THRESHOLD = 130;
@@ -75,6 +75,15 @@ export interface IrObjectPositionEstimate extends IrObjectPoint {
   residual: number;
   uncertaintyCm: number;
 }
+
+export interface IrObjectAxialDetection {
+  detected: boolean;
+  distanceCm: number | null;
+  strength: number;
+  source: "model" | "calibration" | "ambiguous" | "outside-calibration" | "outside-range";
+}
+
+export type IrObjectAxialDetections = Record<IrObjectSensorKey, IrObjectAxialDetection>;
 
 export const IR_OBJECT_SENSOR_LAYOUT: readonly IrObjectSensorGeometry[] = [
   {
@@ -346,6 +355,62 @@ export function normalizeIrObjectReading(
   calibration?: IrObjectForwardCalibration | null,
 ) {
   return normalizeObservedReading(key, adc, calibration, 0);
+}
+
+// A per-sensor axial estimate for drawing, not a distance field from firmware.
+// Without a curve it inverts the existing centered, unit-reflectivity model.
+export function estimateIrObjectAxialDetections(
+  readings: Readonly<Record<IrObjectSensorKey, number>>,
+  sensitivityCm: number,
+  calibration?: IrObjectForwardCalibration | null,
+  available = true,
+): IrObjectAxialDetections {
+  const rangeCm = Number.isFinite(sensitivityCm) ? clamp(sensitivityCm, 0, IR_MAX_RANGE_CM) : 0;
+  return IR_OBJECT_SENSOR_KEYS.reduce((record, key) => {
+    const adc = readings[key];
+    const strength = Number.isFinite(adc) ? normalizeIrObjectReading(key, adc, calibration) : 0;
+    const detected = available && rangeCm > 0 && Number.isFinite(adc)
+      && signalAdcAboveBaseline(key, adc, calibration, 0) >= IR_OBJECT_DETECTION_THRESHOLD;
+    const result: IrObjectAxialDetection = { detected, distanceCm: null, strength, source: "model" };
+    record[key] = result;
+    if (!detected) return record;
+
+    const curve = calibration?.curves[key].filter((point) => Number.isFinite(point.distanceCm)
+      && Number.isFinite(point.adc) && point.distanceCm >= 0 && point.distanceCm <= IR_MAX_RANGE_CM)
+      .slice().sort((left, right) => left.distanceCm - right.distanceCm) ?? [];
+    if (curve.length < 2) {
+      result.distanceCm = rangeCm * (1 - Math.pow(clamp01(strength), 1 / DEFAULT_DISTANCE_EXPONENT));
+      return record;
+    }
+
+    const candidates: number[] = [];
+    for (let index = 1; index < curve.length; index++) {
+      const left = curve[index - 1];
+      const right = curve[index];
+      if (adc < Math.min(left.adc, right.adc) || adc > Math.max(left.adc, right.adc)) continue;
+      if (Math.abs(right.adc - left.adc) <= EPSILON) {
+        if (Math.abs(right.distanceCm - left.distanceCm) > EPSILON) {
+          result.source = "ambiguous";
+          return record;
+        }
+        candidates.push(left.distanceCm);
+      } else {
+        const ratio = (adc - left.adc) / (right.adc - left.adc);
+        candidates.push(left.distanceCm + (right.distanceCm - left.distanceCm) * ratio);
+      }
+    }
+    const unique = candidates.filter((distance, index) =>
+      candidates.findIndex((other) => Math.abs(other - distance) < 0.0001) === index);
+    if (unique.length !== 1) {
+      result.source = unique.length === 0 ? "outside-calibration" : "ambiguous";
+    } else if (unique[0] > rangeCm) {
+      result.source = "outside-range";
+    } else {
+      result.source = "calibration";
+      result.distanceCm = unique[0];
+    }
+    return record;
+  }, {} as IrObjectAxialDetections);
 }
 
 interface SearchOptions {

@@ -7,6 +7,7 @@ import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { PublicRoute } from "./components/PublicRoute";
 import AppLoadingScreen from "./components/AppLoadingScreen";
+import StartupWelcome from "./components/StartupWelcome";
 //import AppFooter from "./components/AppFooter";
 import RedirectRoot from "./components/RedirectRoot";
 import RootLayout from "./components/RootLayout";
@@ -134,11 +135,13 @@ const App: React.FC = () => {
   ]), []);
 
   return (
-    <div className="flex flex-col h-full w-full relative">
-      <RouterProvider router={router} />
-      <Toaster position="bottom-right" richColors theme="system" closeButton duration={3500} />
-      <div className="mt-auto">{/*<AppFooter />*/}</div>
-    </div>
+    <StartupWelcome>
+      <div className="flex flex-col h-full w-full relative">
+        <RouterProvider router={router} />
+        <Toaster position="bottom-right" richColors theme="system" closeButton duration={3500} />
+        <div className="mt-auto">{/*<AppFooter />*/}</div>
+      </div>
+    </StartupWelcome>
   );
 };
 

@@ -12,6 +12,7 @@ import Modal from "../components/modal";
 import { toast } from "sonner";
 import { EspClient, type EspApiError } from "../protocol/espClient";
 import {
+ ESP_COMMANDS,
  parseWsEnvelope,
  type CommandName,
  type EspHello,
@@ -91,6 +92,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
  const reconnectTimerRef = useRef<number | null>(null);
  const handshakeTimerRef = useRef<number | null>(null);
  const generationRef = useRef(0);
+ const resumeRef = useRef<{ url: string; token: string }>({ url, token: "" });
  const reconnectAttemptRef = useRef(0);
  const manuallyClosedRef = useRef(false);
  const connectRef = useRef<() => void>(() => undefined);
@@ -155,6 +157,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
  return;
  }
  clearTimer(handshakeTimerRef);
+ resumeRef.current = { url, token: typeof nextHello.resumeToken === "string" ? nextHello.resumeToken : "" };
  setHello(nextHello);
  reconnectAttemptRef.current = 0;
  setConnectionPhase("ready");
@@ -174,7 +177,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
  const packetBytes = decodeWsDataPacket(decoded);
  if (packetBytes) rawListeners.current.forEach((handler) => handler(packetBytes));
  }
- }, [clearTimer, dispatchJson]);
+ }, [clearTimer, dispatchJson, url]);
 
  const scheduleReconnect = useCallback(() => {
  if (manuallyClosedRef.current || mockMode) return;
@@ -208,7 +211,10 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
 
  const generation = ++generationRef.current;
  setConnectionPhase("connecting");
- const ws = new WebSocket(url);
+ const endpoint = new URL(url, window.location.href);
+ if (resumeRef.current.url === url && resumeRef.current.token)
+   endpoint.searchParams.set("resumeToken", resumeRef.current.token);
+ const ws = new WebSocket(endpoint.toString());
  ws.binaryType = "arraybuffer";
  wsRef.current = ws;
 
@@ -253,8 +259,20 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
  const client = clientRef.current;
  const jsonListenerMap = jsonListeners.current;
  const rawListenerSet = rawListeners.current;
+ const onPageHide = () => {
+ manuallyClosedRef.current = true;
+ clearTimer(reconnectTimerRef);
+ wsRef.current?.close(1000, "page closed");
+ };
+ const onPageShow = (event: PageTransitionEvent) => {
+ if (event.persisted) connectRef.current();
+ };
+ window.addEventListener("pagehide", onPageHide);
+ window.addEventListener("pageshow", onPageShow);
  connect();
  return () => {
+ window.removeEventListener("pagehide", onPageHide);
+ window.removeEventListener("pageshow", onPageShow);
  manuallyClosedRef.current = true;
  generationRef.current += 1;
  clearTimer(reconnectTimerRef);
@@ -266,6 +284,28 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ url, child
  rawListenerSet.clear();
  };
  }, [clearTimer, connect]);
+
+ useEffect(() => {
+ if (!connected || mockMode || !hello?.features?.pageReady) return;
+ const generation = generationRef.current;
+ let cancelled = false;
+ let frame = 0;
+ const announce = () => {
+ if (cancelled || generation !== generationRef.current || wsRef.current?.readyState !== WebSocket.OPEN) return;
+ void clientRef.current.request(ESP_COMMANDS.PAGE_READY, {}, { timeoutMs: 3_000 }).catch((error: unknown) => {
+ if (!cancelled && generation === generationRef.current)
+ setLastError(error instanceof Error ? error : new Error("No se pudo informar la carga de la pagina"));
+ });
+ };
+ const afterLoad = () => { frame = window.requestAnimationFrame(announce); };
+ if (document.readyState === "complete") afterLoad();
+ else window.addEventListener("load", afterLoad, { once: true });
+ return () => {
+ cancelled = true;
+ window.removeEventListener("load", afterLoad);
+ window.cancelAnimationFrame(frame);
+ };
+ }, [connected, hello, mockMode]);
 
   const prevPhaseRef = useRef<ConnectionPhase>("idle");
   useEffect(() => {

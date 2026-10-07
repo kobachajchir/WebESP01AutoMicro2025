@@ -47,3 +47,5 @@ Una consola técnica para un vehículo experimental. El lenguaje principal combi
 El usuario autorizó aplicar el borrador a todas las rutas y adoptar principios de respuesta, movimiento y disposición inspirados en Apple Design y Emil Design Engineering. La revisión del código está resumida en [adoption.md](adoption.md). Nombre, logo, terminología y gama de color están **confirmados**; las demás decisiones nuevas siguen como propuestas aplicadas hasta observar la interfaz en escritorio y móvil. No se ejecutaron tests ni validaciones por instrucción del usuario.
 
 2026-10-02: [Protocol Studio y OLED Studio: refinamiento aplicado y cobertura](studio-refinement-2026-10-02.md), D-15. Compilación completada; revisión visual pendiente.
+
+- [Seguimiento y calibración: aplicación, cobertura y límites](line-follow-2026-10-06.md).

@@ -3,7 +3,9 @@ import { useLoader, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { type GLTF } from "three/addons/loaders/GLTFLoader.js";
 import * as THREE from "three";
-import MotionControlPanel from "../features/motion/MotionControlPanel";
+import { MotionBalancePanel, MotionBalanceStatus } from "../features/motion/MotionControlPanel";
+import MotionControlActions from "../features/motion/MotionControlActions";
+import { useMotionControl, type MotionController } from "../features/motion/useMotionControl";
 import MotorBlock, { type BlockKind } from "../components/MotorBlock";
 import PageHeader from "../components/PageHeader";
 import SectionStatusStrip from "../components/SectionStatusStrip";
@@ -19,6 +21,7 @@ import ModelLoadingScreen from "../components/ModelLoadingScreen";
 import ModelLoadBoundary from "../components/ModelLoadBoundary";
 import WebGLCanvas from "../components/WebGLCanvas";
 import { LOCAL_AUTO_MICRO_MODEL_URL } from "../utils/localModel";
+import { MODEL_GROUND_Y_M } from "../features/ir/irEmitterGeometry";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { useCarMode } from "../contexts/CarModeContext";
 import {
@@ -139,6 +142,7 @@ const PHYSICAL_EXECUTION_CAPABILITY = false;
 
 export default function ControlSection() {
  const { connected } = useWebSocket();
+ const motionControl = useMotionControl();
  const { mode: carMode, isTestMode, status: carModeStatus } = useCarMode();
 
  // === BLOQUES POR TRACK ===
@@ -1088,7 +1092,6 @@ export default function ControlSection() {
  setOpenInfoModal={setOpenInfoModal}
  />
 
- <MotionControlPanel />
  <ControlHeaderStatus
  connected={connected}
  carMode={connected ? carMode : "--"}
@@ -1098,6 +1101,7 @@ export default function ControlSection() {
  />
 
  <ExecutionStatusPanel
+ motionControl={motionControl}
  compact
  connected={connected}
  carMode={connected ? carMode : "--"}
@@ -1111,6 +1115,8 @@ export default function ControlSection() {
  validationWarningCount={validationWarningCount}
  />
 
+ <MotionBalancePanel control={motionControl} />
+
  <section className="grid gap-5">
  <div className="flex min-w-0 flex-col gap-3">
  <MotionSimulationPanel
@@ -1122,6 +1128,7 @@ export default function ControlSection() {
  />
 
  <SimulationTransportControls
+ motionControl={motionControl}
  dualMode={dualMode}
  isSimulating={isSimulating}
  isPlayingLeft={isPlayingLeft}
@@ -1498,6 +1505,7 @@ export default function ControlSection() {
 
  <ExecutionStatusPanel
  connected={connected}
+ motionControl={motionControl}
  carMode={connected ? carMode : "--"}
  carModeStatus={carModeStatus}
  safetyArmed={safetyArmed}
@@ -1790,6 +1798,7 @@ export default function ControlSection() {
 
  <ExecutionStatusPanel
  connected={connected}
+ motionControl={motionControl}
  carMode={connected ? carMode : "--"}
  carModeStatus={carModeStatus}
  safetyArmed={safetyArmed}
@@ -2997,7 +3006,9 @@ function MotorTopView3D({
  enableDamping
  dampingFactor={0.08}
  enableRotate={false}
- enablePan={false}
+ enablePan
+ screenSpacePanning
+ mouseButtons={{ LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }}
  enableZoom
  minDistance={3.2}
  maxDistance={7.2}
@@ -3093,6 +3104,7 @@ function TopVehicleModel({
  object,
  center: center.toArray() as [number, number, number],
  scale: 1.9 / maxDim,
+ groundOffset: (center.y - MODEL_GROUND_Y_M) * (1.9 / maxDim) - 0.025,
  };
  }, [scene]);
 
@@ -3103,8 +3115,8 @@ function TopVehicleModel({
  const yaw = THREE.MathUtils.degToRad(-pose.yawDeg - 90);
 
  return (
- <group position={[x, 0.08, z]} rotation={[0, yaw, 0]}>
- <group scale={normalizedModel.scale}>
+ <group position={[x, 0, z]} rotation={[0, yaw, 0]}>
+ <group scale={normalizedModel.scale} position={[0, normalizedModel.groundOffset, 0]}>
  <group
  position={[
  -normalizedModel.center[0],
@@ -3178,6 +3190,7 @@ function MetricCard({
 }
 
 function ExecutionStatusPanel({
+ motionControl,
  compact = false,
  connected,
  carMode,
@@ -3190,6 +3203,7 @@ function ExecutionStatusPanel({
  validationErrorCount,
  validationWarningCount,
 }: {
+ motionControl: MotionController;
  compact?: boolean;
  connected: boolean;
  carMode: string;
@@ -3212,16 +3226,19 @@ function ExecutionStatusPanel({
 
  return (
  <aside className={`${sectionCardClass("indigo")} px-4 py-4 md:px-5`}>
- <div className="mb-3 flex items-start justify-between gap-3">
+ <div className="motion-diagnostic-heading mb-3 flex items-start justify-between gap-3">
  <div>
  <div className="app-kicker mb-2">Diagnóstico</div>
  <h3 className="text-xl font-black text-[var(--ui-text)]">Estado de ejecución</h3>
  </div>
+ <div className="motion-diagnostic-status">
+ <MotionBalanceStatus control={motionControl} />
  <StatusPill
  label="Física"
  value={safetyArmed ? "Habilitable" : "Bloqueada"}
  tone={safetyArmed ? "emerald" : "rose"}
  />
+ </div>
  </div>
 
  <div className={compact ? "grid gap-2 text-sm md:grid-cols-2 xl:grid-cols-4" : "grid gap-2 text-sm"}>
@@ -3275,6 +3292,7 @@ function DiagnosticRow({
 }
 
 function SimulationTransportControls({
+ motionControl,
  dualMode,
  isSimulating,
  isPlayingLeft,
@@ -3292,6 +3310,7 @@ function SimulationTransportControls({
  onReset,
  onExecutePhysical,
 }: {
+ motionControl: MotionController;
  dualMode: boolean;
  isSimulating: boolean;
  isPlayingLeft: boolean;
@@ -3312,15 +3331,8 @@ function SimulationTransportControls({
  const bothActive = dualMode ? isPlayingDual : isPlayingLeft && isPlayingRight;
 
  return (
- <section className={`${sectionCardClass("cyan")} grid gap-2 p-3 md:grid-cols-6`}>
- <TransportButton
- label="Stop"
- detail="Pausa timers"
- icon="■"
- tone="rose"
- disabled={!isSimulating}
- onClick={onStop}
- />
+ <section className={`${sectionCardClass("cyan")} motion-transport-controls grid gap-2 p-3`} aria-label="Acciones de motores y simulación">
+ <MotionControlActions control={motionControl} isSimulating={isSimulating} onStopSimulation={onStop} />
  <TransportButton
  label="Play L"
  detail={dualMode ? "Modo simple" : "Motor izquierdo"}

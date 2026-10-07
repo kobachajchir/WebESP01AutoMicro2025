@@ -1,0 +1,157 @@
+.startup-welcome-content {
+  display: contents;
+}
+
+/* El bloqueo CSS no modifica los bloqueos propios de los modales. */
+body:has(.startup-welcome) {
+  overflow: hidden;
+}
+
+.startup-welcome {
+  --welcome-ink: color-mix(in srgb, var(--ui-accent) 16%, var(--ui-bg-0));
+  --welcome-tint: color-mix(in srgb, var(--welcome-ink) 86%, transparent);
+  --welcome-halo: color-mix(in srgb, var(--ui-accent) 28%, transparent);
+  --welcome-sheen: color-mix(in srgb, var(--ui-text) 8%, transparent);
+  --welcome-logo-enter: var(--motion-slow);
+  --welcome-hold: calc(var(--motion-slow) * 2);
+  --welcome-logo-exit: var(--motion-standard);
+  --welcome-veil-exit: var(--motion-slow);
+  --welcome-logo-exit-delay: calc(var(--welcome-logo-enter) + var(--welcome-hold));
+  --welcome-veil-exit-delay: calc(var(--welcome-logo-exit-delay) + var(--welcome-logo-exit) / 2);
+
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
+  padding: max(1.5rem, env(safe-area-inset-top)) max(1.5rem, env(safe-area-inset-right)) max(1.5rem, env(safe-area-inset-bottom)) max(1.5rem, env(safe-area-inset-left));
+  color: var(--ui-text);
+  background: var(--welcome-ink);
+  font-family: var(--ui-font-family);
+  isolation: isolate;
+  overscroll-behavior: none;
+  touch-action: none;
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  backdrop-filter: blur(24px) saturate(1.2);
+  will-change: opacity;
+}
+
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .startup-welcome {
+    background: var(--welcome-tint);
+  }
+}
+
+.startup-welcome::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse at 50% 42%, var(--welcome-halo), transparent 64%),
+    radial-gradient(ellipse at 75% 65%, var(--ui-base-wash), transparent 60%),
+    linear-gradient(135deg, var(--welcome-sheen), transparent 45%);
+  content: "";
+  pointer-events: none;
+}
+
+.startup-welcome__logo {
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+  width: min(76vw, 28rem);
+  max-width: 100%;
+  opacity: 0;
+  transform: scale(0.97);
+  will-change: opacity, transform;
+}
+
+.startup-welcome__logo img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: min(42vh, 20rem);
+  max-height: min(42dvh, 20rem);
+  object-fit: contain;
+}
+
+.startup-welcome__brand {
+  font-size: clamp(2.25rem, 6vw, 3.75rem);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+/* Como Radal: entrada de 300ms, pausa de 600ms y salida completa a los 1300ms. */
+.startup-welcome[data-ready="true"] {
+  animation: startup-welcome-veil-out var(--welcome-veil-exit) var(--ease-out) var(--welcome-veil-exit-delay) forwards;
+}
+
+.startup-welcome[data-ready="true"] .startup-welcome__logo {
+  animation:
+    startup-welcome-logo-in var(--welcome-logo-enter) var(--ease-out) both,
+    startup-welcome-logo-out var(--welcome-logo-exit) var(--ease-out) var(--welcome-logo-exit-delay) forwards;
+}
+
+@keyframes startup-welcome-logo-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes startup-welcome-logo-out {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.97); }
+}
+
+@keyframes startup-welcome-veil-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes startup-welcome-logo-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes startup-welcome-logo-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .startup-welcome {
+    --welcome-logo-enter: var(--motion-fast);
+    --welcome-hold: var(--motion-standard);
+    --welcome-logo-exit: var(--motion-fast);
+    --welcome-veil-exit: var(--motion-fast);
+  }
+
+  /* Fundidos breves de 150ms, sin escala; excepción al reset global. */
+  .startup-welcome[data-ready="true"] {
+    animation-duration: var(--welcome-veil-exit) !important;
+  }
+
+  .startup-welcome__logo {
+    transform: none;
+    will-change: opacity;
+  }
+
+  .startup-welcome[data-ready="true"] .startup-welcome__logo {
+    animation-name: startup-welcome-logo-fade-in, startup-welcome-logo-fade-out;
+    animation-duration: var(--welcome-logo-enter), var(--welcome-logo-exit) !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .startup-welcome {
+    background: var(--welcome-ink);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .startup-welcome::before {
+    display: none;
+  }
+}

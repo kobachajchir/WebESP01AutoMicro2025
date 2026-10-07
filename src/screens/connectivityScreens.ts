@@ -5,6 +5,7 @@ import {
   drawXbm,
   drawXbmMsb,
   setWhite,
+  setInverse,
   textAt,
   textMaxAt,
   withNotificationProgress,
@@ -412,56 +413,43 @@ export function buildScreen020501WebServerUpNotificationCommands(progress?: Noti
   ], progress);
 }
 
-export const screen020502WebClientConnectedCode = SCREEN_CODE_CONNECTIVITY_WEB_CLIENT_CONNECTED;
+function numberedClientNotification(label: string, connected: boolean, web: boolean,
+  progress?: NotificationProgressArgs, clientNumber = 0): OledCommand[] {
+  const title = Number.isInteger(clientNumber) && clientNumber > 0 ? `${label} ${clientNumber}` : label;
+  const state = web ? (connected ? "conectada" : "desconectada") : (connected ? "conectado" : "desconectado");
+  const center = (text: string) => Math.max(0, Math.floor((128 - text.length * 7) / 2));
+  const commands: OledCommand[] = [clear(), setWhite()];
+  if (!connected && !web) commands.push(setInverse());
+  commands.push(...drawXbm(56, 3, 16, 16, "Icon_Link_bits"), setWhite());
+  if (!connected) commands.push(
+    { type: "drawLine", x0: 56, y0: 3, x1: 72, y1: 19 },
+    { type: "drawLine", x0: 57, y0: 3, x1: 73, y1: 19 },
+  );
+  commands.push(
+    ...textAt(center(title), baselineY(34, "Font7x10"), title, "Font7x10"),
+    ...textAt(center(state), baselineY(52, "Font7x10"), state, "Font7x10"),
+  );
+  return simpleNotification(commands, progress);
+}
 
-export function buildScreen020502WebClientConnectedNotificationCommands(progress?: NotificationProgressArgs): OledCommand[] {
-  return simpleNotification([
-    clear(),
-    setWhite(),
-    ...drawXbm(2, 12, 16, 16, "Icon_Link_bits"),
-    ...textAt(37, baselineY(30, "Font11x18"), "Web", "Font11x18"),
-    ...textAt(20, baselineY(50, "Font11x18"), "conectada", "Font11x18"),
-  ], progress);
+export const screen020502WebClientConnectedCode = SCREEN_CODE_CONNECTIVITY_WEB_CLIENT_CONNECTED;
+export function buildScreen020502WebClientConnectedNotificationCommands(progress?: NotificationProgressArgs, clientNumber = 0): OledCommand[] {
+  return numberedClientNotification("Web", true, true, progress, clientNumber);
 }
 
 export const screen020503WebClientDisconnectedCode = SCREEN_CODE_CONNECTIVITY_WEB_CLIENT_DISCONNECTED;
-
-export function buildScreen020503WebClientDisconnectedNotificationCommands(progress?: NotificationProgressArgs): OledCommand[] {
-  return simpleNotification([
-    clear(),
-    setWhite(),
-    ...drawXbm(2, 12, 16, 16, "Icon_Link_bits"),
-    { type: "drawLine", x0: 2, y0: 12, x1: 18, y1: 28 },
-    { type: "drawLine", x0: 3, y0: 12, x1: 19, y1: 28 },
-    ...textAt(37, baselineY(30, "Font11x18"), "Web", "Font11x18"),
-    ...textAt(20, baselineY(50, "Font11x18"), "desconect", "Font11x18"),
-  ], progress);
+export function buildScreen020503WebClientDisconnectedNotificationCommands(progress?: NotificationProgressArgs, clientNumber = 0): OledCommand[] {
+  return numberedClientNotification("Web", false, true, progress, clientNumber);
 }
 
 export const screen020601ApDeviceConnectedCode = SCREEN_CODE_CONNECTIVITY_AP_DEVICE_CONNECTED;
-
-export function buildScreen020601ApDeviceConnectedNotificationCommands(progress?: NotificationProgressArgs): OledCommand[] {
-  return simpleNotification([
-    clear(),
-    setWhite(),
-    ...drawXbm(56, 3, 16, 16, "Icon_Link_bits"),
-    ...textAt(25, baselineY(34, "Font7x10"), "Dispositivo", "Font7x10"),
-    ...textAt(36, baselineY(52, "Font7x10"), "conectado", "Font7x10"),
-  ], progress);
+export function buildScreen020601ApDeviceConnectedNotificationCommands(progress?: NotificationProgressArgs, clientNumber = 0): OledCommand[] {
+  return numberedClientNotification("Cliente", true, false, progress, clientNumber);
 }
 
 export const screen020602ApDeviceDisconnectedCode = SCREEN_CODE_CONNECTIVITY_AP_DEVICE_DISCONNECTED;
-
-export function buildScreen020602ApDeviceDisconnectedNotificationCommands(progress?: NotificationProgressArgs): OledCommand[] {
-  return simpleNotification([
-    clear(),
-    setWhite(),
-    ...drawXbm(56, 3, 16, 16, "Icon_Link_bits"),
-    { type: "drawLine", x0: 56, y0: 3, x1: 72, y1: 19 },
-    { type: "drawLine", x0: 57, y0: 3, x1: 73, y1: 19 },
-    ...textAt(25, baselineY(34, "Font7x10"), "Dispositivo", "Font7x10"),
-    ...textAt(32, baselineY(52, "Font7x10"), "desconect", "Font7x10"),
-  ], progress);
+export function buildScreen020602ApDeviceDisconnectedNotificationCommands(progress?: NotificationProgressArgs, clientNumber = 0): OledCommand[] {
+  return numberedClientNotification("Cliente", false, false, progress, clientNumber);
 }
 
 export const wifiSearchScreenExample = buildScreen020202WifiSearchCommands({ secondsRemaining: 10 });

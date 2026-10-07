@@ -9,6 +9,7 @@ import {
 import Modal from "../components/modal";
 import PageHeader from "../components/PageHeader";
 import ApFallbackControls from "../components/ApFallbackControls";
+import { useApFallback, type ApFallbackController } from "../hooks/useApFallback";
 import SystemResetActions from "../components/SystemResetActions";
 import ThemeModeToggleCard from "../components/ThemeModeToggleCard";
 import { toast } from "sonner";
@@ -88,7 +89,10 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  const {
  status: espWifiStatus,
  lastCheckedAt: wifiStatusCheckedAt,
+ refresh: refreshWifiStatus,
+ loading: wifiStatusLoading,
  } = useEspWifiStatus();
+ const apFallback = useApFallback();
  const [activeView, setActiveView] = useState<WifiSectionView>(() =>
  !provisioning && isEspApOnly(espWifiStatus) ? "AP" : "WIFI",
  );
@@ -621,7 +625,8 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  "stm.apConfig.get",
  { target: "stm" },
  { requestId: createRequestId("wifi-ap-get"), timeoutMs: 5_000 },
- )
+ ),
+ apFallback.refresh(),
  ])
  .then(([statusResult, apConfigResult]) => {
  if (disposed) return;
@@ -702,7 +707,7 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  return () => {
  disposed = true;
  };
- }, [connected, request]);
+ }, [connected, request, apFallback.refresh]);
 
  useEffect(() => {
  const offDeviceEvent = subscribe("device.event", (message: unknown) => {
@@ -939,6 +944,30 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  const stationBusy =
  scanLoading || detailLoading || stationPhase === "submitting" || stationPhase === "connecting";
 
+ const stationHasUnsavedChanges =
+ stationSsid !== persistedWifiConfig.stationSsid ||
+ stationIp !== persistedWifiConfig.stationIp ||
+ stationGateway !== persistedWifiConfig.stationGateway ||
+ stationSubnet !== persistedWifiConfig.stationSubnet || stationPassword.length > 0;
+ const canRetryStation = !provisioning && persistedWifiConfig.loaded &&
+ persistedWifiConfig.stationSsid.trim().length > 0 && espWifiStatus?.staConnected === false && !stationHasUnsavedChanges;
+
+ async function retryStation() {
+ if (!connected || stationBusy || !canRetryStation) return;
+ setStationPhase("connecting");
+ setStationFeedback({ tone: "info", text: "Reintentando la estación con las credenciales guardadas en el ESP…" });
+ try {
+ const data = await request<{ status: number }>("esp.wifi.connect", {}, { timeoutMs: 25000 });
+ if (data.status !== 0) throw new Error("No se confirmó el reintento de estación.");
+ setStationFeedback({ tone: "info", text: "Reintento solicitado. Consultá el estado de conexión para conocer el resultado." });
+ await refreshWifiStatus();
+ } catch (cause) {
+ setStationFeedback({ tone: "error", text: cause instanceof Error ? cause.message : "No se pudo reintentar la estación." });
+ } finally {
+ setStationPhase("idle");
+ }
+ }
+
  const currentOperatingMode = resolveEspOperatingMode(espWifiStatus);
  const oppositeModeDestination = useMemo(
  () =>
@@ -1062,7 +1091,6 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  showHome={!provisioning}
  />
 
- <ApFallbackControls />
     <WifiHeaderStatus
  connected={connected}
  activeView={activeView}
@@ -1100,6 +1128,9 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  ) : null}
 
  <WifiModeSwitchCard
+ apFallback={apFallback}
+ queryBusy={configurationLoading || wifiStatusLoading || apFallback.pending}
+ onConsult={() => { void Promise.allSettled([refreshWifiStatus(), apFallback.refresh()]); }}
  currentMode={currentOperatingMode}
  destination={oppositeModeDestination}
  connected={connected}
@@ -1158,7 +1189,10 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
 
  {provisioning || activeView === "WIFI" ? (
  <div className="grid gap-8 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
- <form className="wifi-form-card flex flex-col gap-5" onSubmit={submitStationCredentials}>
+ <form className="wifi-form-card flex flex-col gap-5" onSubmit={(event) => {
+ if (canRetryStation) { event.preventDefault(); void retryStation(); }
+ else submitStationCredentials(event);
+ }}>
  <div className="wifi-card-heading">
  <WifiIcon />
  <div>
@@ -1274,10 +1308,10 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  {stationPhase === "submitting"
  ? "Enviando..."
  : stationPhase === "connecting"
- ? "Conectando..."
+ ? canRetryStation ? "Reintentando estación..." : "Conectando..."
  : provisioning
  ? "Conectar y salir del modo AP"
- : "Conectar ESP a esta red"}
+ : canRetryStation ? "Reintentar estación" : "Conectar ESP a esta red"}
  </button>
 
  <button
@@ -1726,6 +1760,9 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
 }
 
 function WifiModeSwitchCard({
+ apFallback,
+ queryBusy,
+ onConsult,
  currentMode,
  destination,
  connected,
@@ -1734,6 +1771,9 @@ function WifiModeSwitchCard({
  hasUnsavedChanges,
  onOpen,
 }: {
+ apFallback: ApFallbackController;
+ queryBusy: boolean;
+ onConsult: () => void;
  currentMode: "AP" | "RED";
  destination: WifiModeDestination;
  connected: boolean;
@@ -1743,16 +1783,17 @@ function WifiModeSwitchCard({
  onOpen: () => void;
 }) {
  return (
- <section className="mb-5 mt-4 rounded-xl border border-cyan-300/20 bg-[var(--ui-bg-0)]/45 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
+ <section className="wifi-mode-switch-card">
+ <header className="wifi-mode-switch-card__header">
+ <p>Modo físico actual: <strong>{currentMode}</strong></p>
+ <ApFallbackControls control={apFallback} disabled={busy || queryBusy} />
+ </header>
  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
  <div className="flex min-w-0 items-start gap-3">
  <span className="home-brand-glyph wifi-brand-glyph shrink-0" aria-hidden="true">
  {destination.mode === "AP" ? <ApIcon /> : <WifiIcon />}
  </span>
  <div>
- <p className="text-xs font-bold uppercase tracking-[0.16em] text-cyan-200">
- Modo físico actual: {currentMode}
- </p>
  <h2 className="mt-1 text-lg font-black text-[var(--ui-text)]">
  Cambiar ESP a modo {destination.mode}
  </h2>
@@ -1768,19 +1809,28 @@ function WifiModeSwitchCard({
  </div>
  </div>
 
+ <div className="wifi-mode-switch-card__actions">
+ <button type="button" className="app-button--ghost wifi-policy-query-button"
+ onClick={onConsult} disabled={!connected || busy || queryBusy}>
+ <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+ <path d="M20 10a8 8 0 0 0-14-4L3 9m0-5v5h5M4 14a8 8 0 0 0 14 4l3-3m0 5v-5h-5" />
+ </svg>
+ {queryBusy ? "Leyendo configuración..." : configurationLoaded ? "Consultar política" : "Leer configuración"}
+ </button>
  <button
  type="button"
  className="app-button shrink-0 px-5 py-2.5 text-sm font-semibold"
  onClick={onOpen}
  disabled={!connected || !configurationLoaded || busy}
  >
- {!configurationLoaded
- ? "Leyendo configuración..."
- : busy
+ {busy && configurationLoaded
  ? "Operación en curso..."
  : `Cambiar de ${currentMode} a ${destination.mode}`}
  </button>
  </div>
+ </div>
+ <p className="wifi-mode-switch-card__policy" role="status">{apFallback.statusText}</p>
+ {apFallback.message ? <p className="wifi-mode-switch-card__error" role="alert">{apFallback.message}</p> : null}
  </section>
  );
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 import PageHeader from "../components/PageHeader";
 import Modal from "../components/modal";
 import MpuIrScene3D from "../components/MpuIrScene3D";
@@ -8,6 +8,13 @@ import RealtimeEulerPanel from "../components/RealtimeEulerPanel";
 import MockEulerGenerator from "../components/MockEulerGenerator";
 import OrientationControls from "../components/OrientationControls";
 import IrEmittersControls from "../components/IrEmittersControls";
+import SensorDisclosure from "../components/SensorDisclosure";
+import SimulatedBadge from "../components/SimulatedBadge";
+import SensorBeamControls from "../components/SensorBeamControls";
+import SensorCameraViewIcon from "../components/SensorCameraViewIcon";
+import { DEFAULT_BEAM_OPACITIES, type BeamOpacities } from "../features/ir/beamVisualSettings";
+import { useIrEmitters } from "../contexts/IrEmittersContext";
+import { SENSOR_CAMERA_VIEW_GROUPS } from "../features/ir/sensorCameraViews";
 import SectionStatusStrip from "../components/SectionStatusStrip";
 import ThemeModeToggleCard from "../components/ThemeModeToggleCard";
 import CalibrationWorkspace from "../features/calibration/CalibrationWorkspace";
@@ -18,6 +25,7 @@ import type {
   SensorCameraPreset,
 } from "../components/MpuIrScene3D";
 import { useWebSocket } from "../hooks/useWebSocket";
+import { useUser } from "../contexts/UserContext";
 import {
   F4_MPU_FLAGS,
   F4_STREAM_LIMITS,
@@ -38,21 +46,23 @@ import {
   IR_OBJECT_DETECTION_THRESHOLD,
   IR_OBJECT_SENSOR_KEYS,
   estimateIrObjectPosition,
+  estimateIrObjectAxialDetections,
   normalizeIrObjectReading,
   simulateIrObjectReadings,
 } from "../features/ir/irObjectModel";
 import {
   buildIrForwardCalibration,
-  createEmptyIrCalibrationProfile,
-  parseIrCalibrationProfile,
   serializeIrCalibrationProfile,
 } from "../features/ir/irCalibration";
 import type { IrCalibrationProfile } from "../features/ir/irCalibration";
+import { IR_CALIBRATION_STORAGE_KEY, loadStoredIrCalibrationProfile } from "../features/ir/irCalibrationStorage";
 import { relativeRigEulerDeg } from "../features/ir/irSensorFrame";
 import type {
   IrObjectPoint,
   IrObjectPositionEstimate,
   IrObjectSensorKey,
+  IrObjectAxialDetection,
+  IrObjectAxialDetections,
 } from "../features/ir/irObjectModel";
 
 interface StreamStatus {
@@ -70,8 +80,6 @@ interface StreamStatus {
   updatedAt: number | null;
 }
 
-type SensorControlMode = "real" | "simulated";
-
 const MIN_MPU_STREAM_PERIOD_MS = F4_STREAM_LIMITS.MIN_PERIOD_MS;
 const DEFAULT_MPU_PERIOD_MS = 20;
 const DEFAULT_IR_PERIOD_MS = 50;
@@ -80,7 +88,6 @@ const IR_NORM_MAX = 4095;
 const SENSOR_SENSITIVITY_MIN_CM = 0;
 const SENSOR_SENSITIVITY_MAX_CM = IR_MAX_RANGE_CM;
 const DEFAULT_SENSOR_SENSITIVITY_CM = IR_MAX_RANGE_CM;
-const IR_CALIBRATION_STORAGE_KEY = "uner.ir-object-calibration.v1";
 
 const OBJECT_CHANNELS: Array<{
   key: IrSensorKey;
@@ -108,9 +115,12 @@ const FLOOR_CHANNELS: Array<{
 export default function EstadoSection() {
   const {
     connected,
+    mockMode,
     subscribeEvent,
     setSensorRefreshInterval,
   } = useWebSocket();
+  const { stmAuth } = useUser();
+  const realBoardConnected = connected && !mockMode && stmAuth.authenticated;
 
   const modelUrl = LOCAL_AUTO_MICRO_MODEL_URL;
   const sceneRef = useRef<MpuIrScene3DHandle>(null);
@@ -119,7 +129,6 @@ export default function EstadoSection() {
   const [openInfoModal, setOpenInfoModal] = useState(false);
   const [openSettingsModal, setOpenSettingsModal] = useState(false);
   const [openIrCalibrationModal, setOpenIrCalibrationModal] = useState(false);
-  const [controlMode, setControlMode] = useState<SensorControlMode>("real");
   const [irCalibrationProfile, setIrCalibrationProfile] =
     useState<IrCalibrationProfile>(loadStoredIrCalibrationProfile);
   const [mpuPeriodMs, setMpuPeriodMs] = useState(DEFAULT_MPU_PERIOD_MS);
@@ -140,16 +149,22 @@ export default function EstadoSection() {
     roll: 0,
   });
   const [renderLink, setRenderLink] = useState(true);
-  const [freezePose, setFreezePose] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
-  const [showBubble, setShowBubble] = useState(true);
+  const [showObjectAxes, setShowObjectAxes] = useState(true);
+  const [showLineAxes, setShowLineAxes] = useState(true);
+  const [beamOpacities, setBeamOpacities] = useState<BeamOpacities>(DEFAULT_BEAM_OPACITIES);
+  const [cameraPreset, setCameraPreset] = useState<SensorCameraPreset | null>("iso");
   const [showOrigin, setShowOrigin] = useState(true);
   const [sensorSensitivityCm, setSensorSensitivityCm] = useState(
     DEFAULT_SENSOR_SENSITIVITY_CM,
   );
   const [irEmu, setIrEmu] = useState(false);
+  const [irAutoMotion, setIrAutoMotion] = useState(false);
+  const [irEmuPeriodMs, setIrEmuPeriodMs] = useState(100);
   const [mpuEmu, setMpuEmu] = useState(false);
   const [mpuAutoMotion, setMpuAutoMotion] = useState(false);
+  const [mpuAutoAxes, setMpuAutoAxes] = useState<Record<keyof EulerDeg, boolean>>({ yaw: true, pitch: true, roll: true });
+  const mpuAutoAxesRef = useRef(mpuAutoAxes);
   const [mpuEmuPeriodMs, setMpuEmuPeriodMs] = useState(100);
   const [mpuEmuEuler, setMpuEmuEuler] = useState<EulerDeg>({
     yaw: 0,
@@ -169,7 +184,9 @@ export default function EstadoSection() {
     createIdleIrSnapshot(DEFAULT_IR_PERIOD_MS),
   );
   const [mpuRequested, setMpuRequested] = useState(false);
+  const [hasRealMpuSample, setHasRealMpuSample] = useState(false);
   const [irRequested, setIrRequested] = useState(false);
+  const [hasIrSceneSample, setHasIrSceneSample] = useState(false);
   const mpuRequestedRef = useRef(false);
   const irRequestedRef = useRef(false);
   const mpuSampleConfirmedRef = useRef(false);
@@ -186,14 +203,29 @@ export default function EstadoSection() {
   );
 
   const activeMpuEuler = mpuEmu ? mpuEmuEuler : mpuEulerRaw;
+  const simulationActive = mpuEmu || irEmu;
+  const simulationDescription = mpuEmu && irEmu
+    ? "Movimiento y objetos"
+    : mpuEmu ? "Movimiento del vehículo" : "Objetos y detecciones IR";
+  const handleAutoEulerUpdate = useCallback((value: EulerDeg) => {
+    setMpuEmuEuler((current) => {
+      const axes = mpuAutoAxesRef.current;
+      if (!axes.yaw && !axes.pitch && !axes.roll) return current;
+      return {
+        yaw: axes.yaw ? value.yaw : current.yaw,
+        pitch: axes.pitch ? value.pitch : current.pitch,
+        roll: axes.roll ? value.roll : current.roll,
+      };
+    });
+  }, []);
 
   const effectiveRenderEuler = useMemo(() => {
-    if (!renderLink || freezePose) {
+    if (!renderLink && !mpuEmu) {
       return renderEuler;
     }
 
     return relativeRigEulerDeg(activeMpuEuler, zeroOffset);
-  }, [activeMpuEuler, freezePose, renderEuler, renderLink, zeroOffset]);
+  }, [activeMpuEuler, renderEuler, renderLink, zeroOffset, mpuEmu]);
   const mpuMagValid = mpuEmu
     ? true
     : mpuStatus.lastFlags === null
@@ -213,6 +245,10 @@ export default function EstadoSection() {
       ),
     [irForwardCalibration, irSnapshot.norm, sensorSensitivityCm],
   );
+  const objectDetections = useMemo(() => estimateIrObjectAxialDetections(
+    pickObjectSensorReadings(irSnapshot.norm), sensorSensitivityCm, irForwardCalibration,
+    hasIrSceneSample && (irEmu || (realBoardConnected && irRequested && irStatus.active)),
+  ), [irSnapshot.norm, sensorSensitivityCm, irForwardCalibration, hasIrSceneSample, irEmu, realBoardConnected, irRequested, irStatus.active]);
   const irSceneNorm = useMemo(() => {
     if (!irForwardCalibration) {
       return irSnapshot.norm;
@@ -245,14 +281,22 @@ export default function EstadoSection() {
             : "Sin conexión";
 
   useEffect(() => {
-    if (renderLink && !freezePose) {
+    if (renderLink) {
       setRenderEuler(relativeRigEulerDeg(activeMpuEuler, zeroOffset));
     }
-  }, [activeMpuEuler, freezePose, renderLink, zeroOffset]);
+  }, [activeMpuEuler, renderLink, zeroOffset]);
 
   useEffect(() => {
     setSensorRefreshInterval(normalizeMpuPeriodMs(mpuPeriodMs));
   }, [mpuPeriodMs, setSensorRefreshInterval]);
+
+  useEffect(() => {
+    if (!realBoardConnected) setHasRealMpuSample(false);
+  }, [realBoardConnected]);
+
+  useEffect(() => {
+    setHasIrSceneSample(false);
+  }, [realBoardConnected, irEmu]);
 
   useEffect(() => {
     const offMpu = subscribeEvent("mpuSample", ({ data }) => {
@@ -264,6 +308,7 @@ export default function EstadoSection() {
           return;
         }
         mpuSampleConfirmedRef.current = true;
+        if (realBoardConnected) setHasRealMpuSample(true);
         setMpuEulerRaw({ yaw: telemetry.eulerDeg.yaw, pitch: telemetry.eulerDeg.pitch, roll: telemetry.eulerDeg.roll });
         setLastMpuSampleDtUs(telemetry.sampleDtUs);
         setMpuStatus((current) => ({
@@ -280,6 +325,7 @@ export default function EstadoSection() {
       if (!irRequestedRef.current) return;
       try {
         const snapshot = parseIrData(data);
+        setHasIrSceneSample(snapshot.status === 0);
         irSampleConfirmedRef.current = true;
         setIrSnapshot(snapshot);
         setIrStatus((current) => ({
@@ -294,9 +340,10 @@ export default function EstadoSection() {
       }
     });
     return () => { offMpu(); offIr(); };
-  }, [subscribeEvent]);
+  }, [subscribeEvent, realBoardConnected]);
 
   useEffect(() => {
+    if (mpuEmu) return;
     const confirmedBySample = mpuSampleConfirmedRef.current;
     setMpuStatus((current) => ({
       ...current,
@@ -311,9 +358,10 @@ export default function EstadoSection() {
           ? "Suscripcion MPU confirmada por F4."
           : current.statusText,
     }));
-  }, [mpuSubscription.active, mpuSubscription.error, mpuSubscription.periodMs, mpuSubscription.state]);
+  }, [mpuEmu, mpuSubscription.active, mpuSubscription.error, mpuSubscription.periodMs, mpuSubscription.state]);
 
   useEffect(() => {
+    if (irEmu) return;
     const confirmedBySample = irSampleConfirmedRef.current;
     setIrStatus((current) => ({
       ...current,
@@ -328,24 +376,24 @@ export default function EstadoSection() {
           ? "Suscripcion IR confirmada por F4."
           : current.statusText,
     }));
-  }, [irSubscription.active, irSubscription.error, irSubscription.periodMs, irSubscription.state]);
+  }, [irEmu, irSubscription.active, irSubscription.error, irSubscription.periodMs, irSubscription.state]);
 
   useEffect(() => {
     if (!connected) {
-      setMpuStatus((current) => ({
+      if (!mpuEmu) setMpuStatus((current) => ({
         ...current,
         active: false,
         pending: false,
         statusText: "WebSocket desconectado. MPU detenido en UI.",
       }));
-      setIrStatus((current) => ({
+      if (!irEmu) setIrStatus((current) => ({
         ...current,
         active: false,
         pending: false,
         statusText: "WebSocket desconectado. IR detenido en UI.",
       }));
     }
-  }, [connected]);
+  }, [connected, mpuEmu, irEmu]);
 
   const sendMpuStream = useCallback(
     (enable: boolean, reason: string) => {
@@ -411,20 +459,12 @@ export default function EstadoSection() {
     });
   }
 
-  function handleFreezePoseToggle() {
-    setFreezePose((current) => {
-      const next = !current;
-      if (next) {
-        setRenderEuler(effectiveRenderEuler);
-      }
-      return next;
-    });
-  }
-
-  function handleIrEmuToggle() {
-    const next = !irEmu;
+  function setIrSimulationEnabled(next: boolean) {
     setIrEmu(next);
+    setIrAutoMotion(next);
+    setHasIrSceneSample(false);
     sceneRef.current?.clearIrTarget();
+    setIrSnapshot(createIdleIrSnapshot(next ? irEmuPeriodMs : irPeriodMs));
 
     if (next) {
       irRequestedRef.current = false;
@@ -436,16 +476,41 @@ export default function EstadoSection() {
         active: false,
         pending: false,
         statusText:
-          "IR emulado listo. Ubicá un objeto: quedará fijo al mover el auto.",
+          "Simulación de objetos encendida. Barrido automático activo.",
       }));
     } else {
-      setIrSnapshot(createIdleIrSnapshot(irPeriodMs));
       setIrStatus((current) => ({
         ...current,
         active: false,
+        pending: false,
         statusText: "IR real listo para iniciar stream.",
       }));
     }
+  }
+
+  function setMpuSimulationEnabled(next: boolean) {
+    setMpuEmu(next);
+    setMpuAutoMotion(next);
+    setZeroOffset({ yaw: 0, pitch: 0, roll: 0 });
+    if (next) {
+      mpuRequestedRef.current = false;
+      mpuSampleConfirmedRef.current = false;
+      setMpuRequested(false);
+      setHasRealMpuSample(false);
+      setRenderLink(true);
+      setMpuEmuEuler(effectiveRenderEuler);
+    }
+    setMpuStatus((current) => ({
+      ...current, active: false, pending: false,
+      lastFlags: null,
+      statusText: next ? "Simulación de movimiento encendida." : "MPU real listo para iniciar stream.",
+    }));
+  }
+
+  function handleSimulationToggle() {
+    const next = !simulationActive;
+    setMpuSimulationEnabled(next);
+    setIrSimulationEnabled(next);
   }
 
   function handleZeroMpu() {
@@ -454,7 +519,9 @@ export default function EstadoSection() {
   }
 
   function handleClearIr() {
-    setIrSnapshot(createIdleIrSnapshot(irPeriodMs));
+    if (irEmu) setIrAutoMotion(false);
+    setHasIrSceneSample(false);
+    setIrSnapshot(createIdleIrSnapshot(irEmu ? irEmuPeriodMs : irPeriodMs));
     sceneRef.current?.clearIrTarget();
     setIrStatus((current) => ({
       ...current,
@@ -465,8 +532,11 @@ export default function EstadoSection() {
   }
 
   function handleCameraPreset(preset: SensorCameraPreset) {
+    setCameraPreset(preset);
     sceneRef.current?.setCameraPreset(preset);
   }
+
+  const handleManualCameraChange = useCallback(() => setCameraPreset(null), []);
 
   const updateIrEmulation = useCallback(
     (point: IrObjectPoint) => {
@@ -479,10 +549,11 @@ export default function EstadoSection() {
       setIrSnapshot(
         createEmulatedIrSnapshot(
           simulated.readings,
-          irPeriodMs,
+          irEmuPeriodMs,
           irEmuSequenceRef.current,
         ),
       );
+      setHasIrSceneSample(true);
       setIrStatus((current) => ({
         ...current,
         active: true,
@@ -491,7 +562,7 @@ export default function EstadoSection() {
         lastStatus: 0,
         lastFlags: 0x03,
         ackActive: true,
-        ackPeriodMs: irPeriodMs,
+        ackPeriodMs: irEmuPeriodMs,
         updatedAt: Date.now(),
         statusText:
           simulated.supportCount >= 2
@@ -501,7 +572,7 @@ export default function EstadoSection() {
               : "IR emulado: objeto fuera de cobertura.",
       }));
     },
-    [irForwardCalibration, irPeriodMs, sensorSensitivityCm],
+    [irForwardCalibration, irEmuPeriodMs, sensorSensitivityCm],
   );
 
   const handleIrCalibrationProfileChange = useCallback(
@@ -543,90 +614,89 @@ export default function EstadoSection() {
           mpuStatus={mpuStatus}
           irStatus={irStatus}
           renderLink={renderLink}
-          onOpenCalibration={() => setOpenIrCalibrationModal(true)}
         />
 
-        <IrEmittersControls />
-
         <SensorBottomConsole
-          connected={connected}
+          connected={realBoardConnected}
           mpuStatus={mpuStatus}
           irStatus={irStatus}
           mpuPeriodMs={mpuPeriodMs}
           irPeriodMs={irPeriodMs}
           irEmu={irEmu}
           mpuEmu={mpuEmu}
-          mpuAutoMotion={mpuAutoMotion}
           mpuRequested={mpuRequested}
           irRequested={irRequested}
-          controlMode={controlMode}
-          onControlModeChange={setControlMode}
           onMpuPeriodChange={setMpuPeriodMs}
           onIrPeriodChange={(value) =>
             setIrPeriodMs(normalizeIrStreamPeriodMs(value))
           }
           onMpuToggle={() => sendMpuStream(!mpuRequested, "bottom-toggle")}
           onIrToggle={() => sendIrStream(!irRequested, "bottom-toggle")}
-          onIrEmuToggle={handleIrEmuToggle}
-          onMpuEmuToggle={() => {
-            setMpuEmu((current) => {
-              const next = !current;
-              setMpuAutoMotion(false);
-              setZeroOffset({ yaw: 0, pitch: 0, roll: 0 });
-              if (next) {
-                mpuRequestedRef.current = false;
-                mpuSampleConfirmedRef.current = false;
-                setMpuRequested(false);
-                setRenderLink(true);
-                setMpuEmuEuler(effectiveRenderEuler);
-              }
-              return next;
-            });
-          }}
-          onMpuAutoMotionToggle={() => setMpuAutoMotion((current) => !current)}
           onZeroMpu={handleZeroMpu}
         />
+
+        <SensorCameraViews selected={cameraPreset} onPreset={handleCameraPreset}
+          simulated={simulationActive} simulationDescription={simulationDescription} />
 
         <div className="sensor-dashboard-main">
           <SensorToolbox
             showGrid={showGrid}
-            showBubble={showBubble}
+            showObjectAxes={showObjectAxes}
+            showLineAxes={showLineAxes}
             showOrigin={showOrigin}
-            freezePose={freezePose}
             renderLink={renderLink}
-            onPreset={handleCameraPreset}
-            onResetCamera={() => sceneRef.current?.resetCamera()}
-            onToggleFreeze={handleFreezePoseToggle}
+            onResetCamera={() => { setCameraPreset("iso"); sceneRef.current?.resetCamera(); }}
             onToggleGrid={() => setShowGrid((current) => !current)}
-            onToggleBubble={() => setShowBubble((current) => !current)}
+            onToggleObjectAxes={() => setShowObjectAxes((current) => !current)}
+            onToggleLineAxes={() => setShowLineAxes((current) => !current)}
             onToggleOrigin={() => setShowOrigin((current) => !current)}
             onToggleRenderLink={handleRenderLinkToggle}
-            onClear={handleClearIr}
           />
 
+          <div className="sensor-stage-workspace">
           <main className="sensor-dashboard-stage" aria-label="Escena MPU e IR">
+            <div className="sensor-dashboard-scene">
+            {simulationActive ? <div className="sensor-scene-simulation-status">
+              <SimulatedBadge description={simulationDescription} />
+              <span>{simulationDescription}</span>
+            </div> : null}
             <MpuIrScene3D
               ref={sceneRef}
               modelUrl={modelUrl}
               eulerDeg={effectiveRenderEuler}
               irNorm={irSceneNorm}
+              objectDetections={objectDetections}
               showGrid={showGrid}
-              showBubble={showBubble}
+              showObjectAxes={showObjectAxes}
+              showLineAxes={showLineAxes}
+              beamOpacities={beamOpacities}
               showOrigin={showOrigin}
               sensorSensitivityCm={sensorSensitivityCm}
-              irSamplePeriodMs={irPeriodMs}
+              irSamplePeriodMs={irEmu ? irEmuPeriodMs : irPeriodMs}
               renderLink={renderLink}
-              freezePose={freezePose}
               irEmu={irEmu}
+              irAutoMotion={irAutoMotion}
               estimatedTarget={irObjectEstimate}
               onEmulatedTarget={updateIrEmulation}
+              onManualCameraChange={handleManualCameraChange}
             />
-            <SensorCanvasTelemetry irSnapshot={irSnapshot} />
+            <SensorCanvasTelemetry irSnapshot={irSnapshot} objectDetections={objectDetections} />
+            </div>
             <SensorSensitivityControl
               valueCm={sensorSensitivityCm}
               onChange={setSensorSensitivityCm}
+              onClear={handleClearIr}
+              onOpenCalibration={() => setOpenIrCalibrationModal(true)}
             />
           </main>
+          <SensorBeamControls opacities={beamOpacities}
+            visibility={{ objects: showObjectAxes, line: showLineAxes }}
+            onOpacityChange={(group, opacity) => setBeamOpacities((current) => ({ ...current, [group]: Math.min(1, Math.max(0, opacity)) }))}
+            onVisibilityChange={(group, visible) => {
+              if (group === "objects") setShowObjectAxes(visible);
+              else setShowLineAxes(visible);
+            }} />
+          </div>
 
           <SensorStatusPanel
             connected={connected}
@@ -643,22 +713,98 @@ export default function EstadoSection() {
         </div>
 
         <RealtimeEulerPanel
-          eulerDeg={effectiveRenderEuler}
-          sampleMs={Math.max(100, mpuPeriodMs)}
+          key={mpuEmu ? "simulated" : "real"}
+          eulerDeg={activeMpuEuler}
+          connected={realBoardConnected}
+          simulated={mpuEmu}
+          sampling={mpuEmu || (realBoardConnected && mpuRequested && mpuStatus.active && hasRealMpuSample)}
+          sampleVersion={!mpuEmu && hasRealMpuSample ? mpuStatus.packetsReceived : 0}
+          sampleMs={mpuEmu ? mpuEmuPeriodMs : Math.max(100, mpuPeriodMs)}
           sensorIntervalTime={mpuPeriodMs}
           maxPoints={100}
           heightPx={160}
         />
 
-        {mpuEmu ? (
+        <SensorDisclosure title="Simulación" icon={<SensorIcon name="cube" />}
+          className="sensor-simulation-panel"
+          headerActions={<div className="sensor-simulation-master">
+            <span>{simulationActive ? "Encendida" : "Apagada"}</span>
+            <SwitchButton active={simulationActive} onClick={handleSimulationToggle}
+              ariaLabel="Encender o apagar toda la simulación" />
+          </div>}>
+          <p className="sensor-simulation-panel__intro">
+            Probá el movimiento del vehículo y la detección de objetos desde este panel.
+          </p>
+          <div className="sensor-simulation-panel__modules">
+            <section className="sensor-simulation-module" aria-labelledby="sensor-motion-simulation-title">
+              <header className="sensor-simulation-module__header">
+                <div>
+                  <h4 id="sensor-motion-simulation-title">Movimiento del vehículo</h4>
+                  <p>Orientación MPU simulada</p>
+                </div>
+                <SwitchButton active={mpuEmu} onClick={() => setMpuSimulationEnabled(!mpuEmu)}
+                  ariaLabel="Simulador de movimiento del vehículo" />
+              </header>
+              <div className="sensor-simulation-module__option">
+                <span>Movimiento automático</span>
+                <SwitchButton active={mpuEmu && mpuAutoMotion} disabled={!mpuEmu}
+                  onClick={() => setMpuAutoMotion((current) => !current)} ariaLabel="Movimiento automático del vehículo" />
+              </div>
+              <p className="sensor-simulation-module__hint">
+                {mpuEmu ? mpuAutoMotion ? "Los ejes marcados como Auto se mueven continuamente." : "Movimiento pausado. Ajustá los ejes manualmente debajo." : "Encendé el simulador para mover el modelo."}
+              </p>
+              <button type="button" className="sensor-console-secondary" disabled={!mpuEmu}
+                onClick={handleZeroMpu}>Centrar orientación simulada</button>
+            </section>
+            <section className="sensor-simulation-module" aria-labelledby="sensor-object-simulation-title">
+              <header className="sensor-simulation-module__header">
+                <div>
+                  <h4 id="sensor-object-simulation-title">Objetos y obstáculos</h4>
+                  <p>Detección IR simulada</p>
+                </div>
+                <SwitchButton active={irEmu} onClick={() => setIrSimulationEnabled(!irEmu)}
+                  ariaLabel="Simulador de objetos y obstáculos" />
+              </header>
+              <div className="sensor-simulation-module__option">
+                <span>Barrido automático del objeto</span>
+                <SwitchButton active={irEmu && irAutoMotion} disabled={!irEmu}
+                  onClick={() => setIrAutoMotion((current) => !current)} ariaLabel="Movimiento automático del objeto" />
+              </div>
+              <label className="sensor-simulation-module__option">
+                <span>Refresco de detecciones</span>
+                <span className="sensor-number-control">
+                  <input type="number" min={50} max={3000} step={10} value={irEmuPeriodMs} disabled={!irEmu}
+                    onChange={(event) => {
+                      const value = Number(event.target.value);
+                      if (Number.isFinite(value)) setIrEmuPeriodMs(Math.min(3000, Math.max(50, value)));
+                    }} />
+                  <span>ms</span>
+                </span>
+              </label>
+              <p className="sensor-simulation-module__hint">
+                {irEmu ? irAutoMotion ? "El objeto recorre el frente del vehículo y actualiza sus detecciones." : "Mové el cursor sobre la escena para ubicar el objeto. Queda fijo al girar el vehículo." : "Encendé el simulador para ver un objeto en la escena."}
+              </p>
+              <button type="button" className="sensor-console-secondary" disabled={!irEmu}
+                onClick={handleClearIr}>Quitar objeto simulado</button>
+            </section>
+          </div>
+          {mpuEmu ? (
           <MpuSimulationWorkbench
             eulerDeg={mpuEmuEuler}
             autoMotion={mpuAutoMotion}
+            autoAxes={mpuAutoAxes}
             periodMs={mpuEmuPeriodMs}
             onEulerChange={setMpuEmuEuler}
+            onAutoEulerChange={handleAutoEulerUpdate}
+            onAutoAxisChange={(axis, enabled) => {
+              const next = { ...mpuAutoAxesRef.current, [axis]: enabled };
+              mpuAutoAxesRef.current = next;
+              setMpuAutoAxes(next);
+            }}
             onPeriodChange={setMpuEmuPeriodMs}
           />
-        ) : null}
+          ) : null}
+        </SensorDisclosure>
       </div>
 
       {openIrCalibrationModal ? (
@@ -804,14 +950,13 @@ function SensorConnectionBar({
   mpuStatus,
   irStatus,
   renderLink,
-  onOpenCalibration,
 }: {
   connected: boolean;
   mpuStatus: StreamStatus;
   irStatus: StreamStatus;
   renderLink: boolean;
-  onOpenCalibration: () => void;
 }) {
+  const { state: emitters } = useIrEmitters();
   return (
     <section className="sensor-connection-bar" aria-label="Conexion del sistema">
       <div className="sensor-connection-bar__main">
@@ -856,66 +1001,91 @@ function SensorConnectionBar({
           value={renderLink ? "Enlazado" : "Libre"}
           tone={renderLink ? "ok" : "muted"}
         />
+        <HeaderPill label="Luces IR objetos" value={emitters ? emitters.objects ? "Activadas" : "Desactivadas" : "Sin datos"}
+          tone={emitters?.objects ? "ok" : "muted"} />
+        <HeaderPill label="Luces IR línea" value={emitters ? emitters.line ? "Activadas" : "Desactivadas" : "Sin datos"}
+          tone={emitters?.line ? "ok" : "muted"} />
+        <HeaderPill label="LED blancos" value={emitters ? emitters.lights ? "Activados" : "Desactivados" : "Sin datos"}
+          tone={emitters?.lights ? "ok" : "muted"} />
       </div>
-
-      <button
-        type="button"
-        className="sensor-connection-action"
-        title="Captura puntos ADC y genera la curva de calibración IR."
-        onClick={onOpenCalibration}
-      >
-        <SensorIcon name="signal" />
-        Calibrar sensores
-      </button>
     </section>
   );
 }
 
+function SensorCameraViews({ selected, onPreset, simulated, simulationDescription }: {
+  selected: SensorCameraPreset | null;
+  onPreset: (preset: SensorCameraPreset) => void;
+  simulated: boolean;
+  simulationDescription: string;
+}) {
+  const selectedGroup = SENSOR_CAMERA_VIEW_GROUPS.find((group) => group.views.some((view) => view.key === selected));
+  const selectedView = selectedGroup?.views.find((view) => view.key === selected);
+  const [mainViews, ...isometricViews] = SENSOR_CAMERA_VIEW_GROUPS;
+  const renderButtons = (group: (typeof SENSOR_CAMERA_VIEW_GROUPS)[number]) => (
+    <div className="sensor-camera-view-group__buttons" role="group" aria-label={group.label}>
+      {group.views.map((view) => <button key={view.key} type="button"
+        className={`sensor-camera-view-button ${selected === view.key ? "sensor-camera-view-button--active" : ""}`}
+        aria-pressed={selected === view.key} aria-label={`${group.label}: ${view.label}`}
+        title={`${group.label}: ${view.label}`} onClick={() => onPreset(view.key)}>
+        <SensorCameraViewIcon position={view.position} up={"up" in view ? view.up : undefined} />
+        <span>{view.shortLabel}</span>
+      </button>)}
+    </div>
+  );
+  return <SensorDisclosure title="Vistas" icon={<SensorIcon name="cube" />}
+    titleAccessory={simulated ? <SimulatedBadge description={simulationDescription} /> : undefined}
+    detail={selectedView ? `${selectedGroup?.label} · ${selectedView.label}` : "Vista libre"} className="sensor-camera-views">
+    <div className="sensor-camera-view-group sensor-camera-view-group--main">
+      <span>Principales</span>
+      {renderButtons(mainViews)}
+    </div>
+    <div className="sensor-camera-view-group sensor-camera-view-group--isometric">
+      <span>Isométricas</span>
+      <div className="sensor-camera-isometric-rows">
+        {isometricViews.map((group, index) => <div className="sensor-camera-isometric-row" key={group.label}>
+          <span className="sensor-camera-isometric-row__label" title={group.label}>{index === 0 ? "Sup." : "Inf."}</span>
+          {renderButtons(group)}
+        </div>)}
+      </div>
+    </div>
+  </SensorDisclosure>;
+}
+
 function SensorToolbox({
   showGrid,
-  showBubble,
+  showObjectAxes,
+  showLineAxes,
   showOrigin,
-  freezePose,
   renderLink,
-  onPreset,
   onResetCamera,
-  onToggleFreeze,
   onToggleGrid,
-  onToggleBubble,
+  onToggleObjectAxes,
+  onToggleLineAxes,
   onToggleOrigin,
   onToggleRenderLink,
-  onClear,
 }: {
   showGrid: boolean;
-  showBubble: boolean;
+  showObjectAxes: boolean;
+  showLineAxes: boolean;
   showOrigin: boolean;
-  freezePose: boolean;
   renderLink: boolean;
-  onPreset: (preset: SensorCameraPreset) => void;
   onResetCamera: () => void;
-  onToggleFreeze: () => void;
   onToggleGrid: () => void;
-  onToggleBubble: () => void;
+  onToggleObjectAxes: () => void;
+  onToggleLineAxes: () => void;
   onToggleOrigin: () => void;
   onToggleRenderLink: () => void;
-  onClear: () => void;
 }) {
   return (
     <aside className="sensor-toolbox" aria-label="Herramientas de escena">
       <h2>Herramientas</h2>
-      <ToolButton label="Vista isométrica" icon="cube" onClick={() => onPreset("iso")} />
-      <ToolButton label="Vista superior" icon="target" onClick={() => onPreset("top")} />
-      <ToolButton label="Vista frontal" icon="frame" onClick={() => onPreset("front")} />
       <ToolButton label="Restablecer cámara" icon="focus" onClick={onResetCamera} />
-      <ToolButton
-        label="Congelar pose"
-        icon="snow"
-        active={freezePose}
-        title="Mantiene fija la orientación del modelo mientras la telemetría continúa actualizándose."
-        onClick={onToggleFreeze}
-      />
       <ToolButton label="Cuadrícula" icon="grid" active={showGrid} onClick={onToggleGrid} />
-      <ToolButton label="Haz sensado" icon="orbit" active={showBubble} onClick={onToggleBubble} />
+      <ToolButton label="Haz objetos" icon="orbit" active={showObjectAxes} onClick={onToggleObjectAxes}
+        title="Mostrar los haces de los sensores IR de objetos." />
+      <ToolButton label="Haz líneas" icon="frame" active={showLineAxes} onClick={onToggleLineAxes}
+        title="Mostrar los haces inferiores de los sensores IR de línea." />
+      <IrEmittersControls icon={<SensorIcon name="signal" />} />
       <ToolButton
         label={showOrigin ? "Esconder origen" : "Mostrar origen"}
         icon="origin"
@@ -929,7 +1099,6 @@ function SensorToolbox({
         title="Enlaza o desacopla la orientación MPU del modelo 3D."
         onClick={onToggleRenderLink}
       />
-      <ToolButton label="Limpiar sensores" icon="trash" danger onClick={onClear} />
     </aside>
   );
 }
@@ -1025,17 +1194,6 @@ function SensorStatusPanel({
         <StatusRow label="Modo" value={systemMode} tone={connected ? "info" : "muted"} />
       </PanelBlock>
 
-      <PanelBlock title="Seguimiento de línea" icon="frame">
-        <StatusRow label="Patrón" value={formatHexByte(irSnapshot.linePattern)} tone="info" />
-        <StatusRow label="Alineación" value={`RUTA_${irSnapshot.lineAlignment}`} />
-        <StatusRow label="Confianza" value={`${irSnapshot.confidence}%`} tone="ok" />
-        <StatusRow label="Ambiguo" value={irSnapshot.ambiguous ? "SÍ" : "NO"} tone={irSnapshot.ambiguous ? "error" : "ok"} />
-        <StatusRow label="Ancho detectado" value={`${irSnapshot.lineWidthMm} mm`} />
-        <StatusRow label="Error lateral" value={`${formatDecimal(irSnapshot.lateralErrorMm, 1)} mm`} />
-        <StatusRow label="Error normalizado" value={formatDecimal(irSnapshot.lateralErrorNorm, 2)} />
-        <StatusRow label="Yaw magnético sin cero local" value={`${formatDecimal(mpuEulerRaw.yaw, 1)}°`} />
-      </PanelBlock>
-
       <PanelBlock title="Posición estimada" icon="target">
         <StatusRow
           label="Detección"
@@ -1068,7 +1226,7 @@ function SensorStatusPanel({
           }
         />
         <StatusRow
-          label="Conos activos"
+          label="IR de objetos activos"
           value={`${irObjectEstimate.supportCount}/5 · ${formatObjectMask(irObjectEstimate.activeMask)}`}
           tone={irObjectEstimate.supportCount >= 2 ? "ok" : "muted"}
         />
@@ -1091,14 +1249,26 @@ function SensorStatusPanel({
           }
         />
       </PanelBlock>
+      <PanelBlock title="Seguimiento de línea" icon="frame" className="sensor-side-block--line">
+        <StatusRow label="Patrón" value={formatHexByte(irSnapshot.linePattern)} tone="info" />
+        <StatusRow label="Alineación" value={`RUTA_${irSnapshot.lineAlignment}`} />
+        <StatusRow label="Confianza" value={`${irSnapshot.confidence}%`} tone="ok" />
+        <StatusRow label="Ambiguo" value={irSnapshot.ambiguous ? "SÍ" : "NO"} tone={irSnapshot.ambiguous ? "error" : "ok"} />
+        <StatusRow label="Ancho detectado" value={`${irSnapshot.lineWidthMm} mm`} />
+        <StatusRow label="Error lateral" value={`${formatDecimal(irSnapshot.lateralErrorMm, 1)} mm`} />
+        <StatusRow label="Error normalizado" value={formatDecimal(irSnapshot.lateralErrorNorm, 2)} />
+        <StatusRow label="Yaw magnético sin cero local" value={`${formatDecimal(mpuEulerRaw.yaw, 1)}°`} />
+      </PanelBlock>
     </aside>
   );
 }
 
 function SensorCanvasTelemetry({
   irSnapshot,
+  objectDetections,
 }: {
   irSnapshot: IrSnapshot;
+  objectDetections: IrObjectAxialDetections;
 }) {
   return (
     <div className="sensor-canvas-telemetry" aria-label="Lecturas IR sobre la escena">
@@ -1107,6 +1277,7 @@ function SensorCanvasTelemetry({
         tone="rose"
         channels={OBJECT_CHANNELS}
         values={irSnapshot.norm}
+        detections={objectDetections}
       />
       <VerticalSensorGroup
         title="Sensores de línea"
@@ -1121,16 +1292,20 @@ function SensorCanvasTelemetry({
 function SensorSensitivityControl({
   valueCm,
   onChange,
+  onClear,
+  onOpenCalibration,
 }: {
   valueCm: number;
   onChange: (value: number) => void;
+  onClear: () => void;
+  onOpenCalibration: () => void;
 }) {
   return (
     <section
       className="sensor-sensitivity-control"
       aria-label="Sensibilidad del haz IR"
     >
-      <header>
+      <div className="sensor-sensitivity-control__range"><header>
         <span>Sensibilidad IR</span>
         <strong>{formatDecimal(valueCm, 1)} cm</strong>
       </header>
@@ -1140,11 +1315,20 @@ function SensorSensitivityControl({
         max={SENSOR_SENSITIVITY_MAX_CM}
         step={0.5}
         value={valueCm}
+        aria-label="Sensibilidad IR en centímetros"
         onChange={(event) => onChange(Number(event.target.value))}
       />
       <div className="sensor-sensitivity-control__meta">
         <span>Frente del auto</span>
         <span>{`Detección ΔADC ≥ ${IR_OBJECT_DETECTION_THRESHOLD}`}</span>
+      </div></div>
+      <div className="sensor-sensitivity-control__actions">
+        <button type="button" className="sensor-console-secondary sensor-sensitivity-clear" onClick={onClear}>
+          <SensorIcon name="trash" />Limpiar sensores
+        </button>
+        <button type="button" className="sensor-connection-action" onClick={onOpenCalibration}>
+          <SensorIcon name="signal" />Calibrar sensores
+        </button>
       </div>
     </section>
   );
@@ -1155,6 +1339,7 @@ function VerticalSensorGroup({
   tone,
   channels,
   values,
+  detections,
 }: {
   title: string;
   tone: "cyan" | "rose";
@@ -1164,12 +1349,13 @@ function VerticalSensorGroup({
     shortLabel: string;
   }>;
   values: Record<IrSensorKey, number>;
+  detections?: Partial<Record<IrSensorKey, IrObjectAxialDetection>>;
 }) {
   return (
     <section className={`sensor-vertical-group sensor-vertical-group--${tone}`}>
       <header>
         <strong>{title}</strong>
-        <span>0–4095</span>
+        <span>{detections ? "ADC · cm estimados" : "0–4095"}</span>
       </header>
       <div className="sensor-vertical-group__bars">
         {channels.map((channel) => (
@@ -1179,6 +1365,7 @@ function VerticalSensorGroup({
             shortLabel={channel.shortLabel}
             value={values[channel.key]}
             tone={tone}
+            detection={detections?.[channel.key]}
           />
         ))}
       </div>
@@ -1191,24 +1378,32 @@ function VerticalSensorBar({
   shortLabel,
   value,
   tone,
+  detection,
 }: {
   label: string;
   shortLabel: string;
   value: number;
   tone: "cyan" | "rose";
+  detection?: IrObjectAxialDetection;
 }) {
   const normalizedValue = Math.round(
     Math.max(0, Math.min(IR_NORM_MAX, value)),
   );
   const percent = Math.round(clamp01(normalizedValue / IR_NORM_MAX) * 100);
+  const distanceText = !detection?.detected ? "—" : detection.distanceCm !== null
+    ? `≈${formatDecimal(detection.distanceCm, 1)} cm`
+    : detection.source === "ambiguous" ? "Ambigua"
+      : detection.source === "outside-range" ? "Fuera rango" : "Fuera curva";
 
   return (
-    <div className="sensor-vertical-bar" title={`${label}: ${normalizedValue}`}>
+    <div className={`sensor-vertical-bar ${detection ? "sensor-vertical-bar--distance" : ""}`}
+      title={`${label}: ${normalizedValue}${detection ? `; distancia estimada: ${distanceText}${detection.source === "model" ? " (modelo aproximado)" : ""}` : ""}`}>
       <strong>{normalizedValue}</strong>
       <div className={`sensor-vertical-bar__track sensor-vertical-bar__track--${tone}`}>
         <i style={{ height: `${percent}%` }} />
       </div>
       <span>{shortLabel}</span>
+      {detection ? <small className="sensor-vertical-bar__distance">{distanceText}</small> : null}
     </div>
   );
 }
@@ -1217,19 +1412,17 @@ function PanelBlock({
   title,
   icon,
   children,
+  className = "",
 }: {
   title: string;
   icon: SensorIconName;
   children: ReactNode;
+  className?: string;
 }) {
   return (
-    <section className="sensor-side-block">
-      <header>
-        <span>{title}</span>
-        <SensorIcon name={icon} />
-      </header>
+    <SensorDisclosure title={title} icon={<SensorIcon name={icon} />} className={`sensor-side-block ${className}`}>
       <div className="sensor-side-block__body">{children}</div>
-    </section>
+    </SensorDisclosure>
   );
 }
 
@@ -1253,26 +1446,9 @@ function StatusRow({
 }
 
 function SensorBottomConsole({
-  connected,
-  mpuStatus,
-  irStatus,
-  mpuPeriodMs,
-  irPeriodMs,
-  irEmu,
-  mpuEmu,
-  mpuAutoMotion,
-  mpuRequested,
-  irRequested,
-  controlMode,
-  onControlModeChange,
-  onMpuPeriodChange,
-  onIrPeriodChange,
-  onMpuToggle,
-  onIrToggle,
-  onIrEmuToggle,
-  onMpuEmuToggle,
-  onMpuAutoMotionToggle,
-  onZeroMpu,
+  connected, mpuStatus, irStatus, mpuPeriodMs, irPeriodMs,
+  irEmu, mpuEmu, mpuRequested, irRequested,
+  onMpuPeriodChange, onIrPeriodChange, onMpuToggle, onIrToggle, onZeroMpu,
 }: {
   connected: boolean;
   mpuStatus: StreamStatus;
@@ -1281,301 +1457,77 @@ function SensorBottomConsole({
   irPeriodMs: number;
   irEmu: boolean;
   mpuEmu: boolean;
-  mpuAutoMotion: boolean;
   mpuRequested: boolean;
   irRequested: boolean;
-  controlMode: SensorControlMode;
-  onControlModeChange: (mode: SensorControlMode) => void;
   onMpuPeriodChange: (value: number) => void;
   onIrPeriodChange: (value: number) => void;
   onMpuToggle: () => void;
   onIrToggle: () => void;
-  onIrEmuToggle: () => void;
-  onMpuEmuToggle: () => void;
-  onMpuAutoMotionToggle: () => void;
   onZeroMpu: () => void;
 }) {
-  const [expandedPanels, setExpandedPanels] = useState<Record<SensorControlMode, boolean>>({
-    real: false,
-    simulated: false,
-  });
-
-  function togglePanel(mode: SensorControlMode) {
-    setExpandedPanels((current) => ({ ...current, [mode]: !current[mode] }));
-  }
-
-  function handleControlModeChange(nextMode: SensorControlMode) {
-    onControlModeChange(nextMode);
-    setExpandedPanels({ real: false, simulated: false });
-  }
-
-  function handleControlModeKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>) {
-    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
-      return;
-    }
-
-    event.preventDefault();
-    const nextMode: SensorControlMode =
-      event.key === "ArrowLeft" || event.key === "Home" ? "real" : "simulated";
-    handleControlModeChange(nextMode);
-    window.requestAnimationFrame(() => {
-      document.getElementById(`sensor-control-${nextMode}-tab`)?.focus();
-    });
-  }
-
+  const { state: emitters, available: emittersAvailable, pending: emittersPending, setEnabled } = useIrEmitters();
   return (
-    <footer
-      className="sensor-bottom-console"
-      aria-label="Controles principales"
-    >
-      <div
-        className="sensor-console-tabs"
-        role="tablist"
-        aria-label="Fuente de control"
-      >
-        <button
-          id="sensor-control-real-tab"
-          type="button"
-          role="tab"
-          aria-selected={controlMode === "real"}
-          aria-controls="sensor-control-real-panel"
-          tabIndex={controlMode === "real" ? 0 : -1}
-          className={`sensor-console-tab sensor-console-tab--real ${
-            controlMode === "real" ? "sensor-console-tab--active" : ""
-          }`}
-          onClick={() => handleControlModeChange("real")}
-          onKeyDown={handleControlModeKeyDown}
-        >
-          <span className="sensor-console-tab__indicator" aria-hidden="true" />
-          <span className="sensor-console-tab__copy">
-            <strong>Control real</strong>
-            <small>WebSocket · STM32</small>
-          </span>
-          <span
-            className={`sensor-console-tab__state ${
-              connected ? "sensor-tone-ok" : "sensor-tone-error"
-            }`}
-          >
-            {connected ? "Conectado" : "Sin conexión"}
-          </span>
-        </button>
-
-        <button
-          id="sensor-control-simulated-tab"
-          type="button"
-          role="tab"
-          aria-selected={controlMode === "simulated"}
-          aria-controls="sensor-control-simulated-panel"
-          tabIndex={controlMode === "simulated" ? 0 : -1}
-          className={`sensor-console-tab sensor-console-tab--simulated ${
-            controlMode === "simulated" ? "sensor-console-tab--active" : ""
-          }`}
-          onClick={() => handleControlModeChange("simulated")}
-          onKeyDown={handleControlModeKeyDown}
-        >
-          <span className="sensor-console-tab__indicator" aria-hidden="true" />
-          <span className="sensor-console-tab__copy">
-            <strong>Simulado</strong>
-            <small>Pruebas sin hardware</small>
-          </span>
-          <span className="sensor-console-tab__state sensor-tone-info">
-            Local
-          </span>
-        </button>
-      </div>
-
-      <section
-        id="sensor-control-real-panel"
-        role="tabpanel"
-        aria-labelledby="sensor-control-real-tab"
-        className="sensor-console-group sensor-console-group--real"
-        hidden={controlMode !== "real"}
-      >
-        <header className="sensor-console-group__header">
-          <div>
-            <span>Control real</span>
-            <strong>WebSocket y telemetría STM32</strong>
-          </div>
-          <div className="sensor-console-group__header-actions">
-            <span
-              className={
-                connected
-                  ? "sensor-console-group__state sensor-tone-ok"
-                  : "sensor-console-group__state sensor-tone-error"
-              }
-            >
-              {connected ? "Conectado" : "Sin conexión"}
-            </span>
-            <button
-              type="button"
-              className="sensor-console-group__collapse"
-              aria-expanded={expandedPanels.real}
-              aria-controls="sensor-control-real-content"
-              aria-label={
-                expandedPanels.real
-                  ? "Contraer control real"
-                  : "Expandir control real"
-              }
-              onClick={() => togglePanel("real")}
-            >
-              <svg
-                className={`home-dropdown-chevron ${expandedPanels.real ? "home-dropdown-chevron--open" : ""}`}
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-          </div>
-        </header>
-
-        <div
-          id="sensor-control-real-content"
-          className="sensor-console-group__grid sensor-console-group__grid--real"
-          style={expandedPanels.real ? { marginTop: "0.55rem" } : {}}
-          hidden={!expandedPanels.real}
-        >
-          <ConsoleCard
-            title="Flujo MPU"
-            status={mpuStatus.pending ? "Enviando" : ""}
-            active={mpuStatus.active}
-            layout="toggle"
-          >
-            <SwitchButton
-              active={mpuRequested}
-              disabled={!connected || mpuStatus.pending}
-              onClick={onMpuToggle}
-            />
+    <div className="sensor-bottom-console">
+      <SensorDisclosure title="Control real" icon={<SensorIcon name="signal" />}
+        detail={connected ? "Placa conectada" : "Sin conexión"} className="sensor-console-group--real">
+        <div className="sensor-console-group__grid sensor-console-group__grid--real">
+          <ConsoleCard title="Flujo MPU"
+            status={mpuEmu ? "Simulador encendido" : mpuStatus.pending ? "Enviando" : ""}
+            active={!mpuEmu && mpuStatus.active} layout="toggle">
+            <SwitchButton active={mpuRequested} disabled={!connected || mpuEmu || mpuStatus.pending}
+              onClick={onMpuToggle} ariaLabel="Flujo MPU real" />
           </ConsoleCard>
-          <ConsoleCard
-            title="Flujo IR"
-            status={irStatus.pending ? "Enviando" : ""}
-            active={irStatus.active}
-            layout="toggle"
-          >
-            <SwitchButton
-              active={irRequested}
-              disabled={!connected || irStatus.pending}
-              onClick={onIrToggle}
-            />
+          <ConsoleCard title="Flujo IR"
+            status={irEmu ? "Simulador encendido" : irStatus.pending ? "Enviando" : ""}
+            active={!irEmu && irStatus.active} layout="toggle">
+            <SwitchButton active={irRequested} disabled={!connected || irEmu || irStatus.pending}
+              onClick={onIrToggle} ariaLabel="Flujo IR real" />
           </ConsoleCard>
-          <ConsoleCard
-            title="Período MPU"
-            status={`${periodToHz(mpuPeriodMs)} Hz`}
-          >
-            <NumberControl
-              value={mpuPeriodMs}
-              min={MIN_MPU_STREAM_PERIOD_MS}
-              max={F4_STREAM_LIMITS.MAX_PERIOD_MS}
-              suffix="ms"
-              onChange={(value) =>
-                onMpuPeriodChange(normalizeMpuPeriodMs(value))
-              }
-            />
+          <ConsoleCard title="Período MPU" status={periodToHz(mpuPeriodMs) + " Hz"}>
+            <NumberControl value={mpuPeriodMs} min={MIN_MPU_STREAM_PERIOD_MS}
+              max={F4_STREAM_LIMITS.MAX_PERIOD_MS} suffix="ms"
+              onChange={(value) => onMpuPeriodChange(normalizeMpuPeriodMs(value))} />
           </ConsoleCard>
-          <ConsoleCard
-            title="Período IR"
-            status={`${periodToHz(irPeriodMs)} Hz`}
-          >
-            <NumberControl
-              value={irPeriodMs}
-              min={IR_STREAM_LIMITS.MIN_PERIOD_MS}
-              max={IR_STREAM_LIMITS.MAX_PERIOD_MS}
-              suffix="ms"
-              onChange={(value) => onIrPeriodChange(value)}
-            />
+          <ConsoleCard title="Período IR" status={periodToHz(irPeriodMs) + " Hz"}>
+            <NumberControl value={irPeriodMs} min={IR_STREAM_LIMITS.MIN_PERIOD_MS}
+              max={IR_STREAM_LIMITS.MAX_PERIOD_MS} suffix="ms" onChange={onIrPeriodChange} />
           </ConsoleCard>
-          <ConsoleCard title="Calibración MPU" status="Activo">
-            <button
-              type="button"
-              className="sensor-console-secondary"
-              onClick={onZeroMpu}
-            >
-              Poner a cero
-            </button>
+          <ConsoleCard title="Emisores IR objetos" active={emitters?.objects === true} layout="toggle"
+            status={emittersPending ? "Enviando" : emitters ? emitters.objects ? "Activados" : "Desactivados" : "Sin datos"}>
+            <SwitchButton active={emitters?.objects ?? false} disabled={!emittersAvailable || emittersPending || !emitters}
+              ariaLabel="Emisores IR de objetos" onClick={() => void setEnabled("objects", !emitters?.objects)} />
+          </ConsoleCard>
+          <ConsoleCard title="Emisores IR línea" active={emitters?.line === true} layout="toggle"
+            status={emittersPending ? "Enviando" : emitters ? emitters.line ? "Activados" : "Desactivados" : "Sin datos"}>
+            <SwitchButton active={emitters?.line ?? false} disabled={!emittersAvailable || emittersPending || !emitters}
+              ariaLabel="Emisores IR de línea" onClick={() => void setEnabled("line", !emitters?.line)} />
+          </ConsoleCard>
+          <ConsoleCard title="Referencia MPU" status={mpuEmu ? "Disponible en Simulación" : undefined}>
+            <button type="button" className="sensor-console-secondary" disabled={mpuEmu}
+              onClick={onZeroMpu}>Poner a cero</button>
           </ConsoleCard>
         </div>
-      </section>
-
-      <section
-        id="sensor-control-simulated-panel"
-        role="tabpanel"
-        aria-labelledby="sensor-control-simulated-tab"
-        className="sensor-console-group sensor-console-group--simulated"
-        hidden={controlMode !== "simulated"}
-      >
-        <header className="sensor-console-group__header">
-          <div>
-            <span>Simulado</span>
-            <strong>Pruebas sin hardware</strong>
-          </div>
-          <div className="sensor-console-group__header-actions">
-            <span className="sensor-console-group__state sensor-tone-info">
-              Local
-            </span>
-            <button
-              type="button"
-              className="sensor-console-group__collapse"
-              aria-expanded={expandedPanels.simulated}
-              aria-controls="sensor-control-simulated-content"
-              aria-label={
-                expandedPanels.simulated
-                  ? "Contraer controles simulados"
-                  : "Expandir controles simulados"
-              }
-              onClick={() => togglePanel("simulated")}
-            >
-              <svg
-                className={`home-dropdown-chevron ${expandedPanels.simulated ? "home-dropdown-chevron--open" : ""}`}
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-          </div>
-        </header>
-
-        <div
-          id="sensor-control-simulated-content"
-          className={`sensor-console-group__grid sensor-console-group__grid--simulated`}
-          style={expandedPanels.simulated ? { marginTop: "0.55rem" } : {}}
-          hidden={!expandedPanels.simulated}
-        >
-          <ConsoleCard title="Simulador MPU" active={mpuEmu} layout="toggle">
-            <SwitchButton active={mpuEmu} onClick={onMpuEmuToggle} />
-          </ConsoleCard>
-          <ConsoleCard
-            title="Movimiento automático"
-            active={mpuAutoMotion}
-            layout="toggle"
-          >
-            <SwitchButton
-              active={mpuAutoMotion}
-              disabled={!mpuEmu}
-              onClick={onMpuAutoMotionToggle}
-            />
-          </ConsoleCard>
-          <ConsoleCard title="Emulador IR" active={irEmu} layout="toggle">
-            <SwitchButton active={irEmu} onClick={onIrEmuToggle} />
-          </ConsoleCard>
-        </div>
-      </section>
-    </footer>
+      </SensorDisclosure>
+    </div>
   );
 }
-
 function MpuSimulationWorkbench({
   eulerDeg,
   autoMotion,
+  autoAxes,
   periodMs,
   onEulerChange,
+  onAutoEulerChange,
+  onAutoAxisChange,
   onPeriodChange,
 }: {
   eulerDeg: EulerDeg;
   autoMotion: boolean;
+  autoAxes: Record<keyof EulerDeg, boolean>;
   periodMs: number;
   onEulerChange: (value: EulerDeg) => void;
+  onAutoEulerChange: (value: EulerDeg) => void;
+  onAutoAxisChange: (axis: keyof EulerDeg, enabled: boolean) => void;
   onPeriodChange: (value: number) => void;
 }) {
   return (
@@ -1586,7 +1538,7 @@ function MpuSimulationWorkbench({
           <h2>Orientación manual y movimiento automático</h2>
         </div>
         <span className="sensor-simulation-workbench__status">
-          {autoMotion ? "Movimiento automático activo" : "Control manual"}
+          {autoMotion ? Object.values(autoAxes).some(Boolean) ? "Movimiento automático activo" : "Todos los ejes fijos" : "Control manual"}
         </span>
       </header>
       <div className="sensor-simulation-workbench__grid">
@@ -1594,12 +1546,14 @@ function MpuSimulationWorkbench({
           eulerDeg={eulerDeg}
           isEmu
           onChange={onEulerChange}
+          autoAxes={autoAxes}
+          onAutoAxisChange={onAutoAxisChange}
         />
         <MockEulerGenerator
           active={autoMotion}
           ms={periodMs}
           onMsChange={onPeriodChange}
-          onUpdate={onEulerChange}
+          onUpdate={onAutoEulerChange}
         />
       </div>
     </section>
@@ -1634,16 +1588,19 @@ function SwitchButton({
   active,
   disabled = false,
   onClick,
+  ariaLabel,
 }: {
   active: boolean;
   disabled?: boolean;
   onClick: () => void;
+  ariaLabel?: string;
 }) {
   return (
     <button
       type="button"
       className={`sensor-switch ${active ? "sensor-switch--active" : ""}`}
       aria-pressed={active}
+      aria-label={ariaLabel}
       disabled={disabled}
       onClick={onClick}
     >
@@ -1819,22 +1776,6 @@ function formatStreamSubscriptionError(sensor: "MPU" | "IR", error: Error): stri
     return `${sensor}: timeout esperando la confirmacion del ESP/F4.`;
   }
   return `${sensor}: ${error.message}`;
-}
-
-function loadStoredIrCalibrationProfile(): IrCalibrationProfile {
-  try {
-    const stored = window.localStorage.getItem(IR_CALIBRATION_STORAGE_KEY);
-    if (stored) {
-      const parsed = parseIrCalibrationProfile(stored);
-      if (parsed.ok && parsed.profile) {
-        return { ...parsed.profile, polarity: "higher-is-closer", material: parsed.profile.material === "Blanco de prueba" ? "Blanco" : parsed.profile.material };
-      }
-    }
-  } catch {
-    // Si localStorage no está disponible se usa un perfil nuevo sólo en memoria.
-  }
-
-  return createEmptyIrCalibrationProfile();
 }
 
 function createIdleIrSnapshot(periodMs: number): IrSnapshot {

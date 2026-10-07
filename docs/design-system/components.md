@@ -20,6 +20,13 @@
 | Badges, pills y métricas | Observada | Cubierta | No verificada | Pendiente | `.home-status-pill`, métricas WiFi/Control |
 | Tooltips | Propuesta | No cubierta | No verificada | Pendiente | No hay patrón consistente en las cinco vistas |
 | Loaders y progreso | Observada | Parcial | No verificada | Pendiente | PIN, carga de escena, acciones WiFi |
+| Switches de emisión y apertura óptica estimada | Observada + propuesta aplicada | Cubierta en fuente | No verificada | Borrador autorizado; pendiente visual | [Aplicación 2026-10-05](emission-controls-2026-10-05.md), `IrEmittersControls`, `ToggleButton` |
+| Vistas y bloques de telemetría colapsables | Confirmada disposición + propuesta aplicada | Cubierta en fuente | No verificada | Disposición pedida; revisión visual pendiente | [Reorganización 2026-10-05](sensor-layout-2026-10-05.md), `SensorDisclosure`, Control real |
+| Haces, sliders de opacidad y visibilidad | Confirmada disposición + propuesta aplicada | Cubierta en fuente | No verificada | Controles pedidos; revisión visual pendiente | [Reorganización 2026-10-05](sensor-layout-2026-10-05.md), `SensorBeamControls`, `SensorDisclosure` |
+| Iconos de vistas y gráfica condicionada a la placa | Confirmada interacción + propuesta aplicada | Cubierta en fuente | No verificada | Cambios pedidos; revisión visual pendiente | [Reorganización 2026-10-05](sensor-layout-2026-10-05.md), `SensorCameraViewIcon`, `RealtimeEulerPanel` |
+| Acciones de motores, balance plegable e indicador de armado | Confirmada interacción + propuesta aplicada | Cubierta en fuente | No verificada | Cambios pedidos; revisión visual pendiente | [Control de motores 2026-10-05](motor-controls-2026-10-05.md), `MotionControlActions`, `MotionBalancePanel`, `MotionBalanceStatus` |
+| Selector Puntos/Ribbon, herramientas del Seguidor y política WiFi integrada | Confirmada interacción + propuesta aplicada | Cubierta en fuente | No verificada | Cambios pedidos; revisión visual pendiente | [Seguidor y WiFi 2026-10-05](track-wifi-tools-2026-10-05.md), `IrObjectDetectionMarkers`, `ApFallbackControls`, transporte compartido |
+| LED blanco binario, apertura fija y detección axial por sensor | Toggle y ±30° desde el eje confirmados por pedido del 2026-10-06 | Cubierta en fuente | No verificada | Sin cono blanco, opacidad ni preview; revisión visual pendiente | [Reorganización y corrección](sensor-layout-2026-10-05.md), `IrEmittersControls`, `UnderbodySensorBeams`, `ObstacleRay` |
 | Estados vacíos | Propuesta | No cubierta | No verificada | Pendiente | No hay un arquetipo común demostrado |
 
 ## Anatomía y uso
@@ -88,3 +95,5 @@ Cinco reglas de esta reforma: marca común; paleta fija y tokens; superficies s�
 Diagrama UNER: panel → contexto → campos desplegables nativos (etiqueta, offset, valor, nota y descripción) → payload → checksum. El mapa de bytes consume roles de campo equivalentes. La etiqueta y offset transmiten significado aunque no se perciba el color. Salidas con código monoespaciado, reflujo y botón Copiar adyacente. OLED conserva el lienzo pixelado y su zoom; el marco fluye por contenido y los paneles se redistribuyen. Tokens locales de espaciado, radio, fondo de código y borde en src/features/studio.css heredan alias --ui-*.
 
 Cobertura de fuente: constructor/traductor, galería/editor/código/envío; temas y media queries. Verificación visual, contraste y sesión física: No verificada. [Informe](studio-refinement-2026-10-02.md).
+
+2026-10-06 — Propuesta implementada: tarjeta de estado FOLLOW, calibraciones blanco/pista y modal de pendientes al intentar iniciar. Ver [cobertura y límites](line-follow-2026-10-06.md).

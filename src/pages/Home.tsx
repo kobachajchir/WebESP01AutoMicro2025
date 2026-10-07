@@ -1385,6 +1385,7 @@ function SystemMetricRow({
  aria-label={ariaLabel ?? label}
  >
  {content}
+ <ChevronDownIcon />
  </button>
  );
  }

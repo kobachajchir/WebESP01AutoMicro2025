@@ -437,13 +437,13 @@ export function resolveOledScreen(input: ScreenRenderInput): ResolvedOledScreen 
     case SCREEN_CODE_CONNECTIVITY_WEB_SERVER_UP:
       return resolved(input, "Web server up", "notification", "buildScreen020501WebServerUpNotificationCommands", "Aviso de web server listo.", buildScreen020501WebServerUpNotificationCommands(progress));
     case SCREEN_CODE_CONNECTIVITY_WEB_CLIENT_CONNECTED:
-      return resolved(input, "Web client connected", "notification", "buildScreen020502WebClientConnectedNotificationCommands", "Aviso de cliente web conectado.", buildScreen020502WebClientConnectedNotificationCommands(progress));
+      return resolved(input, "Web client connected", "notification", "buildScreen020502WebClientConnectedNotificationCommands", "Aviso de cliente web conectado.", buildScreen020502WebClientConnectedNotificationCommands(progress, readNumber(data.clientNumber) ?? 0));
     case SCREEN_CODE_CONNECTIVITY_WEB_CLIENT_DISCONNECTED:
-      return resolved(input, "Web client disconnected", "notification", "buildScreen020503WebClientDisconnectedNotificationCommands", "Aviso de cliente web desconectado.", buildScreen020503WebClientDisconnectedNotificationCommands(progress));
+      return resolved(input, "Web client disconnected", "notification", "buildScreen020503WebClientDisconnectedNotificationCommands", "Aviso de cliente web desconectado.", buildScreen020503WebClientDisconnectedNotificationCommands(progress, readNumber(data.clientNumber) ?? 0));
     case SCREEN_CODE_CONNECTIVITY_AP_DEVICE_CONNECTED:
-      return resolved(input, "AP device connected", "notification", "buildScreen020601ApDeviceConnectedNotificationCommands", "Aviso de dispositivo asociado al Access Point.", buildScreen020601ApDeviceConnectedNotificationCommands(progress));
+      return resolved(input, "AP device connected", "notification", "buildScreen020601ApDeviceConnectedNotificationCommands", "Aviso de dispositivo asociado al Access Point.", buildScreen020601ApDeviceConnectedNotificationCommands(progress, readNumber(data.clientNumber) ?? 0));
     case SCREEN_CODE_CONNECTIVITY_AP_DEVICE_DISCONNECTED:
-      return resolved(input, "AP device disconnected", "notification", "buildScreen020602ApDeviceDisconnectedNotificationCommands", "Aviso de dispositivo que abandono el Access Point.", buildScreen020602ApDeviceDisconnectedNotificationCommands(progress));
+      return resolved(input, "AP device disconnected", "notification", "buildScreen020602ApDeviceDisconnectedNotificationCommands", "Aviso de dispositivo que abandono el Access Point.", buildScreen020602ApDeviceDisconnectedNotificationCommands(progress, readNumber(data.clientNumber) ?? 0));
 
     case SCREEN_CODE_SENSORS_MENU:
       return resolved(input, "Sensors menu", "menu screen", "buildScreen030101SensorsMenuCommands", "Menu de sensores: IR, MPU y test de motores.", buildScreen030101SensorsMenuCommands(readMenuArgs(data)));

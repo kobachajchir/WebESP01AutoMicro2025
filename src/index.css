@@ -46,6 +46,10 @@
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --motion-fast: 150ms;
+  --motion-standard: 200ms;
+  --motion-slow: 300ms;
+  --ui-font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --ui-touch-target: 2.75rem;
 }
 
@@ -89,7 +93,7 @@ body {
   color-scheme: dark;
   color: var(--ui-text);
   background: var(--ui-bg-0);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--ui-font-family);
   line-height: 1.5;
   font-weight: 400;
   font-synthesis: none;
@@ -1541,6 +1545,7 @@ h1, h2, h3, h4, h5, h6, .app-title {
 
 .home-system-row--interactive {
   width: 100%;
+  grid-template-columns: 0.45rem max-content minmax(0, 1fr) 1rem;
   border: 0;
   background: transparent;
   font: inherit;
@@ -4694,7 +4699,7 @@ button.app-mode-toggle--dev[data-state="on"] + .app-mode-toggle__label,
   --sensor-stage-height: clamp(540px, 60vh, 660px);
   display: grid;
   min-height: var(--sensor-stage-height);
-  grid-template-columns: 210px minmax(0, 1fr) 320px;
+  grid-template-columns: 240px minmax(0, 1fr);
   align-items: stretch;
   gap: 1rem;
   padding: 1rem;
@@ -5010,13 +5015,14 @@ label.sensor-tool-button {
 }
 
 .sensor-status-panel {
-  display: flex;
-  height: var(--sensor-stage-height);
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  height: auto;
   min-width: 0;
-  flex-direction: column;
   gap: 0.8rem;
-  align-self: stretch;
-  overflow: auto;
+  align-items: start;
+  overflow: visible;
   padding: 0.75rem;
 }
 
@@ -5228,6 +5234,63 @@ label.sensor-tool-button {
   font-size: 0.61rem;
   font-weight: 850;
   white-space: nowrap;
+}
+
+.sensor-emission-panel {
+  padding: clamp(1rem, 2vw, 1.4rem);
+  border: 1px solid var(--ui-ring);
+  border-radius: var(--ui-radius);
+  background: var(--ui-panel-strong);
+  color: var(--ui-text);
+}
+
+.sensor-emission-panel__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.sensor-emission-panel__eyebrow {
+  color: var(--ui-accent);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.sensor-emission-panel h3 { margin: 0.25rem 0; font-size: 1.05rem; }
+.sensor-emission-panel__header .app-button { padding: 0.55rem 0.9rem; font-size: 0.78rem; font-weight: 600; }
+.sensor-emission-panel__header .app-button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.sensor-emission-panel__header p,
+.sensor-emission-angle p { margin: 0; color: var(--ui-muted); font-size: 0.78rem; line-height: 1.5; }
+.sensor-emission-panel__rows { border-top: 1px solid var(--ui-ring); }
+.sensor-emission-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.8rem;
+  align-items: center;
+  min-height: 4.5rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--ui-ring);
+}
+.sensor-emission-row__copy { display: grid; gap: 0.15rem; }
+.sensor-emission-row__copy strong { font-size: 0.86rem; font-weight: 650; }
+.sensor-emission-row__copy span { color: var(--ui-muted); font-size: 0.75rem; }
+.sensor-emission-row__state { color: var(--ui-muted); font-size: 0.75rem; }
+.sensor-emission-row[data-enabled="true"] .sensor-emission-row__state { color: var(--ui-success-text); }
+.sensor-emission-switch { min-height: var(--ui-touch-target); }
+.sensor-emission-angle { max-width: 30rem; padding-top: 1.1rem; }
+.sensor-emission-angle > div { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.8rem; }
+.sensor-emission-angle output { color: var(--ui-accent); font-variant-numeric: tabular-nums; }
+.sensor-emission-angle input { width: 100%; min-height: var(--ui-touch-target); accent-color: var(--ui-accent); }
+.sensor-emission-angle input:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 3px; border-radius: var(--ui-radius); }
+.sensor-emission-panel__error { color: var(--ui-rose); font-size: 0.8rem; margin: 1rem 0 0; }
+@media (max-width: 480px) {
+  .sensor-emission-row { gap: 0.5rem; }
+  .sensor-emission-row__state { font-size: 0.68rem; }
+  .sensor-emission-panel__header .app-button { width: 100%; }
 }
 
 .sensor-console-group {
@@ -5549,6 +5612,31 @@ label.sensor-tool-button {
   width: 100%;
   max-width: none;
 }
+
+.sensor-orientation-axis-control {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.65rem;
+}
+.sensor-orientation-axis-auto {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: var(--ui-touch-target);
+  min-width: 4rem;
+  color: var(--ui-muted);
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+.sensor-orientation-axis-auto input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--ui-accent);
+}
+.sensor-orientation-axis-slider { width: 100%; min-width: 0; accent-color: var(--ui-accent); }
+.sensor-orientation-axis-auto input:focus-visible,
+.sensor-orientation-axis-slider:focus-visible { outline: 2px solid var(--ui-ring-strong); outline-offset: 3px; }
 
 .sensor-modal-copy {
   display: grid;
@@ -6931,3 +7019,408 @@ body {
   }
 }
 
+
+/* Sensor disclosures and camera selection use the shared control identity. */
+.sensor-disclosure { min-width: 0; }
+.sensor-disclosure .sensor-console-group__header > .sensor-disclosure__title {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+.sensor-disclosure__title h3 {
+  margin: 0;
+  color: var(--ui-accent);
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-transform: none;
+}
+.sensor-disclosure__title svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--ui-accent);
+}
+.sensor-disclosure .sensor-console-group__collapse {
+  min-width: var(--ui-touch-target);
+  min-height: var(--ui-touch-target);
+}
+.sensor-disclosure .sensor-console-group__header { margin-bottom: 0; }
+.sensor-disclosure .sensor-console-group__collapse:disabled { opacity: 0.45; cursor: not-allowed; }
+.sensor-disclosure .sensor-console-group__collapse:disabled:hover { background: var(--ui-field); transform: none; }
+.sensor-disclosure__unavailable { margin: 0.65rem 0 0; color: var(--ui-muted); font-size: 0.78rem; }
+.sensor-disclosure__body { padding-top: 0.8rem; }
+.sensor-disclosure__body[hidden] { display: none; }
+.sensor-camera-views { margin: 0 1rem; padding: 0.8rem 1rem; }
+.sensor-camera-views .sensor-disclosure__body { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 4.5fr); align-items: start; gap: 0.75rem; }
+.sensor-camera-views .sensor-disclosure__body[hidden] { display: none; }
+.sensor-camera-view-group { display: grid; min-width: 0; gap: 0.5rem; padding: 0.65rem; border: 1px solid var(--ui-ring); border-radius: var(--ui-radius); background: var(--ui-panel); }
+.sensor-camera-view-group > span { color: var(--ui-muted); font-size: 0.72rem; font-weight: 650; }
+.sensor-camera-view-group__buttons { display: grid; min-width: 0; width: 100%; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.4rem; }
+.sensor-camera-view-group--main .sensor-camera-view-group__buttons { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); grid-auto-flow: column; }
+.sensor-camera-isometric-rows { display: grid; gap: 0.4rem; }
+.sensor-camera-isometric-row { display: grid; min-width: 0; grid-template-columns: 2rem minmax(0, 1fr); align-items: center; gap: 0.4rem; }
+.sensor-camera-isometric-row__label { color: var(--ui-muted); font-size: 0.68rem; font-weight: 600; }
+.sensor-camera-view-button {
+  display: flex;
+  min-width: 0;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-height: var(--ui-touch-target);
+  padding: 0.4rem 0.45rem;
+  border: 1px solid var(--ui-ring);
+  border-radius: var(--ui-radius);
+  color: var(--ui-text);
+  background: var(--ui-field);
+  font-size: 0.72rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, transform 120ms var(--ease-out);
+}
+.sensor-camera-view-icon { width: 1.5rem; height: 1.5rem; flex: 0 0 auto; }
+.sensor-camera-view-button > span { min-width: 0; white-space: nowrap; }
+.sensor-camera-view-button--active { border-color: var(--ui-ring-strong); background: var(--ui-accent-wash); color: var(--ui-accent); }
+.sensor-camera-view-button:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 3px; }
+.sensor-camera-view-button:active { transform: scale(0.98); }
+@media (hover: hover) and (pointer: fine) {
+  .sensor-camera-view-button:hover { border-color: var(--ui-ring-strong); background: var(--ui-panel-hover); }
+}
+.sensor-connection-bar { grid-template-columns: minmax(200px, 0.7fr) minmax(0, 2fr); }
+.sensor-light-tools { display: grid; gap: 0.5rem; min-width: 0; padding-top: 0.65rem; border-top: 1px solid var(--ui-ring); }
+.sensor-light-tools__control { display: flex; min-height: var(--ui-touch-target); align-items: center; justify-content: space-between; gap: 0.75rem; }
+.sensor-light-tools__label { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--ui-text); font-size: 0.78rem; font-weight: 650; }
+.sensor-light-tools__label svg { width: 1rem; height: 1rem; }
+.sensor-light-tools__angle { margin: 0; color: var(--ui-muted); font-size: 0.7rem; line-height: 1.5; }
+.sensor-light-tools__status { margin: 0; color: var(--ui-muted); font-size: 0.7rem; line-height: 1.5; }
+.sensor-tool-button--disabled { opacity: 0.55; cursor: not-allowed; }
+.sensor-tool-button--disabled:hover { transform: none; }
+.sensor-tool-button input:disabled { cursor: not-allowed; }
+.sensor-tool-check { accent-color: var(--ui-accent); }
+.sensor-dashboard-scene { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.sensor-dashboard-scene .sensor-scene-shell { height: 100%; }
+.sensor-dashboard-scene .sensor-canvas-telemetry { bottom: 0.8rem; }
+.sensor-sensitivity-control { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 1rem; }
+.sensor-sensitivity-control__range { display: grid; gap: 0.5rem; min-width: 0; }
+.sensor-sensitivity-control__actions { display: flex; align-items: center; gap: 0.55rem; }
+.sensor-sensitivity-control__actions button { min-height: var(--ui-touch-target); }
+.sensor-sensitivity-control__actions svg { width: 1.15rem; height: 1.15rem; fill: none; stroke: currentColor; stroke-width: 1.7; }
+.sensor-sensitivity-clear { color: var(--ui-rose); border-color: var(--ui-ring); }
+.sensor-side-block--line { grid-column: 1 / -1; }
+.sensor-side-block--line .sensor-side-block__body { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 1.5rem; }
+.sensor-status-panel .sensor-status-row { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
+.sensor-status-panel .sensor-status-row__value { overflow-wrap: anywhere; }
+@media (max-width: 1100px) {
+  .sensor-sensitivity-control { grid-template-columns: 1fr; }
+  .sensor-sensitivity-control__actions { justify-content: flex-end; flex-wrap: wrap; }
+}
+@media (max-width: 820px) {
+  .sensor-connection-bar { grid-template-columns: 1fr; }
+  .sensor-camera-views { margin: 0 0.75rem; }
+  .sensor-camera-views .sensor-disclosure__body { grid-template-columns: minmax(0, 1fr); }
+  .sensor-camera-views .sensor-console-group__header { align-items: flex-start; }
+  .sensor-camera-views .sensor-console-group__header-actions { flex-wrap: wrap; justify-content: flex-end; }
+  .sensor-camera-views .sensor-console-group__state { max-width: 14rem; text-align: right; white-space: normal; }
+  .sensor-light-tools { grid-column: 1 / -1; }
+  .sensor-side-block--line .sensor-side-block__body { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) {
+  .sensor-camera-view-group--isometric .sensor-camera-view-group__buttons { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sensor-camera-view-button { flex-direction: column; gap: 0.25rem; padding: 0.45rem 0.3rem; }
+  .sensor-camera-isometric-row { align-items: start; }
+  .sensor-camera-isometric-row__label { padding-top: 0.7rem; }
+  .sensor-camera-views .sensor-console-group__state { display: none; }
+  .sensor-sensitivity-control__actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sensor-sensitivity-control__actions button { padding: 0.5rem; font-size: 0.7rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sensor-camera-view-button, .sensor-disclosure .home-dropdown-chevron { transition: none; }
+}
+
+.sensor-simulated-badge,
+.sensor-disclosure .sensor-disclosure__title > .sensor-simulated-badge {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--ui-ring-strong);
+  border-radius: 999px;
+  padding: 0.28rem 0.55rem;
+  color: var(--ui-accent);
+  background: var(--ui-accent-wash);
+  font-size: 0.65rem;
+  font-weight: 750;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+}
+.sensor-simulated-badge > span {
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+.sensor-scene-simulation-status {
+  position: absolute;
+  z-index: 2;
+  top: 0.75rem;
+  left: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  max-width: calc(100% - 1.5rem);
+  border: 1px solid var(--ui-ring);
+  border-radius: var(--ui-radius);
+  padding: 0.45rem;
+  background: var(--ui-panel);
+  color: var(--ui-muted);
+  font-size: 0.68rem;
+  pointer-events: none;
+}
+.sensor-simulation-panel {
+  margin: 1.5rem 1rem 1rem;
+  padding: 1rem;
+  border-color: var(--ui-ring-strong);
+  background: var(--ui-panel);
+}
+.sensor-simulation-master {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--ui-muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+.sensor-simulation-panel__intro {
+  margin: 0 0 1rem;
+  color: var(--ui-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+.sensor-simulation-panel__modules {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+.sensor-simulation-module {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.65rem;
+  border: 1px solid var(--ui-ring);
+  border-radius: var(--ui-radius);
+  padding: 0.9rem;
+  background: var(--ui-field);
+}
+.sensor-simulation-module__header,
+.sensor-simulation-module__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.sensor-simulation-module__header {
+  margin-bottom: 0.25rem;
+  border-bottom: 1px solid var(--ui-ring);
+  padding-bottom: 0.75rem;
+}
+.sensor-simulation-module__header h4 {
+  margin: 0;
+  color: var(--ui-text);
+  font-size: 0.85rem;
+  font-weight: 750;
+}
+.sensor-simulation-module__header p,
+.sensor-simulation-module__hint {
+  margin: 0.3rem 0 0;
+  color: var(--ui-muted);
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+.sensor-simulation-module__option {
+  min-height: var(--ui-touch-target);
+  color: var(--ui-text);
+  font-size: 0.75rem;
+}
+.sensor-simulation-module__hint { flex: 1; }
+.sensor-simulation-module > h4 { margin: 0; color: var(--ui-text); font-size: 0.85rem; font-weight: 750; }
+.sensor-simulation-master input[type="checkbox"],
+.sensor-simulation-module input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: var(--ui-accent); cursor: pointer; }
+.track-map-source { display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem; }
+.sensor-simulation-module .sensor-console-secondary { align-self: flex-start; }
+.sensor-simulation-module button:disabled,
+.sensor-simulation-module input:disabled { opacity: 0.45; cursor: not-allowed; }
+.sensor-simulation-panel .sensor-simulation-workbench {
+  margin: 1rem 0 0;
+  border: 0;
+  border-top: 1px solid var(--ui-ring);
+  border-radius: 0;
+  padding: 1rem 0 0;
+  background: transparent;
+  box-shadow: none;
+}
+.sensor-simulation-panel .sensor-simulation-workbench__header { flex-wrap: wrap; }
+.sensor-simulation-panel .sensor-simulation-workbench__status {
+  color: var(--ui-accent);
+  border-color: var(--ui-ring-strong);
+  background: var(--ui-accent-wash);
+  white-space: normal;
+}
+.sensor-camera-views .sensor-disclosure__title,
+.sensor-realtime-panel .sensor-disclosure__title { flex-wrap: wrap; }
+@media (max-width: 820px) {
+  .sensor-simulation-panel { margin: 1.5rem 0.75rem 0.75rem; padding: 0.75rem; }
+  .sensor-simulation-panel__modules { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) {
+  .sensor-simulation-panel .sensor-console-group__header { gap: 0.4rem; }
+  .sensor-simulation-master { gap: 0.35rem; font-size: 0.65rem; }
+  .sensor-scene-simulation-status > span:last-child { display: none; }
+}
+
+.sensor-stage-workspace {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  align-self: start;
+  align-content: start;
+  gap: 0.75rem;
+}
+.sensor-beam-controls { padding: 0.8rem 1rem; }
+.sensor-beam-controls__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.sensor-beam-control { min-width: 0; }
+.sensor-beam-control__header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.3rem 0.65rem; }
+.sensor-beam-control__header > label:first-child { color: var(--ui-text); font-size: 0.78rem; font-weight: 650; }
+.sensor-beam-control__visibility { display: inline-flex; min-height: var(--ui-touch-target); align-items: center; gap: 0.4rem; color: var(--ui-muted); font-size: 0.72rem; cursor: pointer; }
+.sensor-beam-control__visibility input { width: 1.05rem; height: 1.05rem; accent-color: var(--ui-accent); }
+.sensor-beam-control__slider { display: grid; grid-template-columns: minmax(0, 1fr) 3rem; gap: 0.6rem; align-items: center; }
+.sensor-beam-control__slider input { width: 100%; min-width: 0; min-height: var(--ui-touch-target); accent-color: var(--ui-accent); cursor: pointer; }
+.sensor-beam-control__slider input:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 3px; border-radius: var(--ui-radius); }
+.sensor-beam-control__slider output { color: var(--ui-accent); font-size: 0.78rem; font-variant-numeric: tabular-nums; text-align: right; }
+.sensor-beam-controls__help { margin: 0.75rem 0 0; color: var(--ui-muted); font-size: 0.72rem; line-height: 1.5; }
+.sensor-vertical-bar--distance { grid-template-rows: auto minmax(0, 1fr) auto auto; }
+.sensor-vertical-bar__distance { color: var(--ui-text); font-size: 0.6rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+@media (max-width: 1100px) {
+  .sensor-beam-controls__grid { grid-template-columns: 1fr; gap: 0.5rem; }
+  .sensor-beam-control + .sensor-beam-control { border-top: 1px solid var(--ui-ring); padding-top: 0.5rem; }
+}
+
+.sensor-realtime-panel { min-width: 0; margin: 0 1rem; padding: 1rem; }
+.sensor-realtime-panel__description { margin: 0 0 0.8rem; color: var(--ui-muted); font-size: 0.78rem; }
+.sensor-realtime-panel__notice { margin: 0 0 0.8rem; color: var(--ui-muted); font-size: 0.78rem; }
+.sensor-realtime-panel__readings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
+.sensor-realtime-panel__reading { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.6rem; color: var(--ui-muted); font-size: 0.78rem; }
+.sensor-realtime-panel__reading output { color: var(--ui-text); font-variant-numeric: tabular-nums; }
+.sensor-realtime-panel__chart { margin-top: 1rem; }
+.sensor-realtime-panel__grid { stroke: var(--ui-ring); }
+.sensor-realtime-panel__legend { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1rem; margin-top: 0.65rem; color: var(--ui-muted); font-size: 0.72rem; }
+.sensor-realtime-panel__legend > span:last-child { margin-left: auto; }
+@media (max-width: 820px) {
+  .sensor-realtime-panel { margin: 0 0.75rem; }
+  .sensor-realtime-panel__readings { grid-template-columns: 1fr; }
+}
+
+/* Shared transport actions: Control de motores and Seguidor use one palette. */
+.transport-action-button {
+  min-width: 0;
+  border-color: var(--ui-ring);
+  border-radius: var(--ui-radius);
+  color: var(--ui-muted);
+  background: var(--ui-panel);
+  box-shadow: none;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 120ms var(--ease-out), opacity 160ms ease;
+}
+.transport-action-button[data-tone="cyan"] { color: var(--ui-accent); background: var(--ui-accent-trace); border-color: var(--ui-accent-soft); }
+.transport-action-button[data-tone="emerald"] { color: var(--ui-success-text); background: var(--ui-base-trace); border-color: var(--ui-base-soft); }
+.transport-action-button[data-tone="rose"] { color: var(--ui-rose); background: color-mix(in srgb, var(--ui-rose) 8%, transparent); border-color: color-mix(in srgb, var(--ui-rose) 40%, transparent); }
+.transport-action-button[data-active="true"][data-tone="cyan"] { background: var(--ui-accent-wash); border-color: var(--ui-ring-strong); }
+.transport-action-button[data-active="true"][data-tone="emerald"] { background: var(--ui-base-wash); border-color: var(--ui-base); }
+.transport-action-button__icon { display: flex; min-width: 2.5rem; min-height: 2.5rem; align-items: center; background: var(--ui-field); }
+.transport-action-button__label { color: var(--ui-text); line-height: 1.4; white-space: normal; overflow: visible; }
+.transport-action-button__detail { color: var(--ui-muted); font-size: 0.72rem; line-height: 1.4; overflow-wrap: anywhere; white-space: normal; overflow: visible; }
+.transport-action-button:focus-visible { outline: 2px solid var(--ui-ring-strong); outline-offset: 3px; }
+.transport-action-button:disabled { cursor: not-allowed; opacity: 0.45; transform: none; }
+@media (hover: hover) and (pointer: fine) {
+  .transport-action-button:hover:not(:disabled) { border-color: var(--ui-ring-strong); background: var(--ui-panel-hover); }
+  .transport-action-button[data-tone="rose"]:hover:not(:disabled) { border-color: var(--ui-rose); background: color-mix(in srgb, var(--ui-rose) 16%, transparent); }
+}
+.transport-action-button:active:not(:disabled) { transform: scale(0.98); }
+
+/* Seguidor tools live under transport; selection and switches are independent. */
+.track-tools-panel { padding: 0 0.75rem 0.75rem; }
+.track-tools-panel .track-console-group { padding: 1rem; border-color: var(--ui-ring); background: var(--ui-field); box-shadow: none; backdrop-filter: none; }
+.track-tools-panel .track-console-group > header { margin-bottom: 0.8rem; color: var(--ui-accent); font-size: 0.8rem; }
+.track-tools-panel .track-console-group > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+.track-tools-render-choice { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
+.track-tools-render-choice > span { color: var(--ui-muted); font-size: 0.78rem; font-weight: 700; }
+.track-map-panel__modes { border-color: var(--ui-ring); background: var(--ui-field); }
+.track-render-selector { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); flex: 1 1 12rem; gap: 0.25rem; }
+.track-map-panel__modes .track-segment-button { min-height: var(--ui-touch-target); color: var(--ui-muted); border-color: transparent; background: transparent; box-shadow: none; }
+.track-map-panel__modes .track-segment-button--active { color: var(--ui-action-hover-ink); background: var(--ui-accent); border-color: var(--ui-accent); }
+.track-map-panel__modes .track-segment-button:hover:not(.track-segment-button--active) { color: var(--ui-text); background: var(--ui-panel-hover); }
+.track-tools-panel .track-inline-toggle, .track-tools-panel .track-number-control { border-color: var(--ui-ring); color: var(--ui-text); background: var(--ui-panel); }
+.track-tools-panel .track-inline-toggle--active { border-color: var(--ui-base-soft); background: var(--ui-base-wash); }
+.track-tools-panel .track-inline-toggle i { background: var(--ui-field); box-shadow: inset 0 0 0 1px var(--ui-ring); }
+.track-tools-panel .track-inline-toggle i::after { background: var(--ui-muted); }
+.track-tools-panel .track-inline-toggle--active i::after { background: var(--ui-accent); box-shadow: none; }
+.track-tools-panel .track-number-control input { color: var(--ui-text); background: var(--ui-field); border-color: var(--ui-ring); }
+.track-tools-panel .track-number-control strong { color: var(--ui-muted); }
+.track-tools-panel .track-tools-note { grid-column: 1 / -1; margin: 0; color: var(--ui-muted); font-size: 0.75rem; line-height: 1.6; }
+.track-side-panel .track-panel-card { border-color: var(--ui-ring); color: var(--ui-text); background: var(--ui-panel-strong); box-shadow: none; backdrop-filter: none; }
+.track-side-panel .track-panel-card header span { color: var(--ui-accent); }
+.track-side-panel .track-panel-card header h3 { color: var(--ui-text); }
+.track-side-panel .track-status-pair { color: var(--ui-muted); border-color: var(--ui-ring); }
+.track-side-panel .track-status-pair strong { color: var(--ui-text); white-space: normal; overflow-wrap: anywhere; }
+.track-side-panel .track-status-pair--ok strong { color: var(--ui-success-text); }
+.track-side-panel .track-status-pair--info strong { color: var(--ui-accent); }
+.track-side-panel .track-status-pair--error strong { color: var(--ui-rose); }
+.track-side-panel .track-status-pair--warn strong { color: var(--ui-amber); }
+
+/* WiFi integrates policy, status query and confirmed fallback in the mode card. */
+.wifi-mode-switch-card { min-width: 0; margin: 1rem 0 1.25rem; padding: 1rem; border: 1px solid var(--ui-ring); border-radius: var(--ui-radius); color: var(--ui-text); background: var(--ui-panel-strong); }
+.wifi-mode-switch-card__header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem; padding-bottom: 0.85rem; border-bottom: 1px solid var(--ui-ring); }
+.wifi-mode-switch-card__header p { margin: 0; color: var(--ui-muted); font-size: 0.78rem; font-weight: 650; }
+.wifi-mode-switch-card__header strong { color: var(--ui-accent); }
+.wifi-mode-switch-card__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 0.6rem; flex: 0 0 auto; }
+.wifi-policy-query-button { display: inline-flex; align-items: center; justify-content: center; gap: 0.6rem; padding: 0.65rem 1rem; font-size: 0.8rem; font-weight: 750; box-shadow: none; }
+.wifi-policy-query-button svg, .wifi-ap-fallback-toggle svg { width: 1.15rem; height: 1.15rem; flex: 0 0 auto; }
+.wifi-ap-fallback-toggle { display: inline-flex; min-height: var(--ui-touch-target); align-items: center; justify-content: center; gap: 0.55rem; padding: 0.55rem 0.8rem; border: 1px solid var(--ui-ring); border-radius: var(--ui-radius); color: var(--ui-muted); background: var(--ui-field); font-size: 0.75rem; font-weight: 750; cursor: pointer; transition: background-color 160ms ease, border-color 160ms ease, opacity 160ms ease; }
+.wifi-ap-fallback-toggle[data-state="enabled"] { color: var(--ui-action-ink); border-color: var(--ui-success-bg); background: var(--ui-success-bg); }
+.wifi-ap-fallback-toggle[data-state="disabled"] { color: var(--ui-action-ink); border-color: var(--ui-danger-bg); background: var(--ui-danger-bg); }
+.wifi-ap-fallback-toggle:hover:not(:disabled) { border-color: var(--ui-ring-strong); }
+.wifi-ap-fallback-toggle:focus-visible { outline: 2px solid var(--ui-ring-strong); outline-offset: 3px; }
+.wifi-ap-fallback-toggle:disabled, .wifi-policy-query-button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+.wifi-mode-switch-card__policy { margin: 0.85rem 0 0; color: var(--ui-muted); font-size: 0.75rem; line-height: 1.5; }
+.wifi-mode-switch-card__error { margin: 0.6rem 0 0; color: var(--ui-rose); font-size: 0.8rem; line-height: 1.5; }
+@media (max-width: 820px) {
+  .track-tools-panel .track-console-group > div { grid-template-columns: 1fr; }
+  .wifi-mode-switch-card__actions { width: 100%; }
+  .wifi-mode-switch-card__actions > button { flex: 1 1 12rem; }
+}
+@media (max-width: 480px) {
+  .track-tools-render-choice { align-items: stretch; flex-direction: column; }
+  .track-render-selector { width: 100%; flex-basis: auto; }
+  .wifi-mode-switch-card__header { align-items: flex-start; }
+  .wifi-ap-fallback-toggle { max-width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .transport-action-button, .wifi-ap-fallback-toggle { transition: none; }
+  .transport-action-button:active:not(:disabled) { transform: none; }
+}
+
+.track-camera-help {
+  margin: 0;
+  padding: 0.55rem 1rem;
+  color: var(--ui-muted);
+  background: var(--ui-field);
+  font-size: 0.74rem;
+  line-height: 1.5;
+}

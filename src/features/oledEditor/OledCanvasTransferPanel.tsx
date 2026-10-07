@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import ConditionStatus, { ConditionCheckbox } from "../../components/ConditionStatus";
 import { formatScreenCodeHex } from "../../types/ScreenTypes";
 import { OLED_CANVAS_SCREEN_CODE } from "./oledCanvasProtocol";
 import {
@@ -15,20 +16,21 @@ export default function OledCanvasTransferPanel({ document }: { document: Editor
  const raster = useMemo(() => rasterizeOledDocument(document), [document]);
  const transfer = useOledCanvasTransfer();
  const progress = Math.round((transfer.state.progressBytes * 100) / OLED_CANVAS_BYTES);
- const isTestMode = transfer.cachedMode === 0x02;
- const isOledCanvasScreen = transfer.cachedScreenCode === OLED_CANVAS_SCREEN_CODE;
+ const isTestMode = transfer.apiV1Ready && transfer.cachedMode === 0x02;
+ const isOledCanvasScreen = transfer.apiV1Ready && transfer.cachedScreenCode === OLED_CANVAS_SCREEN_CODE;
+ const readyCount = [transfer.apiV1Ready, transfer.canStart, isTestMode, isOledCanvasScreen].filter(Boolean).length;
 
  return (
  <section className="app-panel-strong mt-4 grid gap-5 p-5 xl:grid-cols-[minmax(0,1fr)_360px]">
  <div className="flex flex-col gap-4">
  <div className="flex flex-wrap items-start justify-between gap-3">
  <div>
- <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200">
- Transferencia de pantalla
+ <div className="home-kicker">
+ Pantalla del vehículo
  </div>
- <h3 className="mt-1 text-xl font-black text-[var(--ui-text)]">Enviar a OLED</h3>
+ <h3 className="mt-1 text-xl font-black text-[var(--ui-text)]">Enviar diseño al OLED</h3>
  <p className="mt-2 max-w-2xl text-sm text-[var(--ui-muted)]">
- Se envía el diseño actual al OLED. La confirmación aparece cuando la F4 informa que terminó de actualizar la pantalla.
+ Revisá los requisitos y enviá la vista previa. El envío se confirma cuando el vehículo termina de actualizar la pantalla.
  </p>
  </div>
  <span className="rounded-full border border-[var(--ui-ring)] bg-[var(--ui-panel)] px-3 py-1 font-mono text-xs text-[var(--ui-muted)]">
@@ -37,50 +39,57 @@ export default function OledCanvasTransferPanel({ document }: { document: Editor
  </div>
 
  <div className="oled-transfer-conditions">
- <div className="mb-4 flex items-center gap-3">
- <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-cyan-300/25 bg-cyan-400/10 text-cyan-200 shadow-[0_0_24px_rgba(34,211,238,0.12)]">
- <OledConditionGlyph />
- </span>
+ <div className="condition-summary mb-4">
+ <div className="condition-summary__title">
+ <ConditionCheckbox checked={readyCount === 4} />
  <div>
- <h4 className="text-sm font-black text-[var(--ui-text)]">Condiciones para enviar</h4>
- <p className="mt-0.5 text-xs text-[var(--ui-muted)]">
- Cada marca refleja el estado cacheado actual antes del preflight final.
- </p>
+ <h4>Preparación del envío</h4>
+ <p>Los estados se vuelven a comprobar al enviar.</p>
  </div>
+ </div>
+ <span className="condition-summary__count" role="status">{readyCount} de 4 listos</span>
  </div>
 
- <div className="grid gap-3 lg:grid-cols-3">
- <TransferCondition
- label="API v1"
+ <div className="condition-status-grid condition-status-grid--four" aria-label="Requisitos de envío al OLED">
+ <ConditionStatus
+ label="Conexión compatible"
  checked={transfer.apiV1Ready}
  detail={
  transfer.apiV1Ready
- ? "Conectada y compatible con OLED Canvas"
+ ? "Vehículo conectado y envío disponible"
  : transfer.capabilityAvailable
- ? "Esperando conexión WebSocket"
- : "Capability OLED Canvas no disponible"
+ ? "Esperando conexión con el vehículo"
+ : "Conectá un vehículo con soporte OLED Canvas"
  }
  />
- <TransferCondition
+ <ConditionStatus
+ label="Sesión autorizada"
+ checked={transfer.canStart}
+ confirmed={transfer.apiV1Ready}
+ detail={transfer.canStart ? "PIN confirmado por el vehículo" : transfer.apiV1Ready ? "Ingresá el PIN del vehículo" : "Esperando conexión con el vehículo"}
+ />
+ <ConditionStatus
  label="Modo TEST"
  checked={isTestMode}
+ confirmed={transfer.apiV1Ready && transfer.cachedMode !== null}
  detail={
  isTestMode
- ? "Modo actual confirmado: TEST"
- : transfer.cachedMode === null
- ? "Sin modo recibido desde la F4"
- : `Modo actual: ${formatCarModeValue(transfer.cachedMode)}`
+ ? "Modo de prueba confirmado"
+ : !transfer.apiV1Ready || transfer.cachedMode === null
+ ? "Modo del vehículo sin confirmar"
+ : `Seleccioná TEST · actual: ${formatCarModeValue(transfer.cachedMode)}`
  }
  />
- <TransferCondition
- label="Pantalla actual OLED Canvas"
+ <ConditionStatus
+ label="OLED Canvas abierto"
  checked={isOledCanvasScreen}
+ confirmed={transfer.apiV1Ready && transfer.cachedScreenCode !== null}
  detail={
  isOledCanvasScreen
- ? formatScreenCodeHex(OLED_CANVAS_SCREEN_CODE)
- : transfer.cachedScreenCode === null
- ? "Sin pantalla recibida desde la F4"
- : `Actual: ${formatScreenCodeHex(transfer.cachedScreenCode)}`
+ ? "Pantalla de destino confirmada"
+ : !transfer.apiV1Ready || transfer.cachedScreenCode === null
+ ? "Pantalla del vehículo sin confirmar"
+ : "Abrí Testeo > Pantalla > OLED Canvas"
  }
  />
  </div>
@@ -104,12 +113,11 @@ export default function OledCanvasTransferPanel({ document }: { document: Editor
  ) : null}
  {!transfer.capabilityAvailable ? (
  <p className="mt-3 text-xs text-amber-200">
- El ESP debe anunciar <code>hello.features.oledCanvas=true</code>.
+ El firmware del vehículo debe admitir el envío de diseños a OLED Canvas.
  </p>
  ) : null}
  <p className="mt-3 text-xs text-[var(--ui-subtle)]">
- Al enviar se consultan de nuevo <code>getCarMode</code> y <code>getCurrentScreen</code>;
- estos indicadores cacheados son solo informativos.
+ El envío requiere una sesión autorizada, modo TEST y la pantalla OLED Canvas abierta en el vehículo.
  </p>
  </div>
 
@@ -120,7 +128,7 @@ export default function OledCanvasTransferPanel({ document }: { document: Editor
  disabled={!transfer.canStart || transfer.active}
  onClick={() => { void transfer.send(raster).catch(() => undefined); }}
  >
- Enviar a OLED
+ Enviar diseño
  </button>
  {transfer.active ? (
  <button
@@ -135,10 +143,10 @@ export default function OledCanvasTransferPanel({ document }: { document: Editor
  </div>
 
  <div className="grid gap-4">
- <FramebufferPreview title="Framebuffer a enviar" framebuffer={raster.framebuffer} />
+ <FramebufferPreview title="Vista previa del diseño" framebuffer={raster.framebuffer} />
  {transfer.confirmedFramebuffer ? (
  <FramebufferPreview
- title={`Ultima mostrada - CRC ${transfer.confirmedCrc32 ?? "--------"}`}
+ title={`Último envío confirmado · CRC ${transfer.confirmedCrc32 ?? "--------"}`}
  framebuffer={transfer.confirmedFramebuffer}
  confirmed
  />
@@ -148,50 +156,6 @@ export default function OledCanvasTransferPanel({ document }: { document: Editor
  </div>
  </div>
  </section>
- );
-}
-
-function TransferCondition({
- label,
- checked,
- detail,
-}: {
- label: string;
- checked: boolean;
- detail: string;
-}) {
- return (
- <div
- className={`flex min-h-[76px] items-center gap-3 rounded-xl border px-3 py-3 transition-colors ${
- checked
- ? "border-emerald-300/25 bg-emerald-400/[0.07]"
- : "border-amber-300/20 bg-amber-400/[0.05]"
- }`}
- >
- <input
- type="checkbox"
- checked={checked}
- readOnly
- aria-label={`${label}: ${checked ? "cumplida" : "pendiente"}`}
- className="size-5 shrink-0 cursor-default accent-emerald-400"
- />
- <div className="min-w-0">
- <div className="text-xs font-black text-[var(--ui-text)]">{label}</div>
- <div className={`mt-1 text-[11px] leading-snug ${checked ? "text-emerald-200" : "text-amber-100/80"}`}>
- {detail}
- </div>
- </div>
- </div>
- );
-}
-
-function OledConditionGlyph() {
- return (
- <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
- <rect x="3.5" y="5" width="17" height="11" rx="2" fill="none" stroke="currentColor" strokeWidth="1.7" />
- <path d="M8 20h8M12 16v4" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
- <path d="m8 10 2 2 5-5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
- </svg>
  );
 }
 

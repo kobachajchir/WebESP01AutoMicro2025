@@ -15,7 +15,9 @@ La web envia los comandos como `stmPacket` por WebSocket, con los bytes UNER v2 
 
 La UI normaliza el periodo de stream al rango `20..1000 ms`. Si el usuario carga un valor menor, la Web envía `20 ms`.
 
-Gráfico, valores y visor 3D consumen la misma orientación Euler relativa.
+Desde la reforma de interfaz del 2026-10-05, **Gráfica en tiempo real** consume la orientación Euler recibida de muestras MPU reales válidas. El visor 3D conserva su pose relativa, offset y desacople manual; esos cambios no alteran la gráfica. Solo se agrega un punto cuando llega una muestra nueva, al ritmo visual configurado.
+
+El desplegable empieza cerrado y solo puede abrirse con WebSocket conectado, fuera de mock y con sesión STM autenticada. Sin disponibilidad aparece **No conectada** debajo del botón bloqueado. Perder disponibilidad cierra el panel y limpia su historial; reconectar lo mantiene cerrado. Abrirlo o contraerlo no inicia ni detiene streams: se siguen controlando desde Flujo MPU en Control real. La simulación no alimenta esta gráfica y antes de una muestra real no se presentan ceros como lecturas.
 
 ## Comandos
 
@@ -130,3 +132,20 @@ Queda obsoleto para MPU real:
 - payload de 17 bytes con temperatura cruda
 
 Ese formato no coincide con la STM actual y no alimenta el Euler del visor 3D.
+
+## Gráfica local y simulación MPU — 2026-10-05
+
+La gráfica distingue fuente real y simulada. En modo real mantiene WebSocket,
+sesión STM, Flujo MPU activo y muestra válida; solo agrega muestras nuevas.
+Emulador MPU la habilita incluso sin conexión, la abre con estado Simulada y
+muestrea su Euler local al intervalo elegido, incluyendo valores manuales o
+fijos. Cambiar de fuente limpia el historial. La pose de cámara y el offset o
+desacople del render no sustituyen las lecturas de la fuente seleccionada.
+
+Las casillas Auto/Fijo por eje filtran las actualizaciones del generador local:
+un eje desmarcado conserva su valor hasta ajuste manual. No deshabilitan sliders,
+rotaciones rápidas ni Restablecer. El interruptor global Movimiento automático
+sigue gobernando el generador; los tres ejes empiezan habilitados. Gráfica y
+casillas no envían solicitudes ni cambian payloads, permisos o suscripciones.
+Se conserva el flujo existente de entrada/salida de emulación. Implementado en
+fuente sin tests, compilaciones ni validación por instrucción del usuario.

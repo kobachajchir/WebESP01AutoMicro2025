@@ -19,6 +19,7 @@ interface PinScreenProps {
  idleMessage?: string;
  errorMessage?: string;
  loadingMessage?: string;
+ compactInvalidPinError?: boolean;
 }
 
 export default function PinScreen({
@@ -34,6 +35,7 @@ export default function PinScreen({
  idleMessage = "Escribi los digitos con el teclado.",
  errorMessage = "No se pudo validar el PIN.",
  loadingMessage = "Validando...",
+ compactInvalidPinError = false,
 }: PinScreenProps) {
  const reduceMotion = useReducedMotion();
  const pinRef = useRef<HTMLInputElement>(null);
@@ -114,7 +116,10 @@ export default function PinScreen({
  }
  }
 
- const failureTitle = failure
+ const showOnlyInvalidPinError = compactInvalidPinError && failure?.reason === "invalid-pin" && !failure.blocked;
+ const failureTitle = showOnlyInvalidPinError
+ ? "Código incorrecto"
+ : failure
  ? getPinFailureTitle(failure)
  : "No se pudo validar el PIN";
 
@@ -180,13 +185,13 @@ export default function PinScreen({
  <p className="text-lg font-black text-[var(--ui-rose)]">
  {failureTitle}
  </p>
- <p className="mt-1 text-sm text-[var(--ui-rose)]">
+ {!showOnlyInvalidPinError && <p className="mt-1 text-sm text-[var(--ui-rose)]">
  {failure.message ?? errorMessage}
- </p>
+ </p>}
  </div>
  </div>
 
- {failure.authSource === "stm32" && (
+ {!showOnlyInvalidPinError && failure.authSource === "stm32" && (
  <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
  <FeedbackStep label="WebSocket" value="Conectado" tone="ok" />
  <FeedbackStep label="ESP" value="Respondió" tone="ok" />
@@ -194,7 +199,7 @@ export default function PinScreen({
  </div>
  )}
 
- {failure.attemptsLeft !== null && failure.attemptsLeft !== undefined && (
+ {!showOnlyInvalidPinError && failure.attemptsLeft !== null && failure.attemptsLeft !== undefined && (
  <div className="mt-4 rounded-md border border-[var(--ui-ring)] bg-[var(--ui-panel-strong)] p-3">
  <div className="flex items-center justify-between gap-3 text-sm">
  <span className="text-[var(--ui-muted)]">Intentos restantes</span>

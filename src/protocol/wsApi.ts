@@ -1,6 +1,7 @@
 export const WS_API_VERSION = 1 as const;
 
 export const ESP_COMMANDS = {
+  PAGE_READY: "esp.web.page.ready",
   PIN_LOGIN: "esp.auth.pin.login",
   PIN_VALIDATE_SCREEN: "esp.auth.pin.validateScreen",
   PIN_CHANGE: "esp.auth.pin.change",
@@ -19,6 +20,9 @@ export const ESP_COMMANDS = {
   SET_BALANCE_PID: "setBalancePid",
   GET_CONTROL: "getControlSnapshot",
   GET_MOTION: "stm.motion.get",
+  LINE_CALIBRATION_CONTROL: "stm.ir.lineCalibration.control",
+  GET_LINE_STATE: "stm.ir.lineCalibration.get",
+  SET_LINE_FOLLOW: "stm.lineFollow.setEnabled",
   SET_BALANCE_ENABLED: "stm.balance.setEnabled",
   SET_MOTION: "stm.motion.set",
   STOP_MOTION: "stm.motion.stop",
@@ -106,6 +110,7 @@ export interface EspHello {
   clientId?: number;
   clientIp?: string;
   sessionGeneration?: number;
+  resumeToken?: string;
   assignedNode?: string;
   maxClients?: number;
   features?: Record<string, boolean>;

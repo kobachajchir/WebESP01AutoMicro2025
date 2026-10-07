@@ -16,6 +16,7 @@ export default function Login() {
       onSubmit={login}
       idleMessage={sessionNotice ?? "Ingresá los 4 dígitos; después de validar verás los intentos restantes."}
       errorMessage="No se pudo validar el PIN con el STM32."
+      compactInvalidPinError
       loadingMessage="Validando y confirmando la sesión..."
     />
   );

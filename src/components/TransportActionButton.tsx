@@ -8,6 +8,7 @@ type TransportActionButtonProps = {
  icon: ReactNode;
  tone: TransportActionTone;
  active?: boolean;
+ pressed?: boolean;
  disabled?: boolean;
  className?: string;
  onClick: () => void;
@@ -19,6 +20,7 @@ export default function TransportActionButton({
  icon,
  tone,
  active = false,
+ pressed,
  disabled = false,
  className = "",
  onClick,
@@ -37,16 +39,19 @@ export default function TransportActionButton({
  return (
  <button
  type="button"
+ aria-pressed={pressed}
+ data-tone={tone}
+ data-active={active}
  disabled={disabled}
  onClick={disabled ? undefined : onClick}
- className={`flex min-h-[76px] items-center gap-3 rounded-md border px-4 py-4 text-left transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-45 ${toneClass} ${className}`}
+ className={`transport-action-button flex min-h-[76px] items-center gap-3 rounded-md border px-4 py-4 text-left transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-45 ${toneClass} ${className}`}
  >
- <span className="flex min-w-10 justify-center rounded-md border border-current/25 bg-[var(--ui-panel)] px-2 py-1 text-sm font-black">
+ <span className="transport-action-button__icon flex min-w-10 justify-center rounded-md border border-current/25 bg-[var(--ui-panel)] px-2 py-1 text-sm font-black" aria-hidden="true">
  {icon}
  </span>
- <span className="min-w-0">
- <span className="block truncate text-sm font-black text-[var(--ui-text)]">{label}</span>
- <span className="mt-0.5 block truncate text-xs text-current/75">{detail}</span>
+ <span className="transport-action-button__copy min-w-0">
+ <span className="transport-action-button__label block truncate text-sm font-black text-[var(--ui-text)]">{label}</span>
+ <span className="transport-action-button__detail mt-0.5 block truncate text-xs text-current/75">{detail}</span>
  </span>
  </button>
  );

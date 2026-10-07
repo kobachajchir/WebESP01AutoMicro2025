@@ -256,6 +256,10 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return { ok: true };
     }
 
+    if (import.meta.env.DEV && !connected) {
+      return { ok: false, reason: "invalid-pin" as const, message: "Código incorrecto" };
+    }
+
     const result = await runPinCommand(
       ESP_COMMANDS.PIN_LOGIN,
       { pin },
@@ -288,7 +292,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     }
     return result;
-  }, [reconcileStmSession, runPinCommand]);
+  }, [connected, reconcileStmSession, runPinCommand]);
 
   const validatePin = useCallback((pin: string, screenCode?: number) => {
     if (!/^\d{4}$/.test(pin) || !Number.isInteger(screenCode)) {
@@ -303,6 +307,28 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
     return runPinCommand(ESP_COMMANDS.PIN_CHANGE, { currentPin, newPin });
   }, [runPinCommand]);
+
+  // Refresh only this provider's node; another interface's traffic is not
+  // evidence of our PIN session. Ignore results after logout or reconnection.
+  useEffect(() => {
+    if (!connected || user?.id !== "stm-session" || !stmAuth.authenticated) return;
+    let cancelled = false;
+    let pending = false;
+    const timer = window.setInterval(() => {
+      if (pending) return;
+      pending = true;
+      void request<AuthResponse>(ESP_COMMANDS.SESSION_GET, {}, { timeoutMs: 2_500 })
+        .then((data) => {
+          if (cancelled) return;
+          const result = applyAuthResponse(data);
+          if (!result.ok) {
+            setCurrentUser(null);
+            setSessionNotice("Esta sesion PIN ya no esta activa. Volve a ingresar.");
+          }
+        }).catch(() => undefined).finally(() => { pending = false; });
+    }, 20_000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [applyAuthResponse, connected, hello?.sessionGeneration, request, stmAuth.authenticated, user?.id]);
 
   const logout = useCallback(() => {
     setCurrentUser(null);

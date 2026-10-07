@@ -1,12 +1,20 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import type { ComponentRef, ReactNode } from "react";
 import { useFrame, useLoader, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { type GLTF } from "three/addons/loaders/GLTFLoader.js";
 import * as THREE from "three";
 import PageHeader from "../components/PageHeader";
 import SectionStatusStrip from "../components/SectionStatusStrip";
+import SensorDisclosure from "../components/SensorDisclosure";
+import SimulatedBadge from "../components/SimulatedBadge";
 import TransportActionButton from "../components/TransportActionButton";
+import IrObjectDetectionMarkers from "../components/IrObjectDetectionMarkers";
+import { useIrEmitters } from "../contexts/IrEmittersContext";
+import { useUser } from "../contexts/UserContext";
+import { buildIrForwardCalibration } from "../features/ir/irCalibration";
+import { loadStoredIrCalibrationProfile } from "../features/ir/irCalibrationStorage";
+import { estimateIrObjectAxialDetections, type IrObjectAxialDetections } from "../features/ir/irObjectModel";
 import { useWebSocket } from "../hooks/useWebSocket";
 import {
   getEspConnectionDetail,
@@ -26,12 +34,14 @@ import ModelLoadingScreen from "../components/ModelLoadingScreen";
 import ModelLoadBoundary from "../components/ModelLoadBoundary";
 import WebGLCanvas from "../components/WebGLCanvas";
 import { LOCAL_AUTO_MICRO_MODEL_URL } from "../utils/localModel";
+import { IR_MAX_RANGE_CM, MODEL_GROUND_Y_M } from "../features/ir/irEmitterGeometry";
 import Modal from "../components/modal";
+import LineFollowPanel from "../features/lineFollow/LineFollowPanel";
 import ThemeModeToggleCard from "../components/ThemeModeToggleCard";
 import { toast } from "sonner";
 
 type CameraMode = "top" | "iso" | "chase" | "orbit";
-type RenderMode = "points" | "ribbon" | "debug";
+type RenderMode = "points" | "ribbon";
 type SampleSource = "real" | "simulado";
 
 type TrackPose = {
@@ -111,7 +121,9 @@ const OBJECT_CHANNELS: Array<{
 ];
 
 export default function TrackFollowerSection() {
-  const { connected, subscribeEvent } = useWebSocket();
+  const { connected, mockMode, subscribeEvent } = useWebSocket();
+  const { stmAuth } = useUser();
+  const { state: emitters } = useIrEmitters();
   const modelUrl = LOCAL_AUTO_MICRO_MODEL_URL;
   const poseRef = useRef<TrackPose>({ x: 0, z: 0, theta: 0, seq: 0 });
   const segmentRef = useRef(0);
@@ -121,9 +133,15 @@ export default function TrackFollowerSection() {
   const [, setOpenInfoModal] = useState(false);
   const [openSettingsModal, setOpenSettingsModal] = useState(false);
   const [irPeriodMs, setIrPeriodMs] = useState(DEFAULT_IR_PERIOD_MS);
-  const [cameraMode, setCameraMode] = useState<CameraMode>("chase");
+  const [cameraMode, setCameraMode] = useState<CameraMode | null>("chase");
+  const handleManualCameraChange = useCallback(() => setCameraMode(null), []);
   const [renderMode, setRenderMode] = useState<RenderMode>("points");
-  const [simulationEnabled, setSimulationEnabled] = useState(true);
+  const [debugSensors, setDebugSensors] = useState(false);
+  const irForwardCalibration = useMemo(() => buildIrForwardCalibration(loadStoredIrCalibrationProfile()), []);
+  const [simulationEnabled, setSimulationEnabled] = useState(false);
+  const [simulationMotion, setSimulationMotion] = useState(true);
+  const [simulationObjects, setSimulationObjects] = useState(true);
+  const [simulationPeriodMs, setSimulationPeriodMs] = useState(100);
   const [recording, setRecording] = useState(false);
   const [paused, setPaused] = useState(false);
   const [trackPoints, setTrackPoints] = useState<TrackPoint[]>([]);
@@ -153,6 +171,13 @@ export default function TrackFollowerSection() {
   const [lineLostCount, setLineLostCount] = useState(0);
 
   const latestLine = useMemo(() => deriveLineObservation(lastIr), [lastIr]);
+  const objectDetections = useMemo(() => estimateIrObjectAxialDetections(
+    lastIr.norm, IR_MAX_RANGE_CM, irForwardCalibration,
+    lastIr.status === 0 && stream.updatedAt !== null &&
+      (simulationEnabled || (connected && !mockMode && stmAuth.authenticated &&
+        streamRequested && stream.active && irSampleConfirmedRef.current)),
+  ), [lastIr, irForwardCalibration, simulationEnabled, connected, mockMode,
+    stmAuth.authenticated, streamRequested, stream.active, stream.updatedAt]);
   const mappingMode = simulationEnabled ? "Simulación local" : connected ? "IR real" : "Sin conexión";
   const mapQuality =
     latestLine.confidence >= 0.78 && !lastIr.ambiguous
@@ -201,12 +226,12 @@ export default function TrackFollowerSection() {
         return;
       }
 
-      const point = integrateTrackPoint(snapshot, observation, source);
-      if (!point) {
+      const point = source === "simulado" && !simulationMotion ? null : integrateTrackPoint(snapshot, observation, source);
+      if (!point && (source !== "simulado" || simulationMotion)) {
         return;
       }
 
-      setTrackPoints((current) => {
+      if (point) setTrackPoints((current) => {
         const next = [...current, point];
         return next.length > MAX_TRACK_POINTS ? next.slice(-MAX_TRACK_POINTS) : next;
       });
@@ -219,7 +244,7 @@ export default function TrackFollowerSection() {
         });
       }
     },
-    [paused],
+    [paused, simulationMotion],
   );
 
   useEffect(() => {
@@ -239,6 +264,7 @@ export default function TrackFollowerSection() {
   }, [consumeSnapshot, subscribeEvent]);
 
   useEffect(() => {
+    if (simulationEnabled) return;
     const confirmedBySample = irSampleConfirmedRef.current;
     setStream((current) => ({
       ...current,
@@ -252,7 +278,7 @@ export default function TrackFollowerSection() {
           ? "Suscripcion IR compartida confirmada por F4."
           : current.statusText,
     }));
-  }, [irSubscription.active, irSubscription.error, irSubscription.state]);
+  }, [simulationEnabled, irSubscription.active, irSubscription.error, irSubscription.state]);
 
   useEffect(() => {
     if (!irSubscription.error || irSampleConfirmedRef.current) return;
@@ -280,11 +306,32 @@ export default function TrackFollowerSection() {
 
     const timer = window.setInterval(() => {
       demoSeqRef.current = (demoSeqRef.current + 1) & 0xffff;
-      consumeSnapshot(createSimulatedTrackIrSnapshot(demoSeqRef.current, irPeriodMs), "simulado");
-    }, Math.max(35, irPeriodMs));
+      consumeSnapshot(createSimulatedTrackIrSnapshot(demoSeqRef.current, simulationPeriodMs, simulationObjects), "simulado");
+    }, simulationPeriodMs);
 
     return () => window.clearInterval(timer);
-  }, [consumeSnapshot, irPeriodMs, simulationEnabled]);
+  }, [consumeSnapshot, simulationPeriodMs, simulationEnabled, simulationObjects]);
+
+  function handleSimulationToggle() {
+    const next = !simulationEnabled;
+    setSimulationEnabled(next);
+    segmentRef.current += 1;
+    lastPointRef.current = null;
+    if (next) {
+      streamRequestedRef.current = false;
+      irSampleConfirmedRef.current = false;
+      setStreamRequested(false);
+      setSimulationMotion(true);
+      setSimulationObjects(true);
+      setPaused(false);
+    } else {
+      setTrackPoints((current) => current.filter((point) => point.source !== "simulado"));
+      setObstacles((current) => current.filter((obstacle) => obstacle.source !== "simulado"));
+    }
+    setLastIr(createIdleTrackIrSnapshot(next ? simulationPeriodMs : irPeriodMs));
+    setStream((current) => ({ ...current, active: false, pending: false, updatedAt: null,
+      statusText: next ? "Simulación local encendida." : "Simulación apagada. IR real listo para iniciar." }));
+  }
 
   function integrateTrackPoint(
     snapshot: IrSnapshot,
@@ -431,6 +478,8 @@ export default function TrackFollowerSection() {
           setOpenInfoModal={setOpenInfoModal}
         />
 
+        <LineFollowPanel />
+
         <TrackStatusStrip
           connected={connected}
           stream={stream}
@@ -446,7 +495,10 @@ export default function TrackFollowerSection() {
           <main className="track-map-panel">
             <div className="track-map-panel__header">
               <div>
-                <span className="track-kicker">Mapa en vivo</span>
+                <div className="track-map-source">
+                  <span className="track-kicker">Mapa en vivo</span>
+                  {simulationEnabled ? <SimulatedBadge description="Pista, movimiento y objetos locales" /> : null}
+                </div>
                 <h2>Reconstrucción visual de la pista</h2>
               </div>
               <div className="track-map-panel__modes">
@@ -480,7 +532,10 @@ export default function TrackFollowerSection() {
                 obstacles={obstacles}
                 pose={pose}
                 cameraMode={cameraMode}
+                onManualCameraChange={handleManualCameraChange}
                 renderMode={renderMode}
+                debugSensors={debugSensors && (simulationEnabled || emitters?.objects !== false)}
+                objectDetections={objectDetections}
                 latestLine={latestLine}
               />
               <div className="track-canvas-overlay-group">
@@ -495,12 +550,16 @@ export default function TrackFollowerSection() {
               </div>
             </div>
 
+            <p className="track-camera-help" role="status">
+              {cameraMode === null ? "Vista libre · " : ""}Ctrl + arrastrar para desplazar la cámara. Elegí una vista para volver a su posición inicial.
+            </p>
+
             <div className="track-transport-row">
               <TrackActionButton
                 title={streamRequested ? "Detener IR" : "Iniciar IR"}
-                subtitle={connected ? `${irPeriodMs} ms` : "Requiere conexión"}
+                subtitle={simulationEnabled ? "Apagá la simulación" : connected ? `${irPeriodMs} ms` : "Requiere conexión"}
                 tone={streamRequested ? "rose" : "cyan"}
-                disabled={!connected}
+                disabled={!connected || mockMode || !stmAuth.authenticated || simulationEnabled}
                 onClick={() => sendIrStream(!streamRequested)}
               />
               <TrackActionButton
@@ -529,6 +588,25 @@ export default function TrackFollowerSection() {
                 onClick={exportNdjson}
               />
             </div>
+            <section className="track-tools-panel" aria-label="Herramientas del seguidor">
+              <ConsoleGroup title="Herramientas">
+                <div className="track-tools-render-choice">
+                  <span>Representación de pista</span>
+                  <div className="track-map-panel__modes track-render-selector" role="group" aria-label="Representación de pista">
+                    <SegmentButton label="Puntos" active={renderMode === "points"} onClick={() => setRenderMode("points")} />
+                    <SegmentButton label="Ribbon" active={renderMode === "ribbon"} onClick={() => setRenderMode("ribbon")} />
+                  </div>
+                </div>
+                <InlineToggle label="Debug sensores" active={debugSensors} onClick={() => setDebugSensors((value) => !value)} />
+                <label className="track-number-control">
+                  <span>IR período</span>
+                  <input type="number" min={IR_STREAM_LIMITS.MIN_PERIOD_MS} max={IR_STREAM_LIMITS.MAX_PERIOD_MS}
+                    value={irPeriodMs} onChange={(event) => setIrPeriodMs(normalizeIrStreamPeriodMs(Number(event.target.value)))} />
+                  <strong>ms</strong>
+                </label>
+                <p className="track-tools-note">Debug muestra las mismas burbujas por sensor que MPU + IR, con la calibración guardada. Las distancias son estimadas.</p>
+              </ConsoleGroup>
+            </section>
           </main>
 
           <aside className="track-side-panel">
@@ -560,64 +638,56 @@ export default function TrackFollowerSection() {
               <StatusPair label="Separación mínima" value="8 mm" />
               <StatusPair label="Confianza mínima" value="60%" />
             </PanelCard>
+            <PanelCard title="Diagnóstico" kicker="Estado del flujo IR">
+              <StatusPair label="Último seq" value={stream.lastSeq === null ? "--" : String(stream.lastSeq)} />
+              <StatusPair label="Paquetes" value={String(stream.packets)} />
+              <StatusPair label="Último frame" value={stream.lastFrameHex ? "TX listo" : "--"} tone={stream.lastFrameHex ? "info" : "muted"} />
+              <StatusPair label="Estado" value={stream.statusText} />
+            </PanelCard>
           </aside>
         </div>
 
-        <section className="track-control-console">
-          <ConsoleGroup title="Entrada">
-            <InlineToggle
-              label="Simulación local"
-              active={simulationEnabled}
-              onClick={() => setSimulationEnabled((current) => {
-                const next = !current;
-                if (next) {
-                  streamRequestedRef.current = false;
-                  irSampleConfirmedRef.current = false;
-                  setStreamRequested(false);
-                }
-                return next;
-              })}
-            />
-            <label className="track-number-control">
-              <span>IR período</span>
-              <input
-                type="number"
-                min={IR_STREAM_LIMITS.MIN_PERIOD_MS}
-                max={IR_STREAM_LIMITS.MAX_PERIOD_MS}
-                value={irPeriodMs}
-                onChange={(event) =>
-                  setIrPeriodMs(normalizeIrStreamPeriodMs(Number(event.target.value)))
-                }
-              />
-              <strong>ms</strong>
-            </label>
-          </ConsoleGroup>
+        <SensorDisclosure title="Simulación" className="sensor-simulation-panel track-simulation-panel"
+          headerActions={<label className="sensor-simulation-master">
+            <span>{simulationEnabled ? "Encendida" : "Apagada"}</span>
+            <input type="checkbox" checked={simulationEnabled} onChange={handleSimulationToggle}
+              aria-label="Encender o apagar la simulación del seguidor" />
+          </label>}>
+          <p className="sensor-simulation-panel__intro">Probá la pista, el movimiento del vehículo y los obstáculos.</p>
+          <div className="sensor-simulation-panel__modules">
+            <section className="sensor-simulation-module">
+              <h4>Movimiento del vehículo</h4>
+              <label className="sensor-simulation-module__option">
+                <span>Recorrer la pista automáticamente</span>
+                <input type="checkbox" checked={simulationEnabled && simulationMotion} disabled={!simulationEnabled}
+                  onChange={(event) => { setSimulationMotion(event.target.checked); if (event.target.checked) setPaused(false); }} />
+              </label>
+              <label className="sensor-simulation-module__option">
+                <span>Intervalo de simulación</span>
+                <span className="sensor-number-control">
+                  <input type="number" min={50} max={3000} step={10} value={simulationPeriodMs} disabled={!simulationEnabled}
+                    onChange={(event) => setSimulationPeriodMs(clamp(Number(event.target.value), 50, 3000))} />
+                  <span>ms</span>
+                </span>
+              </label>
+              <p className="sensor-simulation-module__hint">El modelo avanza y dibuja la pista mientras el movimiento esté encendido.</p>
+            </section>
+            <section className="sensor-simulation-module">
+              <h4>Objetos y obstáculos</h4>
+              <label className="sensor-simulation-module__option">
+                <span>Generar obstáculos en la pista</span>
+                <input type="checkbox" checked={simulationEnabled && simulationObjects} disabled={!simulationEnabled}
+                  onChange={(event) => {
+                    const enabled = event.target.checked;
+                    setSimulationObjects(enabled);
+                    if (!enabled) setObstacles((current) => current.filter((obstacle) => obstacle.source !== "simulado"));
+                  }} />
+              </label>
+              <p className="sensor-simulation-module__hint">La demostración genera detecciones de objetos durante el recorrido.</p>
+            </section>
+          </div>
+        </SensorDisclosure>
 
-          <ConsoleGroup title="Render">
-            <InlineToggle
-              label="Puntos"
-              active={renderMode === "points"}
-              onClick={() => setRenderMode("points")}
-            />
-            <InlineToggle
-              label="Ribbon"
-              active={renderMode === "ribbon"}
-              onClick={() => setRenderMode("ribbon")}
-            />
-            <InlineToggle
-              label="Debug sensores"
-              active={renderMode === "debug"}
-              onClick={() => setRenderMode("debug")}
-            />
-          </ConsoleGroup>
-
-          <ConsoleGroup title="Diagnóstico">
-            <StatusPair label="Último seq" value={stream.lastSeq === null ? "--" : String(stream.lastSeq)} />
-            <StatusPair label="Paquetes" value={String(stream.packets)} />
-            <StatusPair label="Último frame" value={stream.lastFrameHex ? "TX listo" : "--"} tone={stream.lastFrameHex ? "info" : "muted"} />
-            <StatusPair label="Estado" value={stream.statusText} />
-          </ConsoleGroup>
-        </section>
         {openSettingsModal ? (
           <Modal
             isOpen={openSettingsModal}
@@ -646,7 +716,7 @@ function deriveLineObservation(snapshot: IrSnapshot): LineObservation {
   const sum = left + center + right;
   const confidence = clamp01(snapshot.confidence / 100);
 
-  if (sum <= 0 || snapshot.linePattern === 0) {
+  if (!(snapshot.flags & 0x10) || snapshot.ambiguous || sum <= 0 || snapshot.linePattern === 0) {
     return { present: false, confidence, lateralM: 0 };
   }
 
@@ -705,15 +775,21 @@ function TrackMapScene({
   obstacles,
   pose,
   cameraMode,
+  onManualCameraChange,
   renderMode,
+  debugSensors,
+  objectDetections,
   latestLine,
 }: {
   modelUrl: string;
   points: TrackPoint[];
   obstacles: ObstaclePoint[];
   pose: TrackPose;
-  cameraMode: CameraMode;
+  cameraMode: CameraMode | null;
+  onManualCameraChange: () => void;
   renderMode: RenderMode;
+  debugSensors: boolean;
+  objectDetections: IrObjectAxialDetections;
   latestLine: LineObservation;
 }) {
   return (
@@ -732,19 +808,18 @@ function TrackMapScene({
         <hemisphereLight args={["#ffffff", "#c7d2fe", 1.2]} />
         <directionalLight position={[3, 5, 4]} intensity={3.4} />
         <directionalLight position={[-4, 2, -3]} intensity={1.6} color="#67e8f9" />
-        <TrackCameraRig pose={pose} mode={cameraMode} />
-        {cameraMode === "orbit" ? <OrbitControls enableDamping dampingFactor={0.08} target={[pose.x, 0, pose.z]} /> : null}
+        <TrackCameraRig pose={pose} mode={cameraMode} onManualCameraChange={onManualCameraChange} />
         <TrackGround />
-        {renderMode === "ribbon" || renderMode === "debug" ? <TrackRibbon points={points} /> : null}
-        <TrackPointInstances points={points} />
+        {renderMode === "ribbon" ? <TrackRibbon points={points} /> : <TrackPointInstances points={points} />}
         <ObstacleInstances obstacles={obstacles} />
         <ModelLoadBoundary modelUrl={modelUrl}>
-        <Suspense fallback={<><FallbackRobotMarker pose={pose} latestLine={latestLine} debug={renderMode === "debug"} /><ModelLoadingScreen visible /></>}>
+        <Suspense fallback={<><FallbackRobotMarker pose={pose} latestLine={latestLine} /><ModelLoadingScreen visible /></>}>
           <TrackVehicleModel
             modelUrl={modelUrl}
             pose={pose}
             latestLine={latestLine}
-            debug={renderMode === "debug"}
+            debugSensors={debugSensors}
+            objectDetections={objectDetections}
           />
         </Suspense>
         </ModelLoadBoundary>
@@ -753,36 +828,68 @@ function TrackMapScene({
   );
 }
 
-function TrackCameraRig({ pose, mode }: { pose: TrackPose; mode: CameraMode }) {
+function TrackCameraRig({ pose, mode, onManualCameraChange }: {
+  pose: TrackPose;
+  mode: CameraMode | null;
+  onManualCameraChange: () => void;
+}) {
   const { camera } = useThree();
+  const controlsRef = useRef<ComponentRef<typeof OrbitControls>>(null);
+  const manualControlRef = useRef(false);
+  const currentPoseRef = useRef(pose);
+  currentPoseRef.current = pose;
+
+  useEffect(() => {
+    if (!mode) return;
+    manualControlRef.current = false;
+    const controls = controlsRef.current;
+    if (controls) {
+      const damping = controls.enableDamping;
+      controls.enableDamping = false;
+      controls.update();
+      controls.enableDamping = damping;
+    }
+    const view = trackCameraView(currentPoseRef.current, mode);
+    camera.up.set(0, 1, 0);
+    camera.position.copy(view.position);
+    camera.lookAt(view.target);
+    controls?.target.copy(view.target);
+    controls?.update();
+    camera.updateProjectionMatrix();
+  }, [camera, mode]);
 
   useFrame((_, dt) => {
-    if (mode === "orbit") {
-      return;
-    }
-
-    const forward = new THREE.Vector3(Math.sin(pose.theta), 0, -Math.cos(pose.theta));
-    const target = new THREE.Vector3(pose.x, 0.08, pose.z).addScaledVector(forward, 0.18);
-    const desired = new THREE.Vector3();
-
-    if (mode === "top") {
-      desired.set(pose.x, 4.9, pose.z + 0.001);
-    } else if (mode === "iso") {
-      desired.set(pose.x + 2.9, 2.7, pose.z + 3.1);
-    } else {
-      desired
-        .set(pose.x, 0.95, pose.z)
-        .addScaledVector(forward, -1.35)
-        .addScaledVector(new THREE.Vector3(0, 1, 0), 0.35);
-    }
-
+    const controls = controlsRef.current;
+    if (!mode || mode === "orbit" || manualControlRef.current || !controls) return;
+    const view = trackCameraView(pose, mode);
     const alpha = 1 - Math.exp(-dt * (mode === "chase" ? 6.2 : 4.2));
-    camera.position.lerp(desired, alpha);
-    camera.lookAt(target);
+    camera.position.lerp(view.position, alpha);
+    controls.target.copy(view.target);
+    controls.update();
     camera.updateProjectionMatrix();
   });
 
-  return null;
+  return <OrbitControls ref={controlsRef} enableDamping dampingFactor={0.08}
+    enablePan screenSpacePanning enableRotate enableZoom
+    mouseButtons={{ LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }}
+    onStart={() => { manualControlRef.current = true; }}
+    onChange={() => { if (manualControlRef.current) onManualCameraChange(); }}
+    onEnd={() => { manualControlRef.current = false; }} />;
+}
+
+function trackCameraView(pose: TrackPose, mode: CameraMode) {
+  const forward = new THREE.Vector3(Math.sin(pose.theta), 0, -Math.cos(pose.theta));
+  const target = new THREE.Vector3(pose.x, 0.08, pose.z).addScaledVector(forward, 0.18);
+  const position = new THREE.Vector3();
+  if (mode === "top") {
+    position.set(pose.x, 4.9, pose.z + 0.001);
+  } else if (mode === "iso" || mode === "orbit") {
+    position.set(pose.x + 2.9, 2.7, pose.z + 3.1);
+  } else {
+    position.set(pose.x, 0.95, pose.z).addScaledVector(forward, -1.35)
+      .addScaledVector(new THREE.Vector3(0, 1, 0), 0.35);
+  }
+  return { position, target };
 }
 
 function TrackGround() {
@@ -896,12 +1003,14 @@ function TrackVehicleModel({
   modelUrl,
   pose,
   latestLine,
-  debug,
+  debugSensors,
+  objectDetections,
 }: {
   modelUrl: string;
   pose: TrackPose;
   latestLine: LineObservation;
-  debug: boolean;
+  debugSensors: boolean;
+  objectDetections: IrObjectAxialDetections;
 }) {
   const { scene } = useLoader(ResilientGLTFLoader, modelUrl, (loader) => {
     loader.setDRACOLoader(getSharedDracoLoader());
@@ -924,9 +1033,10 @@ function TrackVehicleModel({
     box.getCenter(center);
     const maxDim = Math.max(size.x, size.y, size.z) || 1;
     const scale = 0.42 / maxDim;
+    const groundOffset = (center.y - MODEL_GROUND_Y_M) * scale - 0.012;
     modelRef.current.scale.setScalar(scale);
     modelRef.current.position.copy(center.multiplyScalar(-scale));
-    modelRef.current.position.y += 0.09;
+    modelRef.current.position.y += groundOffset;
   }, [modelScene]);
 
   useEffect(() => {
@@ -934,7 +1044,7 @@ function TrackVehicleModel({
       return;
     }
 
-    vehicleRef.current.position.set(pose.x, 0.035, pose.z);
+    vehicleRef.current.position.set(pose.x, 0, pose.z);
     vehicleRef.current.rotation.set(0, pose.theta, 0);
   }, [pose.theta, pose.x, pose.z]);
 
@@ -942,8 +1052,9 @@ function TrackVehicleModel({
     <group ref={vehicleRef}>
       <group ref={modelRef}>
         <primitive object={modelScene} />
+        {debugSensors ? <IrObjectDetectionMarkers detections={objectDetections} sensitivityCm={IR_MAX_RANGE_CM} opacity={0.02} /> : null}
       </group>
-      <TrackSensorOverlay latestLine={latestLine} debug={debug} />
+      <group position={[0, 0.035, 0]}><TrackSensorOverlay latestLine={latestLine} /></group>
     </group>
   );
 }
@@ -951,16 +1062,14 @@ function TrackVehicleModel({
 function FallbackRobotMarker({
   pose,
   latestLine,
-  debug,
 }: {
   pose: TrackPose;
   latestLine: LineObservation;
-  debug: boolean;
 }) {
   return (
     <group position={[pose.x, 0.07, pose.z]} rotation={[0, pose.theta, 0]}>
       <FallbackRobotBody />
-      <TrackSensorOverlay latestLine={latestLine} debug={debug} />
+      <TrackSensorOverlay latestLine={latestLine} />
     </group>
   );
 }
@@ -982,10 +1091,8 @@ function FallbackRobotBody() {
 
 function TrackSensorOverlay({
   latestLine,
-  debug,
 }: {
   latestLine: LineObservation;
-  debug: boolean;
 }) {
   const lineColor = latestLine.present ? "#22d3ee" : "#64748b";
 
@@ -999,22 +1106,6 @@ function TrackSensorOverlay({
         <sphereGeometry args={[0.025 + latestLine.confidence * 0.018, 16, 12]} />
         <meshStandardMaterial color={lineColor} emissive={lineColor} emissiveIntensity={0.65} />
       </mesh>
-      {debug ? (
-        <>
-          <mesh position={[-0.09, 0.06, -TRACK_SENSOR_FRONT_OFFSET_M - 0.07]}>
-            <sphereGeometry args={[0.012, 10, 8]} />
-            <meshBasicMaterial color="#38bdf8" />
-          </mesh>
-          <mesh position={[0, 0.06, -TRACK_SENSOR_FRONT_OFFSET_M - 0.07]}>
-            <sphereGeometry args={[0.012, 10, 8]} />
-            <meshBasicMaterial color="#38bdf8" />
-          </mesh>
-          <mesh position={[0.09, 0.06, -TRACK_SENSOR_FRONT_OFFSET_M - 0.07]}>
-            <sphereGeometry args={[0.012, 10, 8]} />
-            <meshBasicMaterial color="#38bdf8" />
-          </mesh>
-        </>
-      ) : null}
     </>
   );
 }
@@ -1168,6 +1259,7 @@ function SegmentButton({
     <button
       type="button"
       className={`track-segment-button ${active ? "track-segment-button--active" : ""}`}
+      aria-pressed={active}
       onClick={onClick}
     >
       {label}
@@ -1188,7 +1280,8 @@ function InlineToggle({
     <button
       type="button"
       className={`track-inline-toggle ${active ? "track-inline-toggle--active" : ""}`}
-      aria-pressed={active}
+      role="switch"
+      aria-checked={active}
       onClick={onClick}
     >
       <span>{label}</span>
@@ -1254,7 +1347,7 @@ function createIdleTrackIrSnapshot(periodMs: number): IrSnapshot {
   };
 }
 
-function createSimulatedTrackIrSnapshot(seq: number, periodMs: number): IrSnapshot {
+function createSimulatedTrackIrSnapshot(seq: number, periodMs: number, objectsEnabled: boolean): IrSnapshot {
   const t = seq / 18;
   const lateral = Math.sin(t * 0.62) * 0.78 + Math.sin(t * 0.17) * 0.18;
   const raw = Object.fromEntries(IR_SENSOR_ORDER.map((key) => [key, 80])) as Record<IrSensorKey, number>;
@@ -1268,7 +1361,7 @@ function createSimulatedTrackIrSnapshot(seq: number, periodMs: number): IrSnapsh
     norm[channel.key] = value;
   });
 
-  const objectPulse = seq % 180 > 112 && seq % 180 < 132;
+  const objectPulse = objectsEnabled && seq % 180 > 112 && seq % 180 < 132;
   norm.objectCenter = objectPulse ? 2600 : 120;
   raw.objectCenter = norm.objectCenter;
 
@@ -1283,7 +1376,7 @@ function createSimulatedTrackIrSnapshot(seq: number, periodMs: number): IrSnapsh
 
   return {
     status: 0,
-    flags: 0x03,
+    flags: 0x13,
     sampleSeq: seq,
     periodMs,
     tickMs: seq * periodMs,

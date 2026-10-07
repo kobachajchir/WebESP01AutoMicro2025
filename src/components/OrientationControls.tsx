@@ -4,13 +4,18 @@ interface OrientationControlsProps {
  eulerDeg: { yaw: number; pitch: number; roll: number };
  isEmu: boolean;
  onChange: (euler: { yaw: number; pitch: number; roll: number }) => void;
+ autoAxes: Record<"yaw" | "pitch" | "roll", boolean>;
+ onAutoAxisChange: (axis: "yaw" | "pitch" | "roll", enabled: boolean) => void;
 }
 
 export default function OrientationControls({
  eulerDeg,
  isEmu,
  onChange,
+ autoAxes,
+ onAutoAxisChange,
 }: OrientationControlsProps) {
+ const sliderId = React.useId();
  const handleSliderChange =
  (axis: "yaw" | "pitch" | "roll") =>
  (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -41,14 +46,14 @@ export default function OrientationControls({
  if (!isEmu) return null;
 
  return (
- <div className="app-panel-strong flex w-full max-w-lg flex-col gap-4 rounded-md border border-cyan-300/18 p-4">
+ <div className="app-panel-strong flex w-full max-w-lg flex-col gap-4 rounded-md border border-[var(--ui-ring)] p-4">
  <div className="flex items-center justify-between">
  <div>
  <h3 className="m-0 text-sm font-semibold uppercase tracking-wide text-[var(--ui-text)]">
  Orientación manual
  </h3>
  <p className="mt-1 text-xs text-[var(--ui-muted)]">
- Ajuste manual de guiñada, cabeceo y alabeo para probar la escena.
+ Desmarcá un eje para fijarlo y ajustalo manualmente con su slider.
  </p>
  </div>
  <button
@@ -87,7 +92,7 @@ export default function OrientationControls({
  <div key={key}>
  <div className="mb-1 flex items-center justify-between">
  <div className="flex flex-col">
- <label className="block text-xs font-medium text-[var(--ui-muted)]">
+ <label htmlFor={`${sliderId}-${key}`} className="block text-xs font-medium text-[var(--ui-muted)]">
  {label}
  </label>
  <span className="text-[10px] text-[var(--ui-muted)]">{desc}</span>
@@ -98,7 +103,7 @@ export default function OrientationControls({
  onClick={() =>
  handleQuickRotation(key as "yaw" | "pitch" | "roll", -15)
  }
- className="h-6 w-6 rounded-md border border-cyan-300/25 bg-cyan-500/10 text-xs text-cyan-100 transition-colors hover:bg-cyan-500/18"
+ className="h-6 w-6 rounded-md border border-[var(--ui-ring)] bg-[var(--ui-accent-trace)] text-xs text-[var(--ui-accent)] transition-colors hover:bg-[var(--ui-accent-wash)]"
  >
  -
  </button>
@@ -110,22 +115,31 @@ export default function OrientationControls({
  onClick={() =>
  handleQuickRotation(key as "yaw" | "pitch" | "roll", 15)
  }
- className="h-6 w-6 rounded-md border border-cyan-300/25 bg-cyan-500/10 text-xs text-cyan-100 transition-colors hover:bg-cyan-500/18"
+ className="h-6 w-6 rounded-md border border-[var(--ui-ring)] bg-[var(--ui-accent-trace)] text-xs text-[var(--ui-accent)] transition-colors hover:bg-[var(--ui-accent-wash)]"
  >
  +
  </button>
  </div>
  </div>
 
+ <div className="sensor-orientation-axis-control">
+ <label className="sensor-orientation-axis-auto" title={`Movimiento automático: ${label}`}>
+ <input type="checkbox" checked={autoAxes[key as "yaw" | "pitch" | "roll"]}
+ onChange={(event) => onAutoAxisChange(key as "yaw" | "pitch" | "roll", event.target.checked)}
+ aria-label={`Movimiento automático de ${label}`} />
+ <span>{autoAxes[key as "yaw" | "pitch" | "roll"] ? "Auto" : "Fijo"}</span>
+ </label>
  <input
+ id={`${sliderId}-${key}`}
  type="range"
  min={min}
  max={max}
  step={1}
  value={eulerDeg[key as "yaw" | "pitch" | "roll"]}
  onChange={handleSliderChange(key as "yaw" | "pitch" | "roll")}
- className="w-full accent-cyan-400 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+ className="sensor-orientation-axis-slider"
  />
+ </div>
  </div>
  ))}
  </div>

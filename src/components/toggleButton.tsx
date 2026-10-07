@@ -83,8 +83,8 @@ export default function ToggleButton({
  return {
  track: "w-14 h-8",
  thumb: "size-7",
- thumbOn: 28,
- thumbOff: 4,
+ thumbOn: 24,
+ thumbOff: 0,
  };
  case "md":
  default:

@@ -71,14 +71,14 @@ export default function MockEulerGenerator({
   }, [active, ms]);
 
   return (
-    <div className="app-panel-strong rounded-md border border-emerald-300/18 p-4">
+    <div className="app-panel-strong rounded-md border border-[var(--ui-ring)] p-4">
       <div className="mb-2 flex items-center justify-between">
         <div>
           <span className="text-sm font-semibold uppercase tracking-wide text-[var(--ui-text)]">
             Movimiento automático
           </span>
           <p className="mt-1 text-xs text-[var(--ui-muted)]">
-            Señal simulada para validar la animación y el refresco.
+            Movimiento local de los ejes marcados como Auto.
           </p>
         </div>
         <span
@@ -101,7 +101,7 @@ export default function MockEulerGenerator({
           step={10}
           value={clamp(ms, 50, 3000)}
           onChange={(e) => onMsChange(clamp(Number(e.target.value), 50, 3000))}
-          className="flex-1 accent-emerald-400"
+          className="sensor-orientation-axis-slider flex-1"
         />
         <input
           type="number"
@@ -115,7 +115,7 @@ export default function MockEulerGenerator({
       </div>
 
       <p className="mt-2 text-[11px] text-[var(--ui-muted)]">
-        Emite guiñada, cabeceo y alabeo sinusoidales cada{" "}
+        Actualiza los ejes automáticos con una señal sinusoidal cada{" "}
         <span className="font-medium">{clamp(ms, 50, 3000)} ms</span>.
       </p>
     </div>

@@ -560,7 +560,7 @@ const HISTORICAL_COMMANDS: Record<string, CommandDefinition> = {
   },
   "0x84": {
     name: "EVT_AP_CLIENT_JOIN",
-    desc: "Cliente se conecta al SoftAP.",
+    desc: "Cliente se conecta al Wi-Fi del auto: ap_clients:u8 y client_number:u8 (AID, opcional en firmware anterior). No indica una página Web abierta.",
     fields: [],
     minPayload: 0,
     maxPayload: 255,
@@ -568,7 +568,7 @@ const HISTORICAL_COMMANDS: Record<string, CommandDefinition> = {
   },
   "0x85": {
     name: "EVT_AP_CLIENT_LEAVE",
-    desc: "Cliente sale del SoftAP.",
+    desc: "Cliente sale del Wi-Fi del auto: ap_clients:u8 y client_number:u8 (AID, opcional en firmware anterior).",
     fields: [],
     minPayload: 0,
     maxPayload: 255,
@@ -576,7 +576,7 @@ const HISTORICAL_COMMANDS: Record<string, CommandDefinition> = {
   },
   "0x86": {
     name: "EVT_APP_USER_CONNECTED",
-    desc: "Usuario app conectado.",
+    desc: "WebSocket aceptado (Web o Qt): client_id:u32 LE. No confirma que la página esté cargada.",
     fields: [],
     minPayload: 0,
     maxPayload: 255,
@@ -584,7 +584,7 @@ const HISTORICAL_COMMANDS: Record<string, CommandDefinition> = {
   },
   "0x87": {
     name: "EVT_APP_USER_DISCONNECTED",
-    desc: "Usuario app desconectado.",
+    desc: "WebSocket cerrado (Web o Qt): client_id:u32 LE.",
     fields: [],
     minPayload: 0,
     maxPayload: 255,
@@ -600,7 +600,7 @@ const HISTORICAL_COMMANDS: Record<string, CommandDefinition> = {
   },
   "0x89": {
     name: "EVT_WEBSERVER_CLIENT_CONNECTED",
-    desc: "Cliente web conectado.",
+    desc: "Página Web cargada y confirmada: client_id:u32 LE + client_number:u8. El número Web es 1 o 2; no es el cliente Wi-Fi.",
     fields: [],
     minPayload: 0,
     maxPayload: 255,
@@ -608,7 +608,7 @@ const HISTORICAL_COMMANDS: Record<string, CommandDefinition> = {
   },
   "0x8A": {
     name: "EVT_WEBSERVER_CLIENT_DISCONNECTED",
-    desc: "Cliente web desconectado.",
+    desc: "Se cerró una conexión que había confirmado la página Web: client_id:u32 LE + client_number:u8.",
     fields: [],
     minPayload: 0,
     maxPayload: 255,

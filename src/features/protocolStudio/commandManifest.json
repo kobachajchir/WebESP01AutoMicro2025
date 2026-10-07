@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-03",
+  "updatedAt": "2026-10-06",
   "source": "Observed ESP registry + reviewed F4 handlers; metadata availability is not physical proof.",
   "commands": [
     {
@@ -2917,7 +2917,7 @@
       ],
       "response": [
         1,
-        1
+        2
       ],
       "completion": "EVENT",
       "timeoutMs": 0,
@@ -2931,9 +2931,15 @@
           "label": "Clientes AP",
           "type": "u8",
           "placeholder": "0"
+        },
+        {
+          "id": "clientNumber",
+          "label": "Número de cliente (opcional en firmware anterior)",
+          "type": "u8",
+          "placeholder": "1"
         }
       ],
-      "schema": "ap_clients:u8. Cantidad de clientes AP tras incorporación/salida.",
+      "schema": "ap_clients:u8,client_number?:u8. AID de la asociación Wi-Fi; distinto de abrir la página Web.",
       "coverage": "form",
       "group": "Eventos",
       "availability": "implemented",
@@ -2949,7 +2955,7 @@
       ],
       "response": [
         1,
-        1
+        2
       ],
       "completion": "EVENT",
       "timeoutMs": 0,
@@ -2963,9 +2969,15 @@
           "label": "Clientes AP",
           "type": "u8",
           "placeholder": "0"
+        },
+        {
+          "id": "clientNumber",
+          "label": "Número de cliente (opcional en firmware anterior)",
+          "type": "u8",
+          "placeholder": "1"
         }
       ],
-      "schema": "ap_clients:u8. Cantidad de clientes AP tras incorporación/salida.",
+      "schema": "ap_clients:u8,client_number?:u8. AID de la asociación Wi-Fi; distinto de abrir la página Web.",
       "coverage": "form",
       "group": "Eventos",
       "availability": "implemented",
@@ -3070,7 +3082,7 @@
       ],
       "response": [
         4,
-        4
+        5
       ],
       "completion": "EVENT",
       "timeoutMs": 0,
@@ -3084,9 +3096,15 @@
           "label": "ID cliente u32 LE",
           "type": "hex4",
           "placeholder": "00000001"
+        },
+        {
+          "id": "clientNumber",
+          "label": "Número de cliente (opcional en firmware anterior)",
+          "type": "u8",
+          "placeholder": "1"
         }
       ],
-      "schema": "client_id:u32 LE. Evento de conexión/desconexión del cliente.",
+      "schema": "client_id:u32 LE,client_number?:u8. Presencia de página cargada; número Web 1 o 2, separado del AID Wi-Fi.",
       "coverage": "form",
       "group": "Eventos",
       "availability": "implemented",
@@ -3102,7 +3120,7 @@
       ],
       "response": [
         4,
-        4
+        5
       ],
       "completion": "EVENT",
       "timeoutMs": 0,
@@ -3116,9 +3134,15 @@
           "label": "ID cliente u32 LE",
           "type": "hex4",
           "placeholder": "00000001"
+        },
+        {
+          "id": "clientNumber",
+          "label": "Número de cliente (opcional en firmware anterior)",
+          "type": "u8",
+          "placeholder": "1"
         }
       ],
-      "schema": "client_id:u32 LE. Evento de conexión/desconexión del cliente.",
+      "schema": "client_id:u32 LE,client_number?:u8. Presencia de página cargada; número Web 1 o 2, separado del AID Wi-Fi.",
       "coverage": "form",
       "group": "Eventos",
       "availability": "implemented",
@@ -4031,6 +4055,95 @@
       "schema": "original_cmd:u8[,reason:u8]; rechazo, no éxito.",
       "coverage": "form",
       "group": "ACK / NACK",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x1D",
+      "name": "LINE_CALIBRATION_CONTROL",
+      "owner": "MCU",
+      "request": [
+        5,
+        5
+      ],
+      "response": [
+        168,
+        168
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "F4:Core/Src/uner_app.c; ESP:src/f4_command_registry.c",
+      "fields": [
+        {
+          "id": "data",
+          "label": "operation + sessionId LE (hex)",
+          "type": "bytes",
+          "placeholder": "00 00 00 00 00"
+        }
+      ],
+      "schema": "[operation:u8 0 blanco/1 pista/2 OK/3 cancelar][sessionId:u32 LE]. Usar la interfaz de calibración para conservar propiedad de sesión.",
+      "coverage": "raw",
+      "group": "F4 / seguimiento",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x1E",
+      "name": "GET_LINE_STATE",
+      "owner": "MCU",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        168,
+        168
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "F4:Core/Src/uner_app.c; ESP:src/f4_command_registry.c",
+      "fields": [],
+      "schema": "Estado de línea v1 de 168 bytes; lectura sin efectos.",
+      "coverage": "form",
+      "group": "F4 / seguimiento",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x1F",
+      "name": "SET_LINE_FOLLOW",
+      "owner": "MCU",
+      "request": [
+        1,
+        1
+      ],
+      "response": [
+        168,
+        168
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "F4:Core/Src/uner_app.c; ESP:src/f4_command_registry.c",
+      "fields": [
+        {
+          "id": "data",
+          "label": "enabled 00/01 (hex)",
+          "type": "bytes",
+          "placeholder": "00"
+        }
+      ],
+      "schema": "[enabled:u8 0/1]. Requiere FOLLOW, calibración y balance estable; detener conserva balance.",
+      "coverage": "raw",
+      "group": "F4 / seguimiento",
       "availability": "implemented",
       "registryImplemented": true
     }

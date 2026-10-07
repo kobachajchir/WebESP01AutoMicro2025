@@ -1,0 +1,189 @@
+{
+  "date": "2026-10-05",
+  "source": "AutoMicro_V2_ORIGINAL.blend",
+  "method": "Original CAD vertices: disjoint mesh components and lowest outward lens dome poles; wheel rubber bounds",
+  "coordinateSystem": "glTF meters, Y up: [Blender X, Blender Z, -Blender Y] / 1000",
+  "groundY_M": -0.05344890975952148,
+  "wheels": [
+    {
+      "key": "left",
+      "rawBlenderMm": [
+        40.0996789932251,
+        -105.75074768066406,
+        -19.99940824508667
+      ],
+      "positionM": [
+        0.0400996789932251,
+        -0.01999940824508667,
+        0.10575074768066406
+      ],
+      "axleHeightMm": 33.449501514434814
+    },
+    {
+      "key": "right",
+      "rawBlenderMm": [
+        244.89967346191406,
+        -105.74943161010742,
+        -19.99940824508667
+      ],
+      "positionM": [
+        0.24489967346191407,
+        -0.01999940824508667,
+        0.10574943161010743
+      ],
+      "axleHeightMm": 33.449501514434814
+    }
+  ],
+  "tcrt": [
+    {
+      "key": "lineLeft",
+      "emitterSourceObject": "V2_RAW_0366_00",
+      "receiverSourceObject": "V2_RAW_0367_00",
+      "rawEmitterBlenderMm": [
+        120.58866882324219,
+        -90.13170623779297,
+        -46.21500015258789
+      ],
+      "emitterPositionM": [
+        0.12058866882324219,
+        -0.04621500015258789,
+        0.09013170623779297
+      ],
+      "receiverPositionM": [
+        0.12058866882324219,
+        -0.04621500015258789,
+        0.0870538330078125
+      ],
+      "direction": [
+        0,
+        -0.9723699203976766,
+        -0.2334453638559054
+      ],
+      "heightAboveFloorMm": 7.233909606933594
+    },
+    {
+      "key": "lineCenter",
+      "emitterSourceObject": "V2_RAW_0366_00",
+      "receiverSourceObject": "V2_RAW_0367_00",
+      "rawEmitterBlenderMm": [
+        140.5927734375,
+        -90.13170623779297,
+        -46.21500015258789
+      ],
+      "emitterPositionM": [
+        0.1405927734375,
+        -0.04621500015258789,
+        0.09013170623779297
+      ],
+      "receiverPositionM": [
+        0.1405927734375,
+        -0.04621500015258789,
+        0.0870538330078125
+      ],
+      "direction": [
+        0,
+        -0.9723699203976766,
+        -0.2334453638559054
+      ],
+      "heightAboveFloorMm": 7.233909606933594
+    },
+    {
+      "key": "lineRight",
+      "emitterSourceObject": "V2_RAW_0366_00",
+      "receiverSourceObject": "V2_RAW_0367_00",
+      "rawEmitterBlenderMm": [
+        160.5989990234375,
+        -90.13170623779297,
+        -46.21500015258789
+      ],
+      "emitterPositionM": [
+        0.1605989990234375,
+        -0.04621500015258789,
+        0.09013170623779297
+      ],
+      "receiverPositionM": [
+        0.1605989990234375,
+        -0.04621500015258789,
+        0.0870538330078125
+      ],
+      "direction": [
+        0,
+        -0.9723699203976766,
+        -0.2334453638559054
+      ],
+      "heightAboveFloorMm": 7.233909606933594
+    }
+  ],
+  "whiteLeds": [
+    {
+      "key": "whiteLeft",
+      "sourceObject": "V2_RAW_0354_00",
+      "rawBlenderMm": [
+        120.59367370605469,
+        -79.5677719116211,
+        -48.69499969482422
+      ],
+      "positionM": [
+        0.12059367370605469,
+        -0.04869499969482422,
+        0.0795677719116211
+      ],
+      "direction": [
+        0,
+        -1,
+        0
+      ],
+      "heightAboveFloorMm": 4.753910064697266
+    },
+    {
+      "key": "whiteCenter",
+      "sourceObject": "V2_RAW_0354_00",
+      "rawBlenderMm": [
+        140.5927734375,
+        -79.57276916503906,
+        -48.69499969482422
+      ],
+      "positionM": [
+        0.1405927734375,
+        -0.04869499969482422,
+        0.07957276916503907
+      ],
+      "direction": [
+        0,
+        -1,
+        0
+      ],
+      "heightAboveFloorMm": 4.753910064697266
+    },
+    {
+      "key": "whiteRight",
+      "sourceObject": "V2_RAW_0354_00",
+      "rawBlenderMm": [
+        160.593994140625,
+        -79.5677719116211,
+        -48.69499969482422
+      ],
+      "positionM": [
+        0.160593994140625,
+        -0.04869499969482422,
+        0.0795677719116211
+      ],
+      "direction": [
+        0,
+        -1,
+        0
+      ],
+      "heightAboveFloorMm": 4.753910064697266
+    }
+  ],
+  "optics": {
+    "tcrtHalfIntensityHalfAngleDeg": 16,
+    "tcrtTiltTowardReceiverDeg": 13.5,
+    "whiteLedHalfAngleDeg": 30,
+    "whiteLedFullAngleDeg": 60,
+    "whiteLedAngleStatus": "Fixed Web half-angle from LED axis; generic part unknown; binary on/off toggle; no visible white cone or preview",
+    "whiteLedReference": "User request: 30 degrees from the LED center axis (60 degrees total), 2026-10-06",
+    "tcrtReference": "https://www.vishay.com/docs/80393/windowsizecalcultator_tcrt5000_tcrt5000l.pdf"
+  },
+  "limits": "CAD measurements only; no physical, electrical or photometric validation. The 5 cm IR visualization limit does not prove a sensing range."
+}
