@@ -128,7 +128,7 @@ export default function EstadoSection() {
 
   const [openInfoModal, setOpenInfoModal] = useState(false);
   const [openSettingsModal, setOpenSettingsModal] = useState(false);
-  const [openIrCalibrationModal, setOpenIrCalibrationModal] = useState(false);
+  const [openIrCalibrationModal, setOpenIrCalibrationModal] = useState(new URLSearchParams(window.location.search).get("resolve")==="objects");
   const [irCalibrationProfile, setIrCalibrationProfile] =
     useState<IrCalibrationProfile>(loadStoredIrCalibrationProfile);
   const [mpuPeriodMs, setMpuPeriodMs] = useState(DEFAULT_MPU_PERIOD_MS);

@@ -62,3 +62,7 @@ Las decisiones D-02, D-06, D-09 y D-14 incluyen confirmaciones explícitas del u
 - Tokens semánticos y transporte común; AP, modos y permisos conservados.
 - Fuente implementada; revisión estética y en ejecución pendientes. Sin tests,
   builds ni validaciones. [Cobertura y límites](track-wifi-tools-2026-10-05.md).
+
+## D-17 — Requisitos accionables, GOTO y calibración
+
+Fecha: 2026-10-07. Aplicación autorizada del manual 0.3.0: cruz roja/check verde circulares, requisito faltante como botón completo y selector modal de modo. Misma función en Seguidor. Fuentes implementadas; estética y ejecución pendientes. Sin tests, builds ni validaciones. [Cobertura y límites](control-calibration-2026-10-07.md).

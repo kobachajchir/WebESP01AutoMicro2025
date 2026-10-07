@@ -19,6 +19,7 @@ import {
 const Home = lazy(() => import("./pages/Home"));
 const Login = lazy(() => import("./pages/Login"));
 const WifiSection = lazy(() => import("./pages/WifiSection"));
+const MotorCalibrationSection = lazy(() => import("./pages/MotorCalibrationSection"));
 const ControlSection = lazy(() => import("./pages/ControlSection"));
 const EstadoSection = lazy(() => import("./pages/EstadoSection"));
 const DocsSection = lazy(() => import("./pages/DocsSection"));
@@ -76,6 +77,10 @@ const App: React.FC = () => {
               {routeLoader("Cargando sensores", <EstadoSection />)}
             </ProtectedRoute>
           ),
+        },
+        {
+          path: "control/calibracion",
+          element: <ProtectedRoute loadingLabel="Cargando calibración de motores">{routeLoader("Cargando calibración de motores", <MotorCalibrationSection />)}</ProtectedRoute>,
         },
         {
           path: "control",

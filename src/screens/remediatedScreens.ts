@@ -2,6 +2,7 @@ import { buildIdentifiedScreenCommands } from "./identifiedScreens";
 import { buildMenuScreenCommands } from "./menuScreens";
 import type { ScreenRenderInput, ResolvedOledScreen } from "./screenRenderRegistry";
 const names: Record<number, string> = {
+  [0x040104]: "MOTOR_CALIBRATION",
   [0x010202]: "CORE_FAVORITES",
   [0x02020E]: "CONNECTIVITY_OSK_WIFI_SSID",
   [0x02020F]: "CONNECTIVITY_OSK_WIFI_PASSWORD",

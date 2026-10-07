@@ -6,6 +6,9 @@ import * as THREE from "three";
 import { MotionBalancePanel, MotionBalanceStatus } from "../features/motion/MotionControlPanel";
 import MotionControlActions from "../features/motion/MotionControlActions";
 import { useMotionControl, type MotionController } from "../features/motion/useMotionControl";
+import GotoPanel from "../features/autoMotion/GotoPanel";
+import { useAutoMotion } from "../features/autoMotion/useAutoMotion";
+import "../features/autoMotion/autoMotion.css";
 import MotorBlock, { type BlockKind } from "../components/MotorBlock";
 import PageHeader from "../components/PageHeader";
 import SectionStatusStrip from "../components/SectionStatusStrip";
@@ -143,6 +146,8 @@ const PHYSICAL_EXECUTION_CAPABILITY = false;
 export default function ControlSection() {
  const { connected } = useWebSocket();
  const motionControl = useMotionControl();
+ const auto = useAutoMotion();
+ const [controlMode,setControlMode] = useState<"free"|"goto">("free");
  const { mode: carMode, isTestMode, status: carModeStatus } = useCarMode();
 
  // === BLOQUES POR TRACK ===
@@ -1092,6 +1097,14 @@ export default function ControlSection() {
  setOpenInfoModal={setOpenInfoModal}
  />
 
+ <nav className="auto-motion-pill" aria-label="Tipo de control">
+ <button className="app-button" aria-pressed={controlMode==="free"} onClick={()=>setControlMode("free")}>Libre</button>
+ <button className="app-button" aria-pressed={controlMode==="goto"} onClick={()=>{stopLocalSimulation();setControlMode("goto")}}>GOTO XY</button>
+ <button className="app-button" onClick={()=>window.location.assign("/control/calibracion")}>⚙ Calibración de motores</button>
+ </nav>
+ <MotionControlActions control={motionControl} />
+ {controlMode==="goto" && <GotoPanel device={auto} control={motionControl}/>}
+ <fieldset hidden={controlMode!=="free"} disabled={auto.busy} className="control-free-mode">
  <ControlHeaderStatus
  connected={connected}
  carMode={connected ? carMode : "--"}
@@ -1117,6 +1130,7 @@ export default function ControlSection() {
 
  <MotionBalancePanel control={motionControl} />
 
+ <details><summary className="control-sequences-summary">Editor de secuencias · simulación</summary>
  <section className="grid gap-5">
  <div className="flex min-w-0 flex-col gap-3">
  <MotionSimulationPanel
@@ -1811,6 +1825,7 @@ export default function ControlSection() {
  />
  </div>
 
+ </details>
  {/* Selector + Propiedades */}
  <div className="hidden">
  {/* Selector */}
@@ -2237,6 +2252,7 @@ export default function ControlSection() {
  </div>
  </div>
  </div>
+ </fieldset>
  <Modal
  isOpen={openInfoModal}
  onClose={() => setOpenInfoModal(false)}

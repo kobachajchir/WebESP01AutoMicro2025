@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { useAutoMotion } from "../autoMotion/useAutoMotion";
+import MotionReadiness from "../autoMotion/MotionReadiness";
+import CarModeSelectorModal from "../../components/CarModeSelectorModal";
 import Modal from "../../components/modal";
 import TransportActionButton from "../../components/TransportActionButton";
 import { ConditionCheckbox } from "../../components/ConditionStatus";
@@ -8,8 +11,9 @@ import "./lineFollow.css";
 
 export default function LineFollowPanel() {
   const device = useLineDevice(); const s = device.state;
+  const auto=useAutoMotion(); const [modeModal,setModeModal]=useState(false);
   const [missingModal, setMissingModal] = useState(false);
-  const [calibrationModal, setCalibrationModal] = useState(false);
+  const [calibrationModal, setCalibrationModal] = useState(new URLSearchParams(window.location.search).get("resolve")==="line");
   const [feedback, setFeedback] = useState("");
   const calibrationReady = !!(s?.whiteValid && s.trackValid);
   const balanceReady = !!(s?.motionArmed && s.balanceActive && s.balanceSettled && !s.safetyStop);
@@ -23,7 +27,7 @@ export default function LineFollowPanel() {
       const current = await device.refresh();
       if (!current) return;
       if (!current.whiteValid || !current.trackValid) { setMissingModal(true); return; }
-      if (current.carMode !== 1) { setFeedback("Seleccioná FOLLOW en el modo del vehículo."); return; }
+      if (current.carMode !== 1) { setModeModal(true); return; }
       if (!current.motionArmed || !current.balanceActive || !current.balanceSettled) {
         setFeedback("Activá el balance y esperá a que se estabilice antes de seguir."); return;
       }
@@ -43,11 +47,13 @@ export default function LineFollowPanel() {
         {!s ? "Modo sin confirmar" : s.carMode === 1 ? "Modo FOLLOW" : "Seleccioná FOLLOW"}
       </span>
     </header>
+    <MotionReadiness auto={auto} mode="FOLLOW" line={s} onLine={()=>setCalibrationModal(true)}/>
+    <CarModeSelectorModal open={modeModal} recommended="FOLLOW" onClose={()=>setModeModal(false)}/>
     <div className="line-device-actions" aria-label="Seguimiento, balance y calibración">
       <TransportActionButton label={device.pending && ["Iniciando", "Deteniendo"].includes(device.action) ? `${device.action}…` : following ? "Detener seguimiento" : "Iniciar seguimiento"}
         detail={!s ? "Seguimiento sin confirmar" : following ? "Siguiendo la línea" : "Seguimiento detenido"} icon={<ConditionCheckbox checked={following} />}
         tone={s?.following ? "rose" : "cyan"} active={!!s?.following} pressed={s ? s.following : undefined}
-        disabled={!device.enabled || device.pending || device.busy} onClick={() => { void toggleFollowing(); }} />
+        disabled={!device.enabled || device.pending || device.busy || (!following && (!auto.state?.mpuCalibrated || !auto.state.mpuReady || !calibrationReady || !balanceReady || !s?.routeValid || s.pattern!==2 || s.carMode!==1 || auto.busy))} onClick={() => { void toggleFollowing(); }} />
       <TransportActionButton label={s?.motionArmed ? "Desactivar balance" : "Activar balance"}
         detail={!s ? "Balance sin confirmar" : s.safetyStop ? "Parada de seguridad" : balanceReady ? "Balance estabilizado" : s.balanceActive || s.motionArmed ? "Estabilizando el vehículo" : "Balance desactivado"} icon={<ConditionCheckbox checked={balanceReady} />} tone="emerald" active={!!s?.motionArmed}
         disabled={!device.enabled || !s || device.pending || device.busy || s.carMode === 2}

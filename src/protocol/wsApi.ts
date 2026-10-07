@@ -1,6 +1,15 @@
 export const WS_API_VERSION = 1 as const;
 
 export const ESP_COMMANDS = {
+  GET_GOTO: "stm.goto.get",
+  START_GOTO: "stm.goto.start",
+  CANCEL_GOTO: "stm.goto.cancel",
+  SET_GOTO_IR_CALIBRATION: "stm.goto.irCalibration.set",
+  GET_MOTOR_CALIBRATION: "stm.motorCalibration.get",
+  CONTROL_MOTOR_CALIBRATION: "stm.motorCalibration.control",
+  GET_MOTOR_PROFILE: "stm.motorCalibration.profile.get",
+  SET_MOTOR_PROFILE: "stm.motorCalibration.profile.set",
+  REQUEST_MPU_CALIBRATION: "stm.mpu.calibration.request",
   PAGE_READY: "esp.web.page.ready",
   PIN_LOGIN: "esp.auth.pin.login",
   PIN_VALIDATE_SCREEN: "esp.auth.pin.validateScreen",

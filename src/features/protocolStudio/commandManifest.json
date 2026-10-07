@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-06",
+  "updatedAt": "2026-10-07",
   "source": "Observed ESP registry + reviewed F4 handlers; metadata availability is not physical proof.",
   "commands": [
     {
@@ -4144,6 +4144,255 @@
       "schema": "[enabled:u8 0/1]. Requiere FOLLOW, calibración y balance estable; detener conserva balance.",
       "coverage": "raw",
       "group": "F4 / seguimiento",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x23",
+      "name": "GOTO_GET",
+      "owner": "STM",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        128,
+        128
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "F4:Core/Src/uner_app.c; ESP:src/f4_command_registry.c",
+      "fields": [],
+      "schema": "Estado común v1 de 128 bytes",
+      "coverage": "form",
+      "group": "GOTO y calibración de motores",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x24",
+      "name": "GOTO_START",
+      "owner": "STM",
+      "request": [
+        8,
+        8
+      ],
+      "response": [
+        128,
+        128
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "F4:Core/Src/uner_app.c; ESP:src/f4_command_registry.c",
+      "fields": [
+        {
+          "id": "payload",
+          "label": "Payload LE (hex)",
+          "type": "bytes"
+        }
+      ],
+      "schema": "x_cm f32 + y_cm f32 LE",
+      "coverage": "raw",
+      "group": "GOTO y calibración de motores",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x25",
+      "name": "GOTO_CANCEL",
+      "owner": "STM",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        128,
+        128
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "F4:Core/Src/uner_app.c; ESP:src/f4_command_registry.c",
+      "fields": [],
+      "schema": "Cancelar intención; mantiene balance",
+      "coverage": "form",
+      "group": "GOTO y calibración de motores",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x26",
+      "name": "GOTO_IR_CALIBRATION_SET",
+      "owner": "STM",
+      "request": [
+        186,
+        186
+      ],
+      "response": [
+        128,
+        128
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "F4:Core/Src/uner_app.c; ESP:src/f4_command_registry.c",
+      "fields": [
+        {
+          "id": "payload",
+          "label": "Payload LE (hex)",
+          "type": "bytes"
+        }
+      ],
+      "schema": "v1 + cinco canales de 37 bytes, 2..8 muestras",
+      "coverage": "raw",
+      "group": "GOTO y calibración de motores",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x27",
+      "name": "MOTOR_CALIBRATION_GET",
+      "owner": "STM",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        128,
+        128
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "F4:Core/Src/uner_app.c; ESP:src/f4_command_registry.c",
+      "fields": [],
+      "schema": "Estado común v1 de 128 bytes",
+      "coverage": "form",
+      "group": "GOTO y calibración de motores",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x28",
+      "name": "MOTOR_CALIBRATION_CONTROL",
+      "owner": "STM",
+      "request": [
+        13,
+        13
+      ],
+      "response": [
+        128,
+        128
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "F4:Core/Src/uner_app.c; ESP:src/f4_command_registry.c",
+      "fields": [
+        {
+          "id": "payload",
+          "label": "Payload LE (hex)",
+          "type": "bytes"
+        }
+      ],
+      "schema": "operation u8 (0 iniciar, 1 cancelar, 2 guardar/promediar, 3 guardar/reemplazar) + percent f32 + ramp_ms u32 + timeout_ms u32 LE",
+      "coverage": "raw",
+      "group": "GOTO y calibración de motores",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x29",
+      "name": "MOTOR_PROFILE_GET",
+      "owner": "STM",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        88,
+        88
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "F4:Core/Src/uner_app.c; ESP:src/f4_command_registry.c",
+      "fields": [],
+      "schema": "Perfil v1 de 88 bytes",
+      "coverage": "form",
+      "group": "GOTO y calibración de motores",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x2A",
+      "name": "MOTOR_PROFILE_SET",
+      "owner": "STM",
+      "request": [
+        88,
+        88
+      ],
+      "response": [
+        88,
+        88
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "F4:Core/Src/uner_app.c; ESP:src/f4_command_registry.c",
+      "fields": [
+        {
+          "id": "payload",
+          "label": "Payload LE (hex)",
+          "type": "bytes"
+        }
+      ],
+      "schema": "Perfil v1 de 88 bytes; guardar desarmado",
+      "coverage": "raw",
+      "group": "GOTO y calibración de motores",
+      "availability": "implemented",
+      "registryImplemented": true
+    },
+    {
+      "id": "0x2B",
+      "name": "MPU_CALIBRATION_REQUEST",
+      "owner": "STM",
+      "request": [
+        0,
+        0
+      ],
+      "response": [
+        128,
+        128
+      ],
+      "completion": "SAME_COMMAND",
+      "timeoutMs": 500,
+      "privilege": "STM_SESSION",
+      "implemented": true,
+      "sensitive": false,
+      "evidence": "F4:Core/Src/uner_app.c; ESP:src/f4_command_registry.c",
+      "fields": [],
+      "schema": "Abre calibración MPU F4; desarma motores",
+      "coverage": "form",
+      "group": "GOTO y calibración de motores",
       "availability": "implemented",
       "registryImplemented": true
     }

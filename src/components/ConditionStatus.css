@@ -145,3 +145,27 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* D-02: colores semanticos. La burbuja representa estado, nunca un toggle. */
+.condition-status { text-align:left; font:inherit; width:100%; cursor:default; }
+button.condition-status { cursor:pointer; }
+button.condition-status:disabled { cursor:wait; opacity:.65; }
+button.condition-status:focus-visible { outline:2px solid var(--ui-cyan); outline-offset:3px; }
+button.condition-status:hover:not(:disabled) { border-color:var(--condition-detail); }
+.condition-status[data-state="pending"] {
+ --condition-detail:var(--ui-rose);
+ border-color:color-mix(in srgb,var(--ui-rose) 35%,var(--ui-ring));
+ background:color-mix(in srgb,var(--ui-rose) 6%,var(--ui-field));
+}
+.condition-checkbox {
+ border-radius:50%; width:1.6rem; height:1.6rem;
+ color:var(--ui-rose); border-color:color-mix(in srgb,var(--ui-rose) 45%,transparent);
+ background:color-mix(in srgb,var(--ui-rose) 12%,var(--ui-field));
+}
+.condition-checkbox svg { display:block; }
+.condition-checkbox[data-checked="true"] {
+ color:var(--ui-success-text); border-color:color-mix(in srgb,var(--ui-success-text) 45%,transparent);
+ background:color-mix(in srgb,var(--ui-success-text) 12%,var(--ui-field));
+}
+.condition-checkbox[data-confirmed="false"] { color:var(--ui-muted); border-color:var(--ui-ring); background:var(--ui-field); }
+.condition-status__detail { display:block; }

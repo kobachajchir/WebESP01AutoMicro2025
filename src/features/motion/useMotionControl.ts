@@ -34,7 +34,7 @@ function parseState(value: unknown): MotionState {
 }
 
 // One controller keeps the settings, action bar and diagnostic badge in sync.
-export function useMotionControl() {
+export function useMotionControl(active = true) {
   const { request, connected, mockMode } = useWebSocket();
   const [state, setState] = useState<MotionState | null>(null);
   const [pending, setPending] = useState(false);
@@ -42,7 +42,7 @@ export function useMotionControl() {
   const [telemetry, setTelemetry] = useState<Record<string, unknown> | null>(null);
   const busy = useRef(false);
   const alive = useRef(true);
-  const real = connected && !mockMode;
+  const real = active && connected && !mockMode;
 
   const read = useCallback(async () => {
     const next = parseState(await request(ESP_COMMANDS.GET_MOTION, {}, { timeoutMs: 2000 }));
@@ -90,13 +90,15 @@ export function useMotionControl() {
   }, [real, read]);
 
   async function run(command: string, args: Record<string, unknown>) {
-    if (!real || busy.current) return;
+    if (!real || busy.current) return false;
     busy.current = true; setPending(true); setError("");
     try {
       const next = parseState(await request(command, args, { timeoutMs: 2000 }));
       if (alive.current) setState(next);
+      return true;
     } catch (cause) {
       if (alive.current) setError(cause instanceof Error ? cause.message : "No se pudo confirmar la orden.");
+      return false;
     } finally {
       busy.current = false;
       if (alive.current) setPending(false);
