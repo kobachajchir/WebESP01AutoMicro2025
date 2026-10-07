@@ -19,7 +19,7 @@ import StopDiscontinuityGlyph from "../components/StopDiscontinuityGlyph";
 import TimelineRow from "../components/TimelineRow";
 import TransportActionButton from "../components/TransportActionButton";
 import type { Block, Dir, TrackKey } from "../types/MotorTypes";
-import Modal from "../components/modal";
+import MotorDialog from "../features/autoMotion/MotorDialog";
 import SystemResetActions from "../components/SystemResetActions";
 import ThemeModeToggleCard from "../components/ThemeModeToggleCard";
 import { getSharedDracoLoader, ResilientGLTFLoader } from "../utils/dracoLoader";
@@ -2250,80 +2250,21 @@ export default function ControlSection() {
  </div>
  </fieldset>
  </div>
- <Modal
- isOpen={openInfoModal}
- onClose={() => setOpenInfoModal(false)}
- closeOnOverlayClick={false}
- >
- <div className="flex flex-col gap-4">
- <div>
- <div className="app-kicker mb-3">Info</div>
- <h2 className="text-2xl font-black text-[var(--ui-text)]">
- Control de motores
- </h2>
- </div>
-
- <p className="text-sm leading-relaxed text-[var(--ui-muted)]">
- Desde esta sección podés diseñar, validar y simular rutinas de
- movimiento para los motores. La línea de tiempo se compone de{" "}
- <strong>bloques</strong> que se recorren de izquierda a derecha y
- cada bloque mantiene sus propiedades propias.
- </p>
-
- <ul className="space-y-2 text-sm text-[var(--ui-muted)]">
- <li>
- <span className="font-semibold text-[var(--ui-text)]">Modos:</span> simple para
- editar cada motor por separado, y dual para editar una colección
- separada que representa ambos motores.
- </li>
- <li>
- <span className="font-semibold text-[var(--ui-text)]">Línea de tiempo:</span>{" "}
- cada bloque refleja su duración y progreso de simulación local.
- </li>
- <li>
- <span className="font-semibold text-[var(--ui-text)]">Ejecución física:</span>{" "}
- permanece bloqueada hasta tener conexión, modo TEST y comandos de
- motor implementados en el contrato ESP/STM32.
- </li>
- </ul>
-
- <div className="rounded-md border border-[var(--ui-ring)] bg-[var(--ui-panel)] p-3 text-xs text-[var(--ui-muted)]">
- <p className="m-0">
- <span className="font-semibold text-[var(--ui-text)]">Tip:</span> en
- bloques de tipo ramp conviene mantener cambios graduales, y en
- hold, arc o pivot usar la velocidad como referencia visual para
- validar la secuencia antes de ejecutar.
- </p>
- </div>
- </div>
- </Modal>
-
- <Modal
- isOpen={openSettingsModal}
- onClose={() => setOpenSettingsModal(false)}
- closeOnOverlayClick={false}
- containerClassnames="home-settings-dialog flex-col"
- >
- <div className="flex flex-col gap-4">
- <ThemeModeToggleCard />
- <div>
- <div className="app-kicker mb-3">Config</div>
- <h2 className="text-2xl font-black text-[var(--ui-text)]">Configuración</h2>
- </div>
-
- <SystemResetActions />
-
- <div className="my-2 flex w-full items-center justify-center gap-4 rounded-md border border-[var(--ui-ring)] bg-[var(--ui-panel)] p-4">
- <p className="text-sm text-[var(--ui-muted)]">Resetear configuración</p>
- <button
- className={actionButtonClass("rose", true)}
- onClick={() => console.log("Resetear configuracion")}
- >
- Enviar
- </button>
- </div>
- </div>
- </Modal>
+ <MotorDialog isOpen={openInfoModal} onClose={() => setOpenInfoModal(false)} closeOnOverlayClick={false}
+  icon="info" title="Control de motores" description="Elegí la tarea y completá la preparación del vehículo antes de moverlo."
+  footer={<button type="button" className="app-button" onClick={() => setOpenInfoModal(false)}>Entendido</button>}>
+  <section className="motor-dialog__card"><h3>Control libre</h3><p>Controlá el avance y el giro. Las acciones dependen del enlace, el modo físico y el estado de los motores.</p></section>
+  <section className="motor-dialog__card"><h3>GOTO · coordenadas</h3><p>Indicá el destino X/Y. El vehículo estima el avance con el perfil de motores y usa los sensores de objetos durante el recorrido.</p></section>
+  <section className="motor-dialog__card motor-dialog__card--accent"><h3>Calibración · un metro</h3><p>Medí tiempo y pulsos a distintas intensidades PWM. Actualizá el perfil cuando cambien las condiciones del ensayo, como la carga de la batería.</p></section>
+  <div className="motor-dialog__note">Seleccioná cualquier requisito pendiente para abrir la herramienta que permite resolverlo.</div>
+  <details className="auto-motion-disclosure"><summary>Editor y simulación de rutinas</summary><p>Los bloques de la línea de tiempo representan duración y movimiento simulado. El modo simple edita cada motor; el dual usa una colección para ambos. La simulación local no confirma ejecución ni telemetría de la F4.</p></details>
+ </MotorDialog>
+ <MotorDialog isOpen={openSettingsModal} onClose={() => setOpenSettingsModal(false)} closeOnOverlayClick={false}
+  icon="settings" title="Ajustes de Control" description="Personalizá la apariencia y accedé a las acciones del dispositivo."
+  footer={<button type="button" className="app-button" onClick={() => setOpenSettingsModal(false)}>Listo</button>}>
+  <section className="motor-dialog__card"><h3>Apariencia</h3><ThemeModeToggleCard /></section>
+  <section className="motor-dialog__card"><h3>Dispositivo</h3><SystemResetActions /></section>
+ </MotorDialog>
  </section>
  );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Modal from "../../components/modal";
+import MotorDialog from "./MotorDialog";
 import SegmentedControl from "../../components/SegmentedControl";
 import MotionReadiness from "./MotionReadiness";
 import { useAutoMotion,autoReason,type AutoDevice,type AutoState,type MotorProfile } from "./useAutoMotion";
@@ -96,10 +96,21 @@ export default function MotorCalibration({device,motorControl}:{device?:AutoDevi
    <button className="app-button" onClick={()=>navigate("/statics?resolve=objects")}>Calibrar objetos</button>
   </details>
   </section>
-  <Modal isOpen={prepare} onClose={()=>setPrepare(false)} containerClassnames="line-device-modal control-task-dialog">
-   <h2>Comenzar un metro</h2><p>Usá dos franjas iguales, separadas 100 cm entre bordes equivalentes. Colocá el sensor inferior central sobre la primera franja y dejá libre el recorrido.</p>
-   <p>El balance permanecerá activo. Se mide desde la salida de la primera franja hasta la salida de la segunda; el auto frena después.</p>
-   <div className="auto-motion-actions"><button type="button" className="app-button control-button--primary" disabled={!ready||auto.pending} onClick={()=>{setPrepare(false);setSamples([]);void auto.send("stm.motorCalibration.control",{operation:0,percent:targetPercent,rampMs:ramp,timeoutMs:timeout})}}>Comenzar ensayo a {targetPercent}%</button><button type="button" className="app-button" onClick={()=>setPrepare(false)}>Volver a preparar</button></div>
-  </Modal>
+  <MotorDialog isOpen={prepare} onClose={()=>setPrepare(false)} icon="calibration" title="Preparar un metro" description="Una distancia conocida permite relacionar PWM, tiempo y pulsos del recorrido."
+   badge={<span>Ensayo de 100 cm</span>}
+   footer={<><button type="button" className="app-button" onClick={()=>setPrepare(false)}>Volver a preparar</button><button type="button" className="app-button control-button--primary" disabled={!ready||auto.pending} onClick={()=>{setPrepare(false);setSamples([]);void auto.send("stm.motorCalibration.control",{operation:0,percent:targetPercent,rampMs:ramp,timeoutMs:timeout})}}>Comenzar ensayo a {targetPercent}%</button></>}>
+   <figure className="motor-dialog__track"><svg viewBox="0 0 480 112" role="img" aria-label="Dos franjas iguales, separadas un metro entre bordes equivalentes">
+    <path d="M36 72H444" stroke="currentColor" strokeOpacity=".18" strokeWidth="2" strokeDasharray="5 7"/>
+    <rect x="62" y="48" width="14" height="45" rx="2" fill="currentColor"/><rect x="404" y="48" width="14" height="45" rx="2" fill="currentColor"/>
+    <path d="M76 30H418M76 24v12M418 24v12" stroke="currentColor" strokeWidth="1.5"/>
+    <text x="247" y="20" fill="currentColor" textAnchor="middle" fontSize="13" fontFamily="inherit">100 cm</text>
+    <rect x="43" y="59" width="43" height="25" rx="6" fill="var(--ui-panel-strong)" stroke="currentColor" strokeWidth="1.5"/>
+    <path d="M56 64h12v15H56M81 66l7 6-7 6" stroke="currentColor" fill="none" strokeWidth="1.5"/>
+   </svg><figcaption>Medí entre los bordes equivalentes de ambas franjas.</figcaption></figure>
+   <ol className="motor-dialog__steps"><li>Prepará dos franjas iguales y dejá libre todo el recorrido.</li><li>Colocá el sensor inferior central sobre la primera franja.</li><li>Comenzá cuando los requisitos del vehículo estén confirmados.</li></ol>
+   <dl className="motor-dialog__metrics"><div><dt>PWM</dt><dd>{targetPercent}%</dd></div><div><dt>Rampa</dt><dd>{ramp} ms</dd></div><div><dt>Tiempo límite</dt><dd>{timeout/1000} s</dd></div></dl>
+   <div className="motor-dialog__status" data-ready={ready}><span>Preparación del vehículo</span><strong>{ready?"Lista para iniciar":"Hay requisitos pendientes"}</strong></div>
+   <div className="motor-dialog__note">El balance permanece activo. Se mide desde la salida de la primera franja hasta la salida de la segunda; el auto frena después.</div>
+  </MotorDialog>
  </section>;
 }

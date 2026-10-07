@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useAutoMotion } from "../autoMotion/useAutoMotion";
 import MotionReadiness from "../autoMotion/MotionReadiness";
 import CarModeSelectorModal from "../../components/CarModeSelectorModal";
-import Modal from "../../components/modal";
+import MotorDialog from "../autoMotion/MotorDialog";
 import TransportActionButton from "../../components/TransportActionButton";
 import { ConditionCheckbox } from "../../components/ConditionStatus";
 import { useLineDevice, lineReason } from "./useLineDevice";
@@ -64,17 +64,13 @@ export default function LineFollowPanel() {
     {(feedback || device.error) && <p className="line-device-warning" role="alert">{feedback || device.error}</p>}
     {s && !s.following && s.followReason > 0 && <p className="line-device-warning" role="status">{lineReason(s.followReason)}</p>}
     <p className="line-follow-panel__footnote">Al detener el seguimiento, el auto deja de avanzar y girar; el balance permanece activo.</p>
-    {missingModal && <Modal isOpen onClose={() => setMissingModal(false)} containerClassnames="line-device-modal">
-      <h2>Calibraciones pendientes</h2><p>Completá las referencias del vehículo antes de seguir la línea.</p>
-      <ul>{missing.map(item => <li key={item}>{item}</li>)}</ul>
-      <div className="line-device-actions">
-        <button className="app-button" onClick={() => { setMissingModal(false); setCalibrationModal(true); }}>Ir a calibración</button>
-        <button className="app-button" onClick={() => setMissingModal(false)}>Cerrar</button>
-      </div>
-    </Modal>}
-    {calibrationModal && <Modal isOpen onClose={() => setCalibrationModal(false)} closeOnOverlayClick={!device.busy} containerClassnames="line-device-modal">
+    <MotorDialog isOpen={missingModal} onClose={() => setMissingModal(false)} icon="line" title="Calibraciones pendientes" description="Completá las referencias del vehículo antes de seguir la línea."
+      footer={<><button type="button" className="app-button" onClick={() => setMissingModal(false)}>Cerrar</button><button type="button" className="app-button control-button--primary" onClick={() => { setMissingModal(false); setCalibrationModal(true); }}>Ir a calibración</button></>}>
+      <ul className="motor-dialog__missing">{missing.map(item => <li key={item}>{item}</li>)}</ul>
+    </MotorDialog>
+    <MotorDialog isOpen={calibrationModal} onClose={() => setCalibrationModal(false)} closeOnOverlayClick={!device.busy} icon="line" title="Sensores de línea" description="Guardá las referencias de blanco y pista que necesita el vehículo." size="wide"
+      footer={<button type="button" className="app-button" onClick={() => setCalibrationModal(false)}>Cerrar</button>}>
       <LineDeviceCalibration device={device} />
-      <button className="app-button" onClick={() => setCalibrationModal(false)}>Cerrar</button>
-    </Modal>}
+    </MotorDialog>
   </section>;
 }

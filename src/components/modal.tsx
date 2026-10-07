@@ -14,6 +14,10 @@ interface ModalProps {
   keyboardNavigationEnabled?: boolean;
   keyboardScopeRef?: React.RefObject<HTMLDivElement | null>;
   containerClassnames?: string;
+  ariaLabelledBy?: string;
+  ariaDescribedBy?: string;
+  closeDisabled?: boolean;
+  motionPreset?: "default" | "motor";
 }
 
 const Modal: React.FC<ModalProps> = ({
@@ -23,7 +27,11 @@ const Modal: React.FC<ModalProps> = ({
   closeOnOverlayClick = true,
   keyboardNavigationEnabled = true,
   keyboardScopeRef,
-  containerClassnames = ""
+  containerClassnames = "",
+  ariaLabelledBy,
+  ariaDescribedBy,
+  closeDisabled = false,
+  motionPreset = "default"
 }) => {
   const isMobile = useMediaQuery("(max-width: 640px)");
   const reduceMotion = useReducedMotion();
@@ -32,13 +40,13 @@ const Modal: React.FC<ModalProps> = ({
   const onCloseRef = useRef(onClose);
   const closedPanel = {
     opacity: 0,
-    transform: reduceMotion ? "translateY(0) scale(1)" : isMobile ? "translateY(100%)" : "translateY(12px) scale(0.97)",
+    transform: reduceMotion ? "translateY(0) scale(1)" : isMobile ? (motionPreset === "motor" ? "translateY(32px)" : "translateY(100%)") : (motionPreset === "motor" ? "translateY(8px) scale(0.96)" : "translateY(12px) scale(0.97)"),
   };
   useModalScrollLock(isOpen);
 
   useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
+    onCloseRef.current = () => { if (!closeDisabled) onClose(); };
+  }, [onClose, closeDisabled]);
 
   // El foco permanece dentro del diálogo y vuelve al disparador al cerrarlo.
   useLayoutEffect(() => {
@@ -88,6 +96,8 @@ const Modal: React.FC<ModalProps> = ({
     ) ?? []).filter((element) => element.getClientRects().length > 0);
     (getFocusables()[0] ?? dialog)?.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => {
+      const dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
+      if (dialogs[dialogs.length - 1] !== dialog) return;
       if (e.key === "Escape") onCloseRef.current();
       if (e.key !== "Tab") return;
       const focusables = getFocusables();
@@ -135,7 +145,7 @@ const Modal: React.FC<ModalProps> = ({
             aria-hidden="true"
             tabIndex={-1}
             type="button"
-            onClick={closeOnOverlayClick ? onClose : undefined}
+            onClick={closeOnOverlayClick && !closeDisabled ? onClose : undefined}
             className="app-dialog__overlay absolute inset-0 cursor-default"
           />
 
@@ -144,6 +154,8 @@ const Modal: React.FC<ModalProps> = ({
             ref={dialogRef}
             role="dialog"
             aria-modal="true"
+            aria-labelledby={ariaLabelledBy}
+            aria-describedby={ariaDescribedBy}
             tabIndex={-1}
             variants={{ closed: closedPanel, open: { opacity: 1, transform: "translateY(0) scale(1)" } }}
             transition={{ duration: reduceMotion ? 0.12 : 0.24, ease: [0.23, 1, 0.32, 1] }}
@@ -153,6 +165,7 @@ const Modal: React.FC<ModalProps> = ({
             <button
               type="button"
               onClick={onClose}
+              disabled={closeDisabled}
               tabIndex={keyboardNavigationEnabled ? undefined : -1}
               className="app-dialog__close z-30 absolute top-3 right-3 flex h-11 w-11 items-center justify-center rounded-xl transition-transform duration-100 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40"
               aria-label="Cerrar"

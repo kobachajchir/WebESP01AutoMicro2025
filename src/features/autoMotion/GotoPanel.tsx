@@ -1,6 +1,6 @@
 import { useEffect,useRef,useState } from "react";
 import ConditionStatus from "../../components/ConditionStatus";
-import Modal from "../../components/modal";
+import MotorDialog from "./MotorDialog";
 import MotionReadiness from "./MotionReadiness";
 import MotorCalibration from "./MotorCalibration";
 import ControlToolbar from "./ControlToolbar";
@@ -36,10 +36,9 @@ export default function GotoPanel({device,control}:{device:AutoDevice;control:Mo
     <details className="auto-motion-disclosure"><summary>Durante el recorrido</summary><p>Cancelar conserva el balance. Si se pierde la conexión, la F4 continúa hasta terminar, encontrar un bloqueo o agotar 30 segundos. Detener apaga motores y balance.</p></details>
    </section>
   </div>
-  <Modal isOpen={calibration} onClose={()=>setCalibration(false)} containerClassnames="ir-calibration-modal-content control-task-dialog">
-   <div className="control-dialog-heading"><h2>Calibración de motores</h2><button type="button" className="app-button" onClick={()=>setCalibration(false)}>Volver a GOTO</button></div>
+  <MotorDialog isOpen={calibration} onClose={()=>setCalibration(false)} size="wide" icon="calibration" title="Calibración de motores" description="Medí un metro y guardá la referencia que usa GOTO para estimar el avance." footer={<button type="button" className="app-button" onClick={()=>setCalibration(false)}>Volver a GOTO</button>}>
    <ControlToolbar control={control} recommended="GOTO"/>
    <MotorCalibration device={device} motorControl={control}/>
-  </Modal>
+  </MotorDialog>
  </section>;
 }

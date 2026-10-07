@@ -70,3 +70,7 @@ Fecha: 2026-10-07. Aplicación autorizada del manual 0.3.0: cruz roja/check verd
 ## D-18 — Control: navegación interna y flujo de tarea
 
 Fecha: 2026-10-07. Confirmado: selector Studio y reforma visual de Control; observado: patrón segmentado y tokens del manual autorizado. Propuesta aplicada: Libre/GOTO/Calibración, acciones generales arriba, preparación y resultado por grupos, borradores de sesión y detalles plegables. Se elimina la recarga que perdía la sesión al abrir Calibración. Sin tests, builds ni validaciones; revisión visual pendiente. [Cobertura y límites](control-navigation-2026-10-07.md).
+
+## D-19 — Modales de motores: estructura, preparación y movimiento
+
+Fecha: 2026-10-07. Confirmado por solicitud: mejorar todos los modales de motores con Visual Identity, Apple Design, Emil Design Engineering y animación. Propuesta aplicada: cabecera funcional, instrucciones agrupadas, estado junto a operaciones y pie estable; esquema del metro; entrada/salida de 240 ms y movimiento reducido de 120 ms. Cierre y foco solo en el diálogo al frente. Sin tests, builds ni validaciones; revisión visual pendiente. [Cobertura, Before/After y límites](motor-dialogs-2026-10-07.md).
