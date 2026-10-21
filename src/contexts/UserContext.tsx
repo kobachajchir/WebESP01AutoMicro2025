@@ -22,6 +22,7 @@ interface UserContextType {
   user: User | null;
   loading: boolean;
   remotePinAuthenticated: boolean;
+  localEspDebugReady: boolean;
   stmAuth: StmAuthState;
   login: (pin: string) => Promise<PinAuthResult>;
   validatePin: (pin: string, screenCode?: number) => Promise<PinAuthResult>;
@@ -68,6 +69,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [stmAuth, setStmAuth] = useState<StmAuthState>(EMPTY_STM_AUTH);
   const [sessionNotice, setSessionNotice] = useState<string | null>(null);
   const [devMode, setDevMode] = useState(false);
+  const [localEspDebugReady, setLocalEspDebugReady] = useState(false);
   const reconnectGraceTimerRef = useRef<number | null>(null);
 
   const setUser = useCallback((nextUser: User | null) => setCurrentUser(nextUser), []);
@@ -79,6 +81,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [devMode]);
 
   useEffect(() => subscribeEvent("auth.session.expired", ({ data }) => {
+    if (user?.id === "dev-session") return;
     const reason = typeof data === "object" && data !== null && "reason" in data
       ? String((data as Record<string, unknown>).reason)
       : "ttl_expired";
@@ -95,7 +98,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           ? "Se perdio el enlace con el STM32; volve a ingresar cuando este disponible."
           : "La sesion PIN vencio; volve a ingresar para continuar.",
     );
-  }), [subscribeEvent]);
+  }), [subscribeEvent, user?.id]);
 
   useEffect(() => subscribe("device.error", (message) => {
     if (!user || !stmAuth.authenticated || typeof message !== "object" || message === null || !("code" in message)) return;
@@ -251,7 +254,10 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const login = useCallback(async (pin: string) => {
     if (!/^\d{4}$/.test(pin)) return { ok: false, reason: "bad-request" as const, message: "El PIN debe tener 4 digitos." };
 
-    if (import.meta.env.DEV && pin === DEV_LOGIN_PIN) {
+    if (pin === DEV_LOGIN_PIN) {
+      setStmAuth(EMPTY_STM_AUTH);
+      setSessionNotice(null);
+      setDevMode(true);
       setCurrentUser({ id: "dev-session", name: "Usuario DEV" });
       return { ok: true };
     }
@@ -330,18 +336,32 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [applyAuthResponse, connected, hello?.sessionGeneration, request, stmAuth.authenticated, user?.id]);
 
+  useEffect(() => {
+    setLocalEspDebugReady(false);
+    if (!connected || user?.id !== "dev-session") return;
+    let cancelled = false;
+    void request<{ debugWifi: boolean }>(ESP_COMMANDS.DEBUG_LOGIN, { pin: DEV_LOGIN_PIN }, { timeoutMs: 3_000 })
+      .then((data) => { if (!cancelled) setLocalEspDebugReady(data.debugWifi === true); })
+      .catch((cause: unknown) => {
+        if (!cancelled) setSessionNotice(cause instanceof Error ? cause.message : "No se pudo habilitar Wi-Fi de depuración en la ESP.");
+      });
+    return () => { cancelled = true; };
+  }, [connected, hello?.sessionGeneration, request, user?.id]);
+
   const logout = useCallback(() => {
+    setDevMode(false);
+    setLocalEspDebugReady(false);
     setCurrentUser(null);
     setStmAuth(EMPTY_STM_AUTH);
     setSessionNotice(null);
-    if (connected) void request(ESP_COMMANDS.SESSION_LOGOUT).catch(() => undefined);
-  }, [connected, request]);
+    if (connected) void request(user?.id === "dev-session" ? ESP_COMMANDS.DEBUG_LOGOUT : ESP_COMMANDS.SESSION_LOGOUT).catch(() => undefined);
+  }, [connected, request, user?.id]);
 
   const clearSessionNotice = useCallback(() => setSessionNotice(null), []);
 
   return (
     <UserContext.Provider value={{
-      user, loading, remotePinAuthenticated: stmAuth.authenticated, stmAuth,
+      user, loading, remotePinAuthenticated: user?.id === "stm-session" && stmAuth.authenticated, localEspDebugReady, stmAuth,
       login, validatePin, changePin, logout, sessionNotice, clearSessionNotice,
       setUser, devMode, setDevMode,
     }}>

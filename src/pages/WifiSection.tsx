@@ -7,6 +7,7 @@ import {
  type FormEvent,
 } from "react";
 import Modal from "../components/modal";
+import { useUser } from "../contexts/UserContext";
 import PageHeader from "../components/PageHeader";
 import ApFallbackControls from "../components/ApFallbackControls";
 import { useApFallback, type ApFallbackController } from "../hooks/useApFallback";
@@ -85,7 +86,10 @@ interface WifiSectionProps {
 }
 
 export default function WifiSection({ provisioning = false }: WifiSectionProps) {
- const { connected, hello, lastHeartbeatAt, request, send, subscribe } = useWebSocket();
+ const { connected: wsConnected, hello, lastHeartbeatAt, request, send, subscribe } = useWebSocket();
+ const { user, localEspDebugReady } = useUser();
+ const sessionOnly = user?.id === "dev-session";
+ const connected = wsConnected && (user?.id !== "dev-session" || localEspDebugReady);
  const {
  status: espWifiStatus,
  lastCheckedAt: wifiStatusCheckedAt,
@@ -536,14 +540,14 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  setApSaving(true);
  setApFeedback({
  tone: "info",
- text: `Guardando la configuracion AP ${apSsid} en la F4...`,
+ text: sessionOnly ? `Aplicando AP ${apSsid} solo a esta sesión en la ESP...` : `Guardando la configuracion AP ${apSsid} en la F4...`,
  });
 
  try {
  const data = await request<Record<string, unknown>>(
- WIFI_AP_CREDENTIALS_SET_COMMAND,
+ sessionOnly ? ESP_COMMANDS.DEBUG_AP_SET : WIFI_AP_CREDENTIALS_SET_COMMAND,
  {
- target: "stm",
+ ...(sessionOnly ? {} : { target: "stm" }),
  ssid: apSsid,
  password: apPassword,
  protected: apPassword.length > 0,
@@ -552,6 +556,10 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  { timeoutMs: 5000 }
  );
  
+ if (sessionOnly && data.status === "accepted") {
+ setApFeedback({ tone: "info", text: `AP ${apSsid} aceptado para esta sesión. Si cambia la red o IP actual, reconectá tu equipo; no se escribirá Flash.` });
+ return;
+ }
  const success = data.status === 0 || data.status === "success";
  
  if (success) {
@@ -566,7 +574,7 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  setApFeedback({
  tone: success ? "success" : "error",
  text: success
- ? `Configuración AP guardada para ${apSsid}. Usa el botón de cambio de modo para reiniciar como AP.`
+ ? (sessionOnly ? `AP ${apSsid} aplicado solo a esta sesión, sin escribir Flash.` : `Configuración AP guardada para ${apSsid}. Usa el botón de cambio de modo para reiniciar como AP.`)
  : `F4 rechazo la configuración AP.`,
  });
  } catch (cause) {
@@ -578,7 +586,7 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  setApSaving(false);
  }
  },
- [apIp, apPassword, apSsid, connected, request],
+ [apIp, apPassword, apSsid, connected, request, sessionOnly],
  );
 
  useEffect(() => {
@@ -611,7 +619,7 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  } else {
  setStationFeedback({
  tone: "info",
- text: "Solicitando al ESP la configuración de red guardada...",
+ text: sessionOnly ? "Leyendo la configuración Wi-Fi de esta sesión..." : "Solicitando al ESP la configuración de red guardada...",
  });
  }
 
@@ -622,8 +630,8 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  { requestId: createRequestId("wifi-status"), timeoutMs: 5_000 },
  ),
  request<Record<string, unknown>>(
- "stm.apConfig.get",
- { target: "stm" },
+ sessionOnly ? ESP_COMMANDS.DEBUG_AP_GET : "stm.apConfig.get",
+ sessionOnly ? {} : { target: "stm" },
  { requestId: createRequestId("wifi-ap-get"), timeoutMs: 5_000 },
  ),
  apFallback.refresh(),
@@ -707,7 +715,7 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  return () => {
  disposed = true;
  };
- }, [connected, request, apFallback.refresh]);
+ }, [connected, request, apFallback.refresh, sessionOnly]);
 
  useEffect(() => {
  const offDeviceEvent = subscribe("device.event", (message: unknown) => {
@@ -808,12 +816,29 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  }
  setStationFeedback({
  tone: status === "success" ? "success" : "error",
- text: stationResultMessage(status, ssid ?? stationSsid, ip, reason),
+ text: status === "success" && data.sessionOnly === true ? `Conectado a ${ssid ?? stationSsid}${ip ? ` · ${ip}` : ""}. Credenciales aplicadas solo a esta sesión, sin escribir Flash.` : stationResultMessage(status, ssid ?? stationSsid, ip, reason),
  });
  return;
  }
 
- // El evento de credenciales AP fue reemplazado por respuesta directa de stm.apConfig.set
+ if (eventName === "wifi.ap.credentials.result" && sessionOnly && data.sessionOnly === true) {
+ const success = data.success === true;
+ const appliedSsid = readString(data.ssid) ?? apSsid;
+ const appliedIp = readString(data.configuredIp) ?? apIp;
+ setApSaving(false);
+ if (success) {
+ setApPassword("");
+ setPersistedWifiConfig((current) => ({ ...current, loaded: true, apSsid: appliedSsid, apIp: appliedIp }));
+ }
+ setApFeedback({ tone: success ? "success" : "error", text: success ? `AP ${appliedSsid} aplicado solo a esta sesión, sin escribir Flash.` : `No se pudo aplicar AP: ${readString(data.reason) ?? "error de radio"}.` });
+ return;
+ }
+ if (eventName === "wifi.debug.mode.result" && sessionOnly && data.success === false) {
+ setModeSwitchPhase("idle");
+ setModeSwitchError("La ESP no pudo aplicar el modo de radio de esta sesión.");
+ return;
+ }
+ // Login normal: AP conserva la respuesta directa de stm.apConfig.set.
  });
 
  const offDeviceResponse = subscribe("device.response", (message: unknown) => {
@@ -939,6 +964,7 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  stationSsid,
  stationSubnet,
  subscribe,
+ sessionOnly,
  ]);
 
  const stationBusy =
@@ -955,7 +981,7 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  async function retryStation() {
  if (!connected || stationBusy || !canRetryStation) return;
  setStationPhase("connecting");
- setStationFeedback({ tone: "info", text: "Reintentando la estación con las credenciales guardadas en el ESP…" });
+ setStationFeedback({ tone: "info", text: sessionOnly ? "Reintentando con las credenciales de esta sesión…" : "Reintentando la estación con las credenciales guardadas en el ESP…" });
  try {
  const data = await request<{ status: number }>("esp.wifi.connect", {}, { timeoutMs: 25000 });
  if (data.status !== 0) throw new Error("No se confirmó el reintento de estación.");
@@ -1034,7 +1060,7 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  setModeSwitchPhase("submitting");
  try {
  const data = await request<Record<string, unknown>>(
- ESP_COMMANDS.REBOOT_ESP,
+ sessionOnly ? ESP_COMMANDS.DEBUG_MODE_SET : ESP_COMMANDS.REBOOT_ESP,
  { mode: destination.bootMode },
  {
  requestId: createRequestId("wifi-mode-switch"),
@@ -1128,6 +1154,7 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  ) : null}
 
  <WifiModeSwitchCard
+ sessionOnly={sessionOnly}
  apFallback={apFallback}
  queryBusy={configurationLoading || wifiStatusLoading || apFallback.pending}
  onConsult={() => { void Promise.allSettled([refreshWifiStatus(), apFallback.refresh()]); }}
@@ -1176,14 +1203,14 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  ? "Elegí la red para salir del modo AP"
  : activeView === "WIFI"
  ? "Conexion del ESP a una red"
- : "Credenciales de arranque AP"}
+ : sessionOnly ? "Credenciales AP de esta sesión" : "Credenciales de arranque AP"}
  </h2>
  <p className="text-sm text-[var(--ui-muted)]">
  {provisioning
  ? "Esta vista aparece únicamente mientras el ESP mantiene su Access Point de configuración y todavía no está conectado como estación."
  : activeView === "WIFI"
- ? "La sección Web puede enviar credenciales reales al ESP sin pasar el Password por STM32. Si STM solicita una conexión, el modal global aparece sobre cualquier pantalla."
- : "Estas credenciales se usan cuando el ESP levanta su propio Access Point. Combinan con el reinicio en modo AP desde Configuracion."}
+ ? (sessionOnly ? "Bypass de depuración: Wi-Fi real de la ESP sin F4. Los cambios duran solo esta sesión; al salir o vencer la sesión se descartan y no se escriben en Flash." : "La sección Web puede enviar credenciales reales al ESP sin pasar el Password por STM32. Si STM solicita una conexión, el modal global aparece sobre cualquier pantalla.")
+ : sessionOnly ? "Bypass de depuración: Wi-Fi real de la ESP sin F4. Los cambios de STA, AP y fallback duran solo esta sesión; no se escriben en Flash." : "Estas credenciales se usan cuando el ESP levanta su propio Access Point. Combinan con el reinicio en modo AP desde Configuracion."}
  </p>
  </div>
 
@@ -1565,8 +1592,8 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  disabled={!connected || configurationLoading || apSaving}
  >
  {apSaving
- ? "Guardando..."
- : "Guardar configuración AP en ESP"}
+ ? (sessionOnly ? "Aplicando..." : "Guardando...")
+ : sessionOnly ? "Aplicar AP a esta sesión" : "Guardar configuración AP en ESP"}
  </button>
  </div>
 
@@ -1592,15 +1619,12 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  {modeSwitchDestination.mode}
  </h2>
  <p className="mt-2 text-sm text-[var(--ui-muted)]">
- La selección se guardará en la ESP y se aplicará mediante un
- reinicio controlado.
+ {sessionOnly ? "El modo de radio cambiará solo durante esta sesión, sin guardar en Flash ni reiniciar la placa." : "La selección se guardará en la ESP y se aplicará mediante un reinicio controlado."}
  </p>
  </div>
 
  <div className="rounded-xl border border-amber-300/35 bg-amber-500/10 p-4 text-sm text-amber-50">
- <strong>La conexión actual se va a perder.</strong> El WebSocket
- se cerrará mientras la ESP reinicia y tu equipo deberá conectarse
- a la red de destino antes de volver a abrir la Web.
+ <strong>La conexión actual puede cortarse.</strong> {sessionOnly ? "La radio cambiará de red sin reiniciar la ESP. Reconectá tu equipo antes de que venza la sesión; después de 20 segundos sin conexión se descartarán los ajustes temporales." : "El WebSocket se cerrará mientras la ESP reinicia y tu equipo deberá conectarse a la red de destino antes de volver a abrir la Web."}
  </div>
 
  <div className="grid gap-3 sm:grid-cols-3">
@@ -1639,7 +1663,7 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  <FeedbackBanner
  feedback={{
  tone: "info",
- text: "Hay cambios sin guardar en el formulario de destino. El reinicio usará la última configuración persistida que se muestra en este diálogo.",
+ text: sessionOnly ? "Hay cambios sin aplicar. Se usará la última configuración de esta sesión." : "Hay cambios sin guardar en el formulario de destino. El reinicio usará la última configuración persistida que se muestra en este diálogo.",
  }}
  />
  ) : null}
@@ -1664,7 +1688,7 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  <FeedbackBanner
  feedback={{
  tone: "success",
- text: `Cambio confirmado. La ESP está reiniciando en modo ${modeSwitchDestination.mode}; el corte del enlace es esperado.`,
+ text: sessionOnly ? `Cambio a ${modeSwitchDestination.mode} programado para esta sesión; puede cortar el enlace. No se guarda en Flash ni se reinicia la ESP.` : `Cambio confirmado. La ESP está reiniciando en modo ${modeSwitchDestination.mode}; el corte del enlace es esperado.`,
  }}
  />
  ) : null}
@@ -1689,10 +1713,10 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  }
  >
  {modeSwitchPhase === "submitting"
- ? "Confirmando reinicio..."
+ ? (sessionOnly ? "Aplicando modo..." : "Confirmando reinicio...")
  : modeSwitchPhase === "scheduled"
- ? "Reinicio confirmado"
- : `Reiniciar en modo ${modeSwitchDestination.mode}`}
+ ? (sessionOnly ? "Cambio solicitado" : "Reinicio confirmado")
+ : sessionOnly ? `Cambiar a ${modeSwitchDestination.mode} en esta sesión` : `Reiniciar en modo ${modeSwitchDestination.mode}`}
  </button>
  </div>
  </div>
@@ -1747,11 +1771,11 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
  <div className="app-kicker mb-3">Config</div>
  <h2 className="text-2xl font-black text-[var(--ui-text)]">Configuracion</h2>
  <p className="mt-2 text-sm text-[var(--ui-muted)]">
- Reinicios y herramientas auxiliares para ESP y STM32.
+ {sessionOnly ? "Bypass de interfaz y Wi-Fi temporal. Los reinicios persistentes no están disponibles en esta sesión." : "Reinicios y herramientas auxiliares para ESP y STM32."}
  </p>
  </div>
 
- <SystemResetActions />
+ {!sessionOnly ? <SystemResetActions /> : null}
  </div>
  </Modal>
  ) : null}
@@ -1760,6 +1784,7 @@ export default function WifiSection({ provisioning = false }: WifiSectionProps) 
 }
 
 function WifiModeSwitchCard({
+ sessionOnly = false,
  apFallback,
  queryBusy,
  onConsult,
@@ -1771,6 +1796,7 @@ function WifiModeSwitchCard({
  hasUnsavedChanges,
  onOpen,
 }: {
+ sessionOnly?: boolean;
  apFallback: ApFallbackController;
  queryBusy: boolean;
  onConsult: () => void;
@@ -1798,12 +1824,12 @@ function WifiModeSwitchCard({
  Cambiar ESP a modo {destination.mode}
  </h2>
  <p className="mt-1 text-sm text-[var(--ui-muted)]">
- Usará la red guardada <strong>{destination.ssid || "sin configurar"}</strong>
+ {sessionOnly ? "Usará la red de esta sesión " : "Usará la red guardada "}<strong>{destination.ssid || "sin configurar"}</strong>
  {" · "}{formatDestinationIp(destination)}.
  </p>
  {hasUnsavedChanges ? (
  <p className="mt-2 text-xs font-semibold text-amber-200">
- Hay datos editados sin guardar; no se aplicarán al reinicio.
+ {sessionOnly ? "Hay datos sin aplicar; el cambio de radio usará la última configuración de esta sesión." : "Hay datos editados sin guardar; no se aplicarán al reinicio."}
  </p>
  ) : null}
  </div>

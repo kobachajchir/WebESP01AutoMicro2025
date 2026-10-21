@@ -9,7 +9,7 @@ export default function Login() {
     <PinScreen
       kicker="Acceso seguro"
       title="Ingresar PIN"
-      subtitle="Usá el PIN de 4 dígitos almacenado en el STM32/F4. El ESP sólo transporta la solicitud."
+      subtitle="Usá el PIN del STM32/F4 para el acceso normal, o 9999 para navegar y usar el Wi-Fi de la ESP sin F4. En el bypass los ajustes duran solo esta sesión y no se guardan en Flash."
       submitLabel="Login"
       digitsCount={4}
       canClose={false}
